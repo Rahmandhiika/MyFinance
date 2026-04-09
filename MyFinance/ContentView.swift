@@ -7,18 +7,9 @@
 
 import SwiftUI
 
+// ContentView is unused - app entry is handled by MyFinanceApp -> LockView -> MainTabView
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        MainTabView()
     }
-}
-
-#Preview {
-    ContentView()
 }

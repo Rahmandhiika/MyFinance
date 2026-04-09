@@ -6,12 +6,30 @@
 //
 
 import SwiftUI
+import SwiftData
 
 @main
 struct MyFinanceApp: App {
+    @State private var auth = AuthenticationService()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if auth.isLocked {
+                LockView()
+                    .environment(auth)
+            } else {
+                MainTabView()
+                    .modelContainer(ModelContainerService.shared.container)
+                    .environment(auth)
+                    .onAppear {
+                        ModelContainerService.shared.seedDefaultCategoriesIfNeeded()
+                        Task {
+                            await NotificationService.shared.requestPermission()
+                            let ctx = ModelContainerService.shared.container.mainContext
+                            await ExchangeRateService.shared.refresh(context: ctx)
+                        }
+                    }
+            }
         }
     }
 }
