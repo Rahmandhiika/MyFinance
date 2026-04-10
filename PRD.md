@@ -411,12 +411,14 @@ DanaDaruratConfig
 ### 6.10 Tambah Pocket
 | Field | Type | Required |
 |---|---|---|
-| Logo | ImagePicker | |
+| Foto/Logo | ImagePicker (kamera/galeri) | |
 | Nama | TextField | ✓ |
 | Kelompok Pocket | Picker (Biasa/Investasi/Utang) | ✓ |
 | Kategori Pocket | Picker → KategoriPocket | ✓ |
 | Saldo Awal | NumberField (Rp, default 0) | |
 
+> Foto/Logo ditampilkan di list pocket dan detail view.
+> Fallback jika tidak ada foto: inisial nama pocket dengan background warna.
 > Untuk Kartu Kredit/PayLater: tambah field Limit (Decimal).
 
 ### 6.11 Aset Non-Finansial
@@ -460,6 +462,8 @@ Drag down untuk dismiss.
 ## 8. Screens per Tab
 
 ### Tab 1 — Home
+Home adalah satu halaman scroll panjang yang menggabungkan dashboard + analytics.
+
 ```
 [foto bulat]  {greetingText}, {nama}!        [⚙️]
 
@@ -471,11 +475,12 @@ Drag down untuk dismiss.
 Bulan Ini
 Income   Rp XX.X    Expense  Rp XX.X    Saving  Rp XX.X
 
-Transaksi Terakhir
-─ [list 10 transaksi terbaru, semua tipe] ─
+─── Analytics ───
+[Expense] [Income] [Bulanan] [Tahunan] [Pocket] [Dana Darurat]
+[konten analytics sesuai tab yang dipilih — scroll horizontal untuk ganti]
 
-Upcoming Terjadwal (7 hari ke depan)
-─ [list terjadwal yang akan jatuh tempo] ─
+─── Transaksi Terakhir ───
+[list 10 transaksi terbaru, semua tipe]
 ```
 
 ### Tab 2 — Tracker
@@ -627,21 +632,51 @@ DANA DARURAT:
 
 ---
 
-## 12. Analytics (Out of Scope v1 — Future)
+## 12. Analytics (In Scope v1)
 
-Fitur-fitur berikut direncanakan untuk versi selanjutnya:
-- Expense Analytics (tabel per prioritas/kategori)
-- Income Analytics
-- Bulanan (chart + rangkuman + pivot)
-- Tahunan (rencana anggaran vs realisasi)
-- Pocket Analytics (frekuensi)
-- Dana Darurat (kalkulator otomatis dari rerata expense)
+Analytics ditampilkan inline di Tab Home sebagai section dengan tab horizontal.
+Tidak ada halaman terpisah — semua ada di dalam Home scroll.
+
+### Tab Expense Analytics
+- Tabel grouped: Expense/Non-Expense → Prioritas → Kategori
+- Kolom: Rerata/Bulan, 30H Terakhir, Bulan Ini, Bulan Lalu, per Tgl Gajian, Total All-Time, Alokasi All-Time (%)
+- Filter: Kategori, Prioritas
+
+### Tab Income Analytics
+- Kelompok Income mapping
+- Tabel: Income/Non-Income → Kelompok → Kategori
+- Kolom: Rerata/Bulan, 30H Terakhir, Bulan Ini, Bulan Lalu, per Tgl Gajian, Total All-Time, Kontribusi All-Time (%)
+
+### Tab Bulanan
+- Bar chart Income/Expense/Saving per bulan (filter Tahun)
+- Tabel Rangkuman per Bulan: Tahun → Bulan → Income/Expense/Saving/Catatan
+- Pivot Income per Bulan (Tahun × Jan–Des)
+- Pivot Expense per Bulan (Tahun × Jan–Des)
+- Rangkuman Bulan All-Time (aggregasi per nama bulan, lintas tahun)
+
+### Tab Tahunan
+- Filter: Pilih Tahun
+- Summary: Total Terealisasi vs Rencana Anggaran (Income/Expense/Saving)
+- Income Tahunan per kategori: Rencana/Terealisasi/% /Rerata/Disetahunkan(×12)
+- Expense Tahunan per kategori: sama + filter Prioritas
+- User bisa input Rencana Anggaran per kategori
+
+### Tab Pocket Analytics
+- Badge: jumlah pocket aktif
+- Tabel per pocket: Saldo, Rerata Expense Bulanan, Frekuensi Expense/Income/Transfer Asal/Transfer Tujuan/Update Saldo
+- List Kategori Pocket: total saldo per kategori
+
+### Tab Dana Darurat
+- Konfigurasi: target berapa bulan, Prioritas mana yang dihitung
+- Prioritas Blank = exclude dari perhitungan
+- Tabel: Prioritas → Kategori → Rerata Expense/Bulan
+- Subtotal per Prioritas
+- Hasil: Total kebutuhan × bulan target
 
 ---
 
 ## 13. Out of Scope v1
 
-- Analytics lengkap (semua sub-fitur)
 - Export data (PDF/Excel/CSV)
 - iCloud sync
 - Widget iOS home screen
