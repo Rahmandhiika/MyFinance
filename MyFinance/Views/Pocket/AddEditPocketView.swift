@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 struct AddEditPocketView: View {
     @Environment(\.modelContext) private var context
@@ -14,12 +15,87 @@ struct AddEditPocketView: View {
     @State private var limit: Double = 0
     @State private var catatan = ""
 
+    // Photo
+    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var logoImage: Image?
+    @State private var logoData: Data?
+
     private var isEditing: Bool { existingPocket != nil }
     private var isKreditType: Bool { kategori == .kartuKreditPayLater }
 
     var body: some View {
         NavigationStack {
             Form {
+                // Logo picker section
+                Section {
+                    HStack {
+                        Spacer()
+                        PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                            ZStack(alignment: .bottomTrailing) {
+                                if let logoImage {
+                                    logoImage
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 80, height: 80)
+                                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                                } else {
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .fill(Color(.tertiarySystemGroupedBackground))
+                                        .frame(width: 80, height: 80)
+                                        .overlay(
+                                            VStack(spacing: 4) {
+                                                if nama.isEmpty {
+                                                    Image(systemName: "photo.badge.plus")
+                                                        .font(.title2)
+                                                        .foregroundStyle(.secondary)
+                                                } else {
+                                                    Text(String(nama.prefix(1)).uppercased())
+                                                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                                                        .foregroundStyle(.blue)
+                                                }
+                                                Text("Foto")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        )
+                                }
+
+                                Circle()
+                                    .fill(Color.blue)
+                                    .frame(width: 24, height: 24)
+                                    .overlay(
+                                        Image(systemName: "pencil")
+                                            .font(.caption2.bold())
+                                            .foregroundStyle(.white)
+                                    )
+                            }
+                        }
+                        .onChange(of: selectedPhoto) { _, newItem in
+                            Task {
+                                if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                                    logoData = data
+                                    if let uiImage = UIImage(data: data) {
+                                        logoImage = Image(uiImage: uiImage)
+                                    }
+                                }
+                            }
+                        }
+                        Spacer()
+                    }
+                    .listRowBackground(Color.clear)
+
+                    if logoData != nil {
+                        Button(role: .destructive) {
+                            logoData = nil
+                            logoImage = nil
+                            selectedPhoto = nil
+                        } label: {
+                            Label("Hapus Foto", systemImage: "trash")
+                                .font(.subheadline)
+                        }
+                    }
+                }
+
                 Section("Info Pocket") {
                     TextField("Nama Pocket", text: $nama)
 
@@ -43,7 +119,7 @@ struct AddEditPocketView: View {
                 }
 
                 Section("Saldo") {
-                    CurrencyInputField(label: "Saldo Awal", amount: $saldoAwal)
+                    CurrencyInputField(label: isEditing ? "Saldo" : "Saldo Awal", amount: $saldoAwal)
                 }
 
                 Section {
@@ -74,6 +150,10 @@ struct AddEditPocketView: View {
         saldoAwal = p.saldo
         limit = p.limit ?? 0
         catatan = p.catatan ?? ""
+        if let data = p.logo, let uiImage = UIImage(data: data) {
+            logoData = data
+            logoImage = Image(uiImage: uiImage)
+        }
     }
 
     private func save() {
@@ -84,12 +164,14 @@ struct AddEditPocketView: View {
             p.saldo = saldoAwal
             p.limit = isKreditType ? limit : nil
             p.catatan = catatan.isEmpty ? nil : catatan
+            p.logo = logoData
         } else {
             let pocket = Pocket(
                 nama: nama, kelompokPocket: kelompok, kategoriPocket: kategori,
                 saldo: saldoAwal, catatan: catatan.isEmpty ? nil : catatan,
                 limit: isKreditType ? limit : nil
             )
+            pocket.logo = logoData
             context.insert(pocket)
         }
         try? context.save()

@@ -13,7 +13,8 @@ struct PocketTabView: View {
     @Query private var incomes: [Income]
     @Query private var asetNonFinansial: [AsetNonFinansial]
     @Query private var kategoriAset: [KategoriAset]
-    @Query private var kategoriExpense: [KategoriExpense]
+    @Query private var expenseCategories: [KategoriExpense]
+    @Query private var danaDaruratConfigs: [DanaDaruratConfig]
 
     @State private var selectedSection: PocketSection = .pocket
     @State private var showAddPocket = false
@@ -21,6 +22,7 @@ struct PocketTabView: View {
     @State private var showAddKreditur = false
     @State private var showAddGoal = false
     @State private var showAddAset = false
+    @State private var showDanaDaruratConfig = false
     @State private var newName = ""
     @State private var newCatatan = ""
 
@@ -30,6 +32,7 @@ struct PocketTabView: View {
         case utang = "Utang"
         case netWorth = "Net Worth"
         case goals = "Goals"
+        case danaDarurat = "Dana Darurat"
     }
 
     var body: some View {
@@ -64,12 +67,16 @@ struct PocketTabView: View {
                     case .utang: utangSection
                     case .netWorth: netWorthSection
                     case .goals: goalsSection
+                    case .danaDarurat: danaDaruratSection
                     }
                 }
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Pocket")
             .navigationBarTitleDisplayMode(.large)
+            .sheet(isPresented: $showDanaDaruratConfig) {
+                DanaDaruratConfigView()
+            }
         }
     }
 
@@ -124,12 +131,25 @@ struct PocketTabView: View {
 
     private func pocketCard(_ pocket: Pocket) -> some View {
         HStack(spacing: 14) {
-            Image(systemName: pocket.kelompokPocket.icon)
-                .font(.title3)
-                .foregroundStyle(.blue)
-                .frame(width: 44, height: 44)
-                .background(Color.blue.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+            // Logo or initials
+            Group {
+                if let logoData = pocket.logo, let uiImage = UIImage(data: logoData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                } else {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.blue.opacity(0.1))
+                        .frame(width: 44, height: 44)
+                        .overlay(
+                            Text(String(pocket.nama.prefix(1)).uppercased())
+                                .font(.headline.bold())
+                                .foregroundStyle(.blue)
+                        )
+                }
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(pocket.nama).font(.headline)
@@ -139,9 +159,16 @@ struct PocketTabView: View {
 
             Spacer()
 
-            Text(pocket.saldo.idrFormatted)
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(pocket.saldo >= 0 ? Color.primary : Color.red)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(pocket.saldo.idrFormatted)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(pocket.saldo >= 0 ? Color.primary : Color.red)
+                if let limit = pocket.limit {
+                    Text("Limit \(limit.shortFormatted)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             Image(systemName: "chevron.right")
                 .font(.caption2).foregroundStyle(.tertiary)
@@ -448,6 +475,123 @@ struct PocketTabView: View {
         .sheet(isPresented: $showAddGoal) {
             AddGoalView()
         }
+    }
+
+    // MARK: - Dana Darurat
+
+    private var danaDaruratSection: some View {
+        let config = danaDaruratConfigs.first ?? DanaDaruratConfig()
+        let prioritasSet = Set(config.prioritasIncluded)
+        let filteredCatIDs = Set(
+            expenseCategories
+                .filter { prioritasSet.contains($0.prioritas.rawValue) || $0.prioritas == .blank }
+                .map { $0.id }
+        )
+
+        let monthlyAvg: Double = {
+            let cal = Calendar.current
+            let now = Date()
+            var totals: [Double] = []
+            for offset in 0..<3 {
+                guard let date = cal.date(byAdding: .month, value: -offset, to: now) else { continue }
+                let m = cal.component(.month, from: date)
+                let y = cal.component(.year, from: date)
+                let start = cal.date(from: DateComponents(year: y, month: m, day: 1)) ?? date
+                let end = cal.date(byAdding: .month, value: 1, to: start) ?? date
+                let total = expenses
+                    .filter { exp in
+                        exp.tanggal >= start && exp.tanggal < end &&
+                        (exp.kategoriID.map { filteredCatIDs.contains($0) } ?? false)
+                    }
+                    .reduce(0) { $0 + $1.nominal }
+                totals.append(total)
+            }
+            return totals.isEmpty ? 0 : totals.reduce(0, +) / Double(totals.count)
+        }()
+
+        let target = monthlyAvg * Double(config.jumlahBulan)
+        let saldo = pockets.filter { $0.kelompokPocket == .biasa }.reduce(0) { $0 + max($1.saldo, 0) }
+        let ratio = target > 0 ? min(saldo / target, 1.0) : 0
+        let barColor: Color = ratio >= 1.0 ? .green : (ratio >= 0.5 ? .orange : .red)
+
+        return VStack(spacing: 16) {
+            // Main card
+            VStack(spacing: 16) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Saldo Pocket Biasa")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(saldo.idrFormatted)
+                            .font(.title2.bold())
+                            .foregroundStyle(barColor)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("Target \(config.jumlahBulan) Bulan")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(target.idrFormatted)
+                            .font(.subheadline.weight(.bold))
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color(.systemFill)).frame(height: 12)
+                            Capsule()
+                                .fill(barColor)
+                                .frame(width: geo.size.width * ratio, height: 12)
+                        }
+                    }
+                    .frame(height: 12)
+
+                    HStack {
+                        let bulanTercukup = monthlyAvg > 0 ? saldo / monthlyAvg : 0
+                        Text(String(format: "%.1f bulan", bulanTercukup))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(barColor)
+                        Spacer()
+                        Text(String(format: "%.0f%% dari target", ratio * 100))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Divider()
+
+                HStack {
+                    Label("Rata-rata pengeluaran/bulan", systemImage: "calendar")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(monthlyAvg.idrFormatted)
+                        .font(.caption.weight(.semibold))
+                }
+            }
+            .padding()
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .padding(.horizontal)
+
+            // Config button
+            Button {
+                showDanaDaruratConfig = true
+            } label: {
+                Label("Atur Konfigurasi Dana Darurat", systemImage: "gearshape")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.teal)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
+            .padding(.horizontal)
+
+            Spacer(minLength: 80)
+        }
+        .padding(.top, 8)
     }
 
     // MARK: - Helpers

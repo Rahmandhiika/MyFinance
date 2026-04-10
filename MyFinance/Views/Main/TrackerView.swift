@@ -13,6 +13,9 @@ struct TrackerView: View {
 
     @State private var selectedType: TipeTransaksi = .expense
     @State private var showAddSheet = false
+    @State private var showTerjadwal = false
+    @State private var showBudget = false
+    @State private var showKategori = false
 
     // MARK: - Body
 
@@ -33,8 +36,40 @@ struct TrackerView: View {
             }
             .navigationTitle("Tracker")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button {
+                            showTerjadwal = true
+                        } label: {
+                            Label("Terjadwal", systemImage: "calendar.badge.clock")
+                        }
+                        Button {
+                            showBudget = true
+                        } label: {
+                            Label("Budget Bulanan", systemImage: "chart.bar.doc.horizontal")
+                        }
+                        Button {
+                            showKategori = true
+                        } label: {
+                            Label("Kelola Kategori", systemImage: "tag.fill")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
+            }
             .sheet(isPresented: $showAddSheet) {
                 AddTransactionSheet(initialType: selectedType)
+            }
+            .sheet(isPresented: $showTerjadwal) {
+                TerjadwalManagementView()
+            }
+            .sheet(isPresented: $showBudget) {
+                BudgetBulananView()
+            }
+            .sheet(isPresented: $showKategori) {
+                KategoriManagementView()
             }
         }
     }

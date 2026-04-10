@@ -138,6 +138,7 @@ struct HomeView: View {
                     netWorthCard
                     monthlySummarySection
                     recentTransactionsSection
+                    AnalyticsSectionView()
                     Spacer(minLength: 40)
                 }
                 .padding(.top, 8)
