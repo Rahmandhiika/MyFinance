@@ -11,18 +11,6 @@ extension Double {
         return f.string(from: NSNumber(value: self)) ?? "Rp\(Int(self))"
     }
 
-    var usdFormatted: String {
-        let f = NumberFormatter()
-        f.numberStyle = .currency
-        f.currencyCode = "USD"
-        f.maximumFractionDigits = 2
-        return f.string(from: NSNumber(value: self)) ?? "$\(self)"
-    }
-
-    func formattedIDR() -> String {
-        idrFormatted
-    }
-
     var percentFormatted: String {
         let sign = self >= 0 ? "+" : ""
         return "\(sign)\(String(format: "%.2f", self))%"

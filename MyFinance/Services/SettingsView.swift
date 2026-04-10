@@ -6,40 +6,28 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @Query private var userProfiles: [UserProfile]
-    @Query private var danaDaruratConfigs: [DanaDaruratConfig]
     @Query private var pockets: [Pocket]
     @Query private var expenses: [Expense]
     @Query private var incomes: [Income]
     @Query private var transferInternals: [TransferInternal]
     @Query private var kategoriExpenses: [KategoriExpense]
     @Query private var kategoriIncomes: [KategoriIncome]
-    @Query private var expenseTerjadwals: [ExpenseTerjadwal]
-    @Query private var incomeTerjadwals: [IncomeTerjadwal]
-    @Query private var transferInternalTerjadwals: [TransferInternalTerjadwal]
     @Query private var goals: [Goal]
     @Query private var riwayatMencicils: [RiwayatMencicilMenabung]
     @Query private var investasiHoldings: [InvestasiHolding]
-    @Query private var budgetBulanans: [BudgetBulanan]
-    @Query private var rencanaAnggarans: [RencanaAnggaranTahunan]
     @Query private var asetNonFinansials: [AsetNonFinansial]
     @Query private var kategoriAsets: [KategoriAset]
     @Query private var updateSaldos: [UpdateSaldo]
     @Query private var debiturs: [Debitur]
     @Query private var krediturs: [Kreditur]
-    @Query private var fgis: [FGI]
 
     @State private var editedNama: String = ""
     @State private var editedGreeting: String = ""
-    @State private var editedJumlahBulan: Int = 3
     @State private var showResetConfirmation = false
     @State private var hasLoadedProfile = false
 
     private var userProfile: UserProfile? {
         userProfiles.first
-    }
-
-    private var danaDaruratConfig: DanaDaruratConfig? {
-        danaDaruratConfigs.first
     }
 
     var body: some View {
@@ -68,13 +56,22 @@ struct SettingsView: View {
                     Text("Nama dan teks sapaan ditampilkan di halaman utama.")
                 }
 
-                // MARK: - Dana Darurat Section
+                // MARK: - Kelola Kategori
                 Section {
-                    Stepper("Jumlah Bulan: \(editedJumlahBulan)", value: $editedJumlahBulan, in: 1...24)
+                    NavigationLink {
+                        CategoryManagementView()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "tag.fill")
+                                .foregroundStyle(.teal)
+                                .frame(width: 24)
+                            Text("Kelola Kategori")
+                        }
+                    }
                 } header: {
-                    Text("Dana Darurat")
+                    Text("Kategori")
                 } footer: {
-                    Text("Target dana darurat dihitung berdasarkan rata-rata pengeluaran bulanan dikalikan jumlah bulan.")
+                    Text("Atur kategori pengeluaran dan pemasukan.")
                 }
 
                 // MARK: - Data Section
@@ -85,7 +82,6 @@ struct SettingsView: View {
                     dataRow(title: "Transfer", count: transferInternals.count, icon: "arrow.left.arrow.right.circle.fill", color: .orange)
                     dataRow(title: "Goal", count: goals.count, icon: "target", color: .purple)
                     dataRow(title: "Investasi", count: investasiHoldings.count, icon: "chart.line.uptrend.xyaxis", color: .cyan)
-                    dataRow(title: "Terjadwal", count: expenseTerjadwals.count + incomeTerjadwals.count + transferInternalTerjadwals.count, icon: "calendar.badge.clock", color: .indigo)
                     dataRow(title: "Kategori", count: kategoriExpenses.count + kategoriIncomes.count, icon: "tag.fill", color: .teal)
                 } header: {
                     Text("Statistik Data")
@@ -140,7 +136,6 @@ struct SettingsView: View {
                 if !hasLoadedProfile {
                     editedNama = userProfile?.nama ?? "User"
                     editedGreeting = userProfile?.greetingText ?? "Welcome back"
-                    editedJumlahBulan = danaDaruratConfig?.jumlahBulan ?? 3
                     hasLoadedProfile = true
                 }
             }
@@ -185,13 +180,6 @@ struct SettingsView: View {
             context.insert(newProfile)
         }
 
-        if let config = danaDaruratConfig {
-            config.jumlahBulan = editedJumlahBulan
-        } else {
-            let newConfig = DanaDaruratConfig(jumlahBulan: editedJumlahBulan)
-            context.insert(newConfig)
-        }
-
         try? context.save()
     }
 
@@ -204,35 +192,24 @@ struct SettingsView: View {
         pockets.forEach { context.delete($0) }
         kategoriExpenses.forEach { context.delete($0) }
         kategoriIncomes.forEach { context.delete($0) }
-        expenseTerjadwals.forEach { context.delete($0) }
-        incomeTerjadwals.forEach { context.delete($0) }
-        transferInternalTerjadwals.forEach { context.delete($0) }
         goals.forEach { context.delete($0) }
         riwayatMencicils.forEach { context.delete($0) }
         investasiHoldings.forEach { context.delete($0) }
-        budgetBulanans.forEach { context.delete($0) }
-        rencanaAnggarans.forEach { context.delete($0) }
         asetNonFinansials.forEach { context.delete($0) }
         kategoriAsets.forEach { context.delete($0) }
         updateSaldos.forEach { context.delete($0) }
         debiturs.forEach { context.delete($0) }
         krediturs.forEach { context.delete($0) }
-        fgis.forEach { context.delete($0) }
 
         // Reset profile to defaults instead of deleting
         if let profile = userProfile {
             profile.nama = "Dika"
             profile.greetingText = "Welcome back"
         }
-        if let config = danaDaruratConfig {
-            config.jumlahBulan = 3
-        }
-
         try? context.save()
 
         // Update local state
         editedNama = "Dika"
         editedGreeting = "Welcome back"
-        editedJumlahBulan = 3
     }
 }

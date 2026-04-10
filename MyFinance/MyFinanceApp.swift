@@ -11,9 +11,6 @@ struct MyFinanceApp: App {
                 .modelContainer(container)
                 .onAppear {
                     ModelContainerService.shared.ensureUserProfile()
-                    Task {
-                        await NotificationService.shared.requestPermission()
-                    }
                 }
         }
     }

@@ -14,21 +14,14 @@ class ModelContainerService {
             TransferInternal.self,
             KategoriExpense.self,
             KategoriIncome.self,
-            ExpenseTerjadwal.self,
-            IncomeTerjadwal.self,
-            TransferInternalTerjadwal.self,
             Debitur.self,
             Kreditur.self,
-            BudgetBulanan.self,
-            RencanaAnggaranTahunan.self,
             Goal.self,
             RiwayatMencicilMenabung.self,
             InvestasiHolding.self,
-            FGI.self,
             AsetNonFinansial.self,
             KategoriAset.self,
             UserProfile.self,
-            DanaDaruratConfig.self,
         ])
 
         let config = ModelConfiguration(isStoredInMemoryOnly: false)

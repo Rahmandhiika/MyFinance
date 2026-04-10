@@ -17,36 +17,3 @@ final class InvestasiHolding {
         self.catatan = catatan
     }
 }
-
-@Model
-final class FGI {
-    var id: UUID
-    var tanggal: Date
-    var nilai: Int
-
-    init(tanggal: Date, nilai: Int) {
-        self.id = UUID()
-        self.tanggal = tanggal
-        self.nilai = max(0, min(100, nilai))
-    }
-
-    var label: String {
-        switch nilai {
-        case 0..<25: return "Extreme Fear"
-        case 25..<45: return "Fear"
-        case 45..<55: return "Neutral"
-        case 55..<75: return "Greed"
-        default: return "Extreme Greed"
-        }
-    }
-
-    var color: String {
-        switch nilai {
-        case 0..<25: return "#DC2626"
-        case 25..<45: return "#F97316"
-        case 45..<55: return "#EAB308"
-        case 55..<75: return "#22C55E"
-        default: return "#16A34A"
-        }
-    }
-}

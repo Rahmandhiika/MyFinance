@@ -25,14 +25,6 @@ final class Goal {
         self.createdAt = Date()
     }
 
-    var progress: Double {
-        guard targetNominal > 0 else { return 0 }
-        return min(totalTerkumpul / targetNominal, 1.0)
-    }
-
-    // Will be computed from RiwayatMencicilMenabung query in views
-    var totalTerkumpul: Double { 0 }
-    var sisa: Double { targetNominal - totalTerkumpul }
 }
 
 @Model

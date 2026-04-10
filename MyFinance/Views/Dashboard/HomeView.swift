@@ -21,8 +21,6 @@ struct HomeView: View {
     @Query(filter: #Predicate<Pocket> { $0.isAktif }) private var pockets: [Pocket]
     @Query(sort: \Expense.tanggal, order: .reverse) private var expenses: [Expense]
     @Query(sort: \Income.tanggal, order: .reverse) private var incomes: [Income]
-    @Query(filter: #Predicate<ExpenseTerjadwal> { $0.isAktif }) private var expenseTerjadwals: [ExpenseTerjadwal]
-    @Query(filter: #Predicate<IncomeTerjadwal> { $0.isAktif }) private var incomeTerjadwals: [IncomeTerjadwal]
     @Query private var kategoriExpenses: [KategoriExpense]
     @Query private var kategoriIncomes: [KategoriIncome]
     @Query private var asetNonFinansials: [AsetNonFinansial]
@@ -120,32 +118,6 @@ struct HomeView: View {
             .map { $0 }
     }
 
-    // MARK: - Upcoming Terjadwal (next 7 days)
-
-    private var upcomingTerjadwal: [(String, Int, Double?, Bool)] {
-        let cal = Calendar.current
-        let today = cal.component(.day, from: Date())
-        let daysInMonth = cal.range(of: .day, in: .month, for: Date())?.count ?? 30
-
-        func isWithin7Days(_ setiapTanggal: Int) -> Bool {
-            for offset in 0...6 {
-                let checkDay = ((today - 1 + offset) % daysInMonth) + 1
-                if checkDay == setiapTanggal { return true }
-            }
-            return false
-        }
-
-        let expItems = expenseTerjadwals
-            .filter { isWithin7Days($0.setiapTanggal) }
-            .map { (nama: $0.nama, tanggal: $0.setiapTanggal, nominal: $0.nominal, isExpense: true) }
-
-        let incItems = incomeTerjadwals
-            .filter { isWithin7Days($0.setiapTanggal) }
-            .map { (nama: $0.nama, tanggal: $0.setiapTanggal, nominal: $0.nominal, isExpense: false) }
-
-        return (expItems + incItems).sorted { $0.1 < $1.1 }
-    }
-
     // MARK: - Date Formatter
 
     private var dateFormatter: DateFormatter {
@@ -166,7 +138,6 @@ struct HomeView: View {
                     netWorthCard
                     monthlySummarySection
                     recentTransactionsSection
-                    upcomingTerjadwalSection
                     Spacer(minLength: 40)
                 }
                 .padding(.top, 8)
@@ -399,86 +370,4 @@ struct HomeView: View {
         .padding(.vertical, 10)
     }
 
-    // MARK: - Upcoming Terjadwal
-
-    private var upcomingTerjadwalSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Terjadwal Mendatang")
-                    .font(.headline)
-                Spacer()
-                Text("7 hari ke depan")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal)
-
-            if upcomingTerjadwal.isEmpty {
-                HStack {
-                    Spacer()
-                    VStack(spacing: 8) {
-                        Image(systemName: "calendar")
-                            .font(.title2)
-                            .foregroundStyle(.secondary)
-                        Text("Tidak ada jadwal mendatang")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 24)
-                    Spacer()
-                }
-                .background(Color(.secondarySystemGroupedBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .padding(.horizontal)
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(upcomingTerjadwal.enumerated()), id: \.offset) { index, item in
-                        HStack(spacing: 12) {
-                            VStack {
-                                Text("\(item.1)")
-                                    .font(.title3.bold())
-                                Text(currentMonthShort)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(width: 40)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(item.0)
-                                    .font(.subheadline.weight(.medium))
-                                Text(item.3 ? "Pengeluaran" : "Pemasukan")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            if let nominal = item.2 {
-                                Text(nominal.idrFormatted)
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(item.3 ? Color(hex: "EF4444") : Color(hex: "22C55E"))
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-
-                        if index < upcomingTerjadwal.count - 1 {
-                            Divider()
-                                .padding(.leading, 52)
-                        }
-                    }
-                }
-                .background(Color(.secondarySystemGroupedBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .padding(.horizontal)
-            }
-        }
-    }
-
-    private var currentMonthShort: String {
-        let f = DateFormatter()
-        f.dateFormat = "MMM"
-        f.locale = Locale(identifier: "id_ID")
-        return f.string(from: Date())
-    }
 }

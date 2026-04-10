@@ -5,20 +5,14 @@ struct InvestTabView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \InvestasiHolding.nama) private var holdings: [InvestasiHolding]
     @Query(sort: \Pocket.nama) private var allPockets: [Pocket]
-    @Query(sort: \FGI.tanggal) private var fgiHistory: [FGI]
     @Query(sort: \Expense.tanggal) private var expenses: [Expense]
     @Query(sort: \Income.tanggal) private var incomes: [Income]
 
     @State private var showAddHolding = false
-    @State private var showAddFGI = false
     @State private var filterType: TipeInvestasi? = nil
-    @State private var fgiInput = ""
-
     private var investasiPockets: [Pocket] {
         allPockets.filter { $0.kelompokPocket == .investasi && $0.isAktif }
     }
-
-    private var latestFGI: FGI? { fgiHistory.last }
 
     private var filteredHoldings: [InvestasiHolding] {
         if let ft = filterType {
@@ -54,14 +48,6 @@ struct InvestTabView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // FGI Card
-                    if let fgi = latestFGI {
-                        fgiCard(fgi)
-                    } else {
-                        fgiEmptyCard
-                    }
-
-                    // Summary Card
                     summaryCard
 
                     // Filter
@@ -94,84 +80,7 @@ struct InvestTabView: View {
             .sheet(isPresented: $showAddHolding) {
                 AddInvestasiHoldingView()
             }
-            .alert("Input FGI Hari Ini", isPresented: $showAddFGI) {
-                TextField("Nilai (0-100)", text: $fgiInput)
-                    .keyboardType(.numberPad)
-                Button("Simpan") { saveFGI() }
-                Button("Batal", role: .cancel) {}
-            } message: {
-                Text("Masukkan nilai Fear & Greed Index hari ini")
-            }
         }
-    }
-
-    // MARK: - FGI
-
-    private func fgiCard(_ fgi: FGI) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Fear & Greed Index")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 8) {
-                    Text("\(fgi.nilai)")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color(hex: fgi.color))
-                    Text(fgi.label)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color(hex: fgi.color))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Color(hex: fgi.color).opacity(0.15))
-                        .clipShape(Capsule())
-                }
-                Text(fgi.tanggal.formatted(.dateTime.day().month().year()))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-            Spacer()
-            Button { showAddFGI = true } label: {
-                Image(systemName: "pencil.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.blue)
-            }
-        }
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .padding(.horizontal)
-    }
-
-    private var fgiEmptyCard: some View {
-        Button { showAddFGI = true } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Fear & Greed Index")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    Text("Belum ada data")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "plus.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.blue)
-            }
-            .padding()
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal)
-    }
-
-    private func saveFGI() {
-        guard let val = Int(fgiInput), val >= 0, val <= 100 else { return }
-        let fgi = FGI(tanggal: Date(), nilai: val)
-        context.insert(fgi)
-        try? context.save()
-        fgiInput = ""
     }
 
     // MARK: - Summary

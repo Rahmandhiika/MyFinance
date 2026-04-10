@@ -4,7 +4,7 @@ import SwiftData
 struct VoiceTabView: View {
     @State private var speechService = SpeechRecognitionService()
     @State private var showReview = false
-    @State private var permissionDenied = false
+    @State private var frozenText = ""
     @Query(filter: #Predicate<Pocket> { $0.isAktif }) private var pockets: [Pocket]
 
     var body: some View {
@@ -12,9 +12,8 @@ struct VoiceTabView: View {
             VStack(spacing: 32) {
                 Spacer()
 
-                // Transcription area
                 VStack(spacing: 16) {
-                    if speechService.transcribedText.isEmpty {
+                    if speechService.transcribedText.isEmpty && !speechService.isRecording {
                         VStack(spacing: 8) {
                             Text("Katakan transaksi Anda")
                                 .font(.title3.weight(.semibold))
@@ -22,6 +21,21 @@ struct VoiceTabView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center)
+                        }
+                    } else if speechService.isRecording {
+                        VStack(spacing: 8) {
+                            Text("Mendengarkan...")
+                                .font(.headline)
+                                .foregroundStyle(.red)
+                            if !speechService.transcribedText.isEmpty {
+                                Text(speechService.transcribedText)
+                                    .font(.title3.weight(.medium))
+                                    .multilineTextAlignment(.center)
+                                    .padding()
+                                    .frame(maxWidth: .infinity)
+                                    .background(Color(.secondarySystemGroupedBackground))
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                            }
                         }
                     } else {
                         Text(speechService.transcribedText)
@@ -37,40 +51,46 @@ struct VoiceTabView: View {
 
                 Spacer()
 
-                // Mic button
-                Button {
-                    if speechService.isRecording {
-                        speechService.stopRecording()
-                    } else {
-                        Task {
-                            await speechService.requestPermission()
-                            try? speechService.startRecording()
+                if !speechService.isRecording {
+                    Button {
+                        startVoice()
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color.blue)
+                                .frame(width: 80, height: 80)
+                                .shadow(color: Color.blue.opacity(0.4), radius: 12, y: 4)
+                            Image(systemName: "mic.fill")
+                                .font(.title)
+                                .foregroundStyle(.white)
                         }
                     }
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(speechService.isRecording ? Color.red : Color.blue)
-                            .frame(width: 80, height: 80)
-                            .shadow(color: (speechService.isRecording ? Color.red : Color.blue).opacity(0.4), radius: 12, y: 4)
+                } else {
+                    Button {
+                        stopAndReview()
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 80, height: 80)
+                                .shadow(color: Color.red.opacity(0.4), radius: 12, y: 4)
 
-                        if speechService.isRecording {
                             Circle()
                                 .stroke(Color.red.opacity(0.3), lineWidth: 3)
                                 .frame(width: 100, height: 100)
-                                .scaleEffect(speechService.isRecording ? 1.2 : 1.0)
-                                .animation(.easeInOut(duration: 1).repeatForever(), value: speechService.isRecording)
-                        }
+                                .scaleEffect(1.2)
+                                .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: speechService.isRecording)
 
-                        Image(systemName: speechService.isRecording ? "stop.fill" : "mic.fill")
-                            .font(.title)
-                            .foregroundStyle(.white)
+                            Image(systemName: "stop.fill")
+                                .font(.title)
+                                .foregroundStyle(.white)
+                        }
                     }
                 }
 
-                // Process button
                 if !speechService.transcribedText.isEmpty && !speechService.isRecording {
                     Button {
+                        frozenText = speechService.transcribedText
                         showReview = true
                     } label: {
                         HStack(spacing: 8) {
@@ -88,15 +108,14 @@ struct VoiceTabView: View {
 
                 Spacer()
 
-                // Examples
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Contoh:")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 4) {
-                        exampleRow("\"beli kopi 25rb\"")
-                        exampleRow("\"terima gaji 5 juta\"")
-                        exampleRow("\"transfer 500rb ke BCA\"")
+                        Text("\"beli kopi 25rb\"").font(.caption).foregroundStyle(.secondary)
+                        Text("\"terima gaji 5 juta\"").font(.caption).foregroundStyle(.secondary)
+                        Text("\"transfer 500rb ke BCA\"").font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 .padding()
@@ -109,16 +128,37 @@ struct VoiceTabView: View {
             .navigationTitle("Voice Input")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showReview) {
-                VoiceReviewSheet(transcribedText: speechService.transcribedText) {
+                VoiceReviewSheet(transcribedText: frozenText) {
                     speechService.transcribedText = ""
+                    frozenText = ""
+                }
+            }
+            .onChange(of: speechService.isRecording) { oldValue, newValue in
+                if oldValue == true && newValue == false && !speechService.transcribedText.isEmpty {
+                    frozenText = speechService.transcribedText
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        showReview = true
+                    }
                 }
             }
         }
     }
 
-    private func exampleRow(_ text: String) -> some View {
-        Text(text)
-            .font(.caption)
-            .foregroundStyle(.secondary)
+    private func startVoice() {
+        Task {
+            await speechService.requestPermission()
+            try? speechService.startRecording()
+        }
+    }
+
+    private func stopAndReview() {
+        let text = speechService.transcribedText
+        speechService.stopRecording()
+        if !text.isEmpty {
+            frozenText = text
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                showReview = true
+            }
+        }
     }
 }

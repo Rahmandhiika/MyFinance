@@ -13,7 +13,6 @@ struct PocketTabView: View {
     @Query private var incomes: [Income]
     @Query private var asetNonFinansial: [AsetNonFinansial]
     @Query private var kategoriAset: [KategoriAset]
-    @Query private var danaDaruratConfig: [DanaDaruratConfig]
     @Query private var kategoriExpense: [KategoriExpense]
 
     @State private var selectedSection: PocketSection = .pocket
@@ -31,7 +30,6 @@ struct PocketTabView: View {
         case utang = "Utang"
         case netWorth = "Net Worth"
         case goals = "Goals"
-        case danaDarurat = "Dana Darurat"
     }
 
     var body: some View {
@@ -66,7 +64,6 @@ struct PocketTabView: View {
                     case .utang: utangSection
                     case .netWorth: netWorthSection
                     case .goals: goalsSection
-                    case .danaDarurat: danaDaruratSection
                     }
                 }
             }
@@ -451,90 +448,6 @@ struct PocketTabView: View {
         .sheet(isPresented: $showAddGoal) {
             AddGoalView()
         }
-    }
-
-    // MARK: - Dana Darurat
-
-    private var danaDaruratSection: some View {
-        let config = danaDaruratConfig.first
-        let bulan = config?.jumlahBulan ?? 3
-        let sixMonthsAgo = Calendar.current.date(byAdding: .month, value: -6, to: Date()) ?? Date()
-
-        let recentExpenses = expenses.filter { exp in
-            exp.tanggal >= sixMonthsAgo
-        }
-
-        let realExpenses = recentExpenses.filter { exp in
-            guard let katID = exp.kategoriID,
-                  let kat = kategoriExpense.first(where: { $0.id == katID }) else { return true }
-            return kat.kelompok == .expense && kat.prioritas != .blank
-        }
-
-        let avgMonthly = realExpenses.reduce(0) { $0 + $1.nominal } / 6.0
-        let target = avgMonthly * Double(bulan)
-        let current = pockets.filter { $0.kelompokPocket == .biasa }.reduce(0) { $0 + $1.saldo }
-        let progress = target > 0 ? min(current / target, 1.0) : 0
-
-        return VStack(spacing: 16) {
-            VStack(spacing: 12) {
-                Text("DANA DARURAT").font(.caption.weight(.bold)).tracking(1).foregroundStyle(.white.opacity(0.7))
-
-                Text("Target: \(bulan) Bulan")
-                    .font(.headline).foregroundStyle(.white)
-
-                Text(target.idrFormatted)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-
-                ProgressView(value: progress)
-                    .tint(.white)
-                    .padding(.horizontal, 40)
-
-                Text(String(format: "%.0f%% tercapai", progress * 100))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.8))
-            }
-            .padding(.vertical, 28)
-            .frame(maxWidth: .infinity)
-            .background(
-                LinearGradient(colors: [Color(hex: "#11998e"), Color(hex: "#38ef7d")],
-                               startPoint: .topLeading, endPoint: .bottomTrailing)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-            .padding(.horizontal)
-
-            VStack(spacing: 8) {
-                HStack {
-                    Text("Saldo Biasa Saat Ini").font(.subheadline)
-                    Spacer()
-                    Text(current.idrFormatted).font(.subheadline.weight(.bold))
-                }
-                HStack {
-                    Text("Rata-rata Expense/Bulan").font(.subheadline)
-                    Spacer()
-                    Text(avgMonthly.idrFormatted).font(.subheadline.weight(.bold))
-                }
-                HStack {
-                    Text("Target (\(bulan) bulan)").font(.subheadline)
-                    Spacer()
-                    Text(target.idrFormatted).font(.subheadline.weight(.bold))
-                }
-                HStack {
-                    Text("Kekurangan").font(.subheadline)
-                    Spacer()
-                    Text(max(0, target - current).idrFormatted)
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.red)
-                }
-            }
-            .padding()
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .padding(.horizontal)
-
-            Spacer(minLength: 80)
-        }
-        .padding(.top, 8)
     }
 
     // MARK: - Helpers
