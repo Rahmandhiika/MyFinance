@@ -1,35 +1,39 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @State private var selectedTab = 0
-    @State private var showVoiceInput = false
+    @State private var selectedTab: Int = 0
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            TabView(selection: $selectedTab) {
-                DashboardView()
-                    .tabItem { Label("Dashboard", systemImage: "house.fill") }
-                    .tag(0)
+        TabView(selection: $selectedTab) {
+            HomeView()
+                .tabItem {
+                    Label("Home", systemImage: "house.fill")
+                }
+                .tag(0)
 
-                TransactionListView()
-                    .tabItem { Label("Transaksi", systemImage: "list.bullet") }
-                    .tag(1)
+            TrackerView()
+                .tabItem {
+                    Label("Tracker", systemImage: "list.bullet.rectangle")
+                }
+                .tag(1)
 
-                InvestmentViewMain()
-                    .tabItem { Label("Investasi", systemImage: "chart.line.uptrend.xyaxis") }
-                    .tag(2)
-                
-                SettingsView()
-                    .tabItem { Label("Pengaturan", systemImage: "gearshape.fill") }
-                    .tag(3)
-            }
+            VoiceTabView()
+                .tabItem {
+                    Label("Voice", systemImage: "mic.fill")
+                }
+                .tag(2)
 
-            // Floating voice button
-            VoiceInputButton(isPresented: $showVoiceInput)
-                .padding(.bottom, 16)
-        }
-        .sheet(isPresented: $showVoiceInput) {
-            VoiceReviewSheet()
+            InvestTabView()
+                .tabItem {
+                    Label("Invest", systemImage: "chart.line.uptrend.xyaxis")
+                }
+                .tag(3)
+
+            PocketTabView()
+                .tabItem {
+                    Label("Pocket", systemImage: "wallet.pass.fill")
+                }
+                .tag(4)
         }
     }
 }

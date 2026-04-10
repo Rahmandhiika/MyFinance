@@ -1,25 +1,18 @@
-//
-//  MyFinanceApp.swift
-//  MyFinance
-//
-//  Created by Rahmandhika Putra Purwadi Wicaksono on 08/04/26.
-//
-
 import SwiftUI
 import SwiftData
 
 @main
 struct MyFinanceApp: App {
+    let container = ModelContainerService.shared.container
+
     var body: some Scene {
         WindowGroup {
             MainTabView()
-                .modelContainer(ModelContainerService.shared.container)
+                .modelContainer(container)
                 .onAppear {
-                    ModelContainerService.shared.seedDefaultCategoriesIfNeeded()
+                    ModelContainerService.shared.ensureUserProfile()
                     Task {
                         await NotificationService.shared.requestPermission()
-                        let ctx = ModelContainerService.shared.container.mainContext
-                        await ExchangeRateService.shared.refresh(context: ctx)
                     }
                 }
         }

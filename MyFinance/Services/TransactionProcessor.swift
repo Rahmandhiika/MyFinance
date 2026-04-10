@@ -2,60 +2,81 @@ import SwiftData
 import Foundation
 
 struct TransactionProcessor {
-
-    static func apply(_ transaction: Transaction, context: ModelContext) {
-        let descriptor = FetchDescriptor<Account>()
-        guard let accounts = try? context.fetch(descriptor) else { return }
-
-        let source = accounts.first { $0.id == transaction.sourceAccountID }
-        let dest   = accounts.first { $0.id == transaction.destinationAccountID }
-
-        switch transaction.type {
-        case .income:
-            source?.balance += transaction.amount
-        case .expense:
-            if let acc = source {
-                if acc.type == .credit { acc.usedLimit += transaction.amount }
-                else { acc.balance -= transaction.amount }
-            }
-        case .transfer:
-            source?.balance -= transaction.amount
-            dest?.balance   += transaction.amount
-        case .payCredit:
-            source?.balance -= transaction.amount
-            if let creditAcc = dest {
-                creditAcc.usedLimit = max(0, creditAcc.usedLimit - transaction.amount)
-            }
-        }
+    static func applyExpense(_ expense: Expense, context: ModelContext) {
+        guard let pocketID = expense.pocketID else { return }
+        let desc = FetchDescriptor<Pocket>(predicate: #Predicate { $0.id == pocketID })
+        guard let pocket = (try? context.fetch(desc))?.first else { return }
+        pocket.saldo -= expense.nominal
+        try? context.save()
     }
 
-    static func revert(_ transaction: Transaction, context: ModelContext) {
-        let descriptor = FetchDescriptor<Account>()
-        guard let accounts = try? context.fetch(descriptor) else { return }
-
-        let source = accounts.first { $0.id == transaction.sourceAccountID }
-        let dest   = accounts.first { $0.id == transaction.destinationAccountID }
-
-        switch transaction.type {
-        case .income:
-            source?.balance -= transaction.amount
-        case .expense:
-            if let acc = source {
-                if acc.type == .credit { acc.usedLimit = max(0, acc.usedLimit - transaction.amount) }
-                else { acc.balance += transaction.amount }
-            }
-        case .transfer:
-            source?.balance += transaction.amount
-            dest?.balance   -= transaction.amount
-        case .payCredit:
-            source?.balance += transaction.amount
-            dest?.usedLimit = (dest?.usedLimit ?? 0) + transaction.amount
-        }
+    static func revertExpense(_ expense: Expense, context: ModelContext) {
+        guard let pocketID = expense.pocketID else { return }
+        let desc = FetchDescriptor<Pocket>(predicate: #Predicate { $0.id == pocketID })
+        guard let pocket = (try? context.fetch(desc))?.first else { return }
+        pocket.saldo += expense.nominal
+        try? context.save()
     }
 
-    static func delete(_ transaction: Transaction, context: ModelContext) {
-        revert(transaction, context: context)
-        context.delete(transaction)
+    static func applyIncome(_ income: Income, context: ModelContext) {
+        guard let pocketID = income.pocketID else { return }
+        let desc = FetchDescriptor<Pocket>(predicate: #Predicate { $0.id == pocketID })
+        guard let pocket = (try? context.fetch(desc))?.first else { return }
+        pocket.saldo += income.nominal
+        try? context.save()
+    }
+
+    static func revertIncome(_ income: Income, context: ModelContext) {
+        guard let pocketID = income.pocketID else { return }
+        let desc = FetchDescriptor<Pocket>(predicate: #Predicate { $0.id == pocketID })
+        guard let pocket = (try? context.fetch(desc))?.first else { return }
+        pocket.saldo -= income.nominal
+        try? context.save()
+    }
+
+    static func applyTransfer(_ transfer: TransferInternal, context: ModelContext) {
+        let asalID = transfer.pocketAsalID
+        let tujuanID = transfer.pocketTujuanID
+        let descAsal = FetchDescriptor<Pocket>(predicate: #Predicate { $0.id == asalID })
+        let descTujuan = FetchDescriptor<Pocket>(predicate: #Predicate { $0.id == tujuanID })
+        if let asal = (try? context.fetch(descAsal))?.first {
+            asal.saldo -= transfer.nominal
+        }
+        if let tujuan = (try? context.fetch(descTujuan))?.first {
+            tujuan.saldo += transfer.nominal
+        }
+        try? context.save()
+    }
+
+    static func revertTransfer(_ transfer: TransferInternal, context: ModelContext) {
+        let asalID = transfer.pocketAsalID
+        let tujuanID = transfer.pocketTujuanID
+        let descAsal = FetchDescriptor<Pocket>(predicate: #Predicate { $0.id == asalID })
+        let descTujuan = FetchDescriptor<Pocket>(predicate: #Predicate { $0.id == tujuanID })
+        if let asal = (try? context.fetch(descAsal))?.first {
+            asal.saldo += transfer.nominal
+        }
+        if let tujuan = (try? context.fetch(descTujuan))?.first {
+            tujuan.saldo -= transfer.nominal
+        }
+        try? context.save()
+    }
+
+    static func deleteExpense(_ expense: Expense, context: ModelContext) {
+        revertExpense(expense, context: context)
+        context.delete(expense)
+        try? context.save()
+    }
+
+    static func deleteIncome(_ income: Income, context: ModelContext) {
+        revertIncome(income, context: context)
+        context.delete(income)
+        try? context.save()
+    }
+
+    static func deleteTransfer(_ transfer: TransferInternal, context: ModelContext) {
+        revertTransfer(transfer, context: context)
+        context.delete(transfer)
         try? context.save()
     }
 }

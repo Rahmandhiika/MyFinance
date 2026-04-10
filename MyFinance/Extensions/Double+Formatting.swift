@@ -19,8 +19,8 @@ extension Double {
         return f.string(from: NSNumber(value: self)) ?? "$\(self)"
     }
 
-    func formatted(currency: AppCurrency) -> String {
-        currency == .IDR ? idrFormatted : usdFormatted
+    func formattedIDR() -> String {
+        idrFormatted
     }
 
     var percentFormatted: String {

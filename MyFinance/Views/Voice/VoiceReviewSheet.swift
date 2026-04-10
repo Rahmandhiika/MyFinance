@@ -4,114 +4,141 @@ import SwiftData
 struct VoiceReviewSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @Query(filter: #Predicate<Account> { !$0.isArchived }) private var accounts: [Account]
+    @Query(filter: #Predicate<Pocket> { $0.isAktif }) private var pockets: [Pocket]
+    @Query private var kategoriExpense: [KategoriExpense]
+    @Query private var kategoriIncome: [KategoriIncome]
 
-    @State private var speechService = SpeechRecognitionService()
-    @State private var parsedTransaction: ParsedTransaction? = nil
-    @State private var showReview = false
-    @State private var permissionDenied = false
+    let transcribedText: String
+    let onDone: () -> Void
+
+    @State private var tipe: TipeTransaksi = .expense
+    @State private var nominal: Double = 0
+    @State private var selectedPocketID: UUID?
+    @State private var selectedKategoriExpenseID: UUID?
+    @State private var selectedKategoriIncomeID: UUID?
+    @State private var selectedPocketTujuanID: UUID?
+    @State private var catatan: String = ""
+    @State private var tanggal = Date()
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 32) {
-                // Status
-                VStack(spacing: 12) {
-                    ZStack {
-                        Circle()
-                            .fill(speechService.isRecording ? Color.red.opacity(0.15) : Color.blue.opacity(0.1))
-                            .frame(width: 120, height: 120)
-                            .scaleEffect(speechService.isRecording ? 1.1 : 1.0)
-                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: speechService.isRecording)
-
-                        Image(systemName: speechService.isRecording ? "stop.circle.fill" : "mic.circle.fill")
-                            .font(.system(size: 60))
-                            .foregroundStyle(speechService.isRecording ? .red : .blue)
-                    }
-                    .onTapGesture { toggleRecording() }
-
-                    Text(speechService.isRecording ? "Ketuk untuk stop" : "Ketuk untuk mulai")
+            Form {
+                Section("Hasil Parse") {
+                    Text(transcribedText)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
 
-                // Transcription
-                if !speechService.transcribedText.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Hasil Transkripsi:")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(speechService.transcribedText)
-                            .font(.body)
-                            .padding()
-                            .background(Color(.secondarySystemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                    }
-                    .padding(.horizontal)
-
-                    if !speechService.isRecording {
-                        Button("Proses Transaksi") {
-                            let parsed = NLPParser.shared.parse(
-                                text: speechService.transcribedText,
-                                accounts: accounts
-                            )
-                            parsedTransaction = parsed
-                            showReview = true
+                Section("Tipe Transaksi") {
+                    Picker("Tipe", selection: $tipe) {
+                        ForEach(TipeTransaksi.allCases, id: \.self) {
+                            Text($0.displayName).tag($0)
                         }
-                        .buttonStyle(.borderedProminent)
                     }
-                } else {
-                    VStack(spacing: 8) {
-                        Text("Contoh:")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Group {
-                            Text("\"Beli kopi dua puluh ribu pakai gopay\"")
-                            Text("\"Transfer lima ratus ribu ke BCA dari Mandiri\"")
-                            Text("\"Gajian lima juta masuk BCA\"")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .italic()
-                    }
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+                    .pickerStyle(.segmented)
                 }
 
-                Spacer()
+                Section("Detail") {
+                    CurrencyInputField(label: "Nominal", amount: $nominal)
+                    DatePicker("Tanggal", selection: $tanggal, displayedComponents: .date)
+
+                    if tipe == .expense {
+                        Picker("Kategori", selection: $selectedKategoriExpenseID) {
+                            Text("Pilih Kategori").tag(Optional<UUID>.none)
+                            ForEach(kategoriExpense) { k in
+                                Text(k.nama).tag(Optional(k.id))
+                            }
+                        }
+                    } else if tipe == .income {
+                        Picker("Kategori", selection: $selectedKategoriIncomeID) {
+                            Text("Pilih Kategori").tag(Optional<UUID>.none)
+                            ForEach(kategoriIncome) { k in
+                                Text(k.nama).tag(Optional(k.id))
+                            }
+                        }
+                    }
+
+                    if tipe == .transfer {
+                        Picker("Pocket Asal", selection: $selectedPocketID) {
+                            Text("Pilih").tag(Optional<UUID>.none)
+                            ForEach(pockets) { p in Text(p.nama).tag(Optional(p.id)) }
+                        }
+                        Picker("Pocket Tujuan", selection: $selectedPocketTujuanID) {
+                            Text("Pilih").tag(Optional<UUID>.none)
+                            ForEach(pockets) { p in Text(p.nama).tag(Optional(p.id)) }
+                        }
+                    } else {
+                        Picker("Pocket", selection: $selectedPocketID) {
+                            Text("Pilih Pocket").tag(Optional<UUID>.none)
+                            ForEach(pockets) { p in Text(p.nama).tag(Optional(p.id)) }
+                        }
+                    }
+
+                    TextField("Catatan", text: $catatan)
+                }
             }
-            .padding(.top, 32)
-            .navigationTitle("Voice Input")
+            .navigationTitle("Review Transaksi")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Tutup") { dismiss() }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Batal") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Simpan") { save() }
+                        .disabled(nominal <= 0)
                 }
             }
-            .sheet(isPresented: $showReview) {
-                if let parsed = parsedTransaction {
-                    AddEditTransactionView(existingTransaction: nil, prefilled: parsed)
-                }
-            }
-            .onDisappear {
-                if speechService.isRecording { speechService.stopRecording() }
-            }
-            .task {
-                let granted = await speechService.requestPermission()
-                permissionDenied = !granted
-            }
-            .alert("Izin Diperlukan", isPresented: $permissionDenied) {
-                Button("OK") { dismiss() }
-            } message: {
-                Text("Voice input memerlukan izin Speech Recognition. Aktifkan di Settings > Privacy.")
-            }
+            .onAppear { parseText() }
         }
     }
 
-    private func toggleRecording() {
-        if speechService.isRecording {
-            speechService.stopRecording()
-        } else {
-            try? speechService.startRecording()
+    private func parseText() {
+        let parser = NLPParser.shared
+        let parsed = parser.parse(text: transcribedText, pocketNames: pockets.map { $0.nama })
+
+        nominal = parsed.amount
+        catatan = parsed.note
+
+        switch parsed.type {
+        case .expense: tipe = .expense
+        case .income: tipe = .income
+        case .transfer: tipe = .transfer
         }
+
+        if let matchedPocket = parsed.matchedPocketName {
+            selectedPocketID = pockets.first { $0.nama.lowercased() == matchedPocket.lowercased() }?.id
+        }
+    }
+
+    private func save() {
+        switch tipe {
+        case .expense:
+            let exp = Expense(tanggal: tanggal, nominal: nominal,
+                             kategoriID: selectedKategoriExpenseID,
+                             pocketID: selectedPocketID,
+                             catatan: catatan.isEmpty ? nil : catatan)
+            context.insert(exp)
+            TransactionProcessor.applyExpense(exp, context: context)
+
+        case .income:
+            let inc = Income(tanggal: tanggal, nominal: nominal,
+                            kategoriID: selectedKategoriIncomeID,
+                            pocketID: selectedPocketID,
+                            catatan: catatan.isEmpty ? nil : catatan)
+            context.insert(inc)
+            TransactionProcessor.applyIncome(inc, context: context)
+
+        case .transfer:
+            guard let asalID = selectedPocketID, let tujuanID = selectedPocketTujuanID else { return }
+            let transfer = TransferInternal(tanggal: tanggal, nominal: nominal,
+                                           pocketAsalID: asalID, pocketTujuanID: tujuanID,
+                                           catatan: catatan.isEmpty ? nil : catatan)
+            context.insert(transfer)
+            TransactionProcessor.applyTransfer(transfer, context: context)
+        }
+
+        try? context.save()
+        onDone()
+        dismiss()
     }
 }

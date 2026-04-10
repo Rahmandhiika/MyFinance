@@ -4,38 +4,50 @@ import Foundation
 @Model
 final class Goal {
     var id: UUID
-    var title: String
-    var targetAmount: Double
-    var currentAmount: Double
+    var nama: String
+    var tipe: TipeGoal
+    var targetNominal: Double
     var deadline: Date?
-    var icon: String
-    var colorHex: String
-    var isCompleted: Bool
+    var gambar: Data?
+    var catatan: String?
+    var isSelesai: Bool
     var createdAt: Date
 
-    init(title: String, targetAmount: Double, deadline: Date? = nil,
-         icon: String = "star.fill", colorHex: String = "#FFD700") {
+    init(nama: String, tipe: TipeGoal, targetNominal: Double,
+         deadline: Date? = nil, catatan: String? = nil) {
         self.id = UUID()
-        self.title = title
-        self.targetAmount = targetAmount
-        self.currentAmount = 0
+        self.nama = nama
+        self.tipe = tipe
+        self.targetNominal = targetNominal
         self.deadline = deadline
-        self.icon = icon
-        self.colorHex = colorHex
-        self.isCompleted = false
+        self.catatan = catatan
+        self.isSelesai = false
         self.createdAt = Date()
     }
 
     var progress: Double {
-        guard targetAmount > 0 else { return 0 }
-        return min(currentAmount / targetAmount, 1.0)
+        guard targetNominal > 0 else { return 0 }
+        return min(totalTerkumpul / targetNominal, 1.0)
     }
 
-    var isOnTrack: Bool? {
-        guard let deadline, !isCompleted else { return nil }
-        let totalDays = deadline.timeIntervalSince(createdAt) / 86400
-        let elapsedDays = Date().timeIntervalSince(createdAt) / 86400
-        guard totalDays > 0 else { return false }
-        return progress >= (elapsedDays / totalDays)
+    // Will be computed from RiwayatMencicilMenabung query in views
+    var totalTerkumpul: Double { 0 }
+    var sisa: Double { targetNominal - totalTerkumpul }
+}
+
+@Model
+final class RiwayatMencicilMenabung {
+    var id: UUID
+    var goalID: UUID
+    var tanggal: Date
+    var nominal: Double
+    var catatan: String?
+
+    init(goalID: UUID, tanggal: Date, nominal: Double, catatan: String? = nil) {
+        self.id = UUID()
+        self.goalID = goalID
+        self.tanggal = tanggal
+        self.nominal = nominal
+        self.catatan = catatan
     }
 }

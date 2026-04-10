@@ -3,84 +3,98 @@ import SwiftData
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var context
-    @Query private var accounts: [Account]
-    @Query private var transactions: [Transaction]
-    @Query private var categories: [Category]
-    @Query private var holdings: [InvestmentHolding]
-    @Query private var lots: [StockLot]
-    @Query private var prices: [StockPrice]
-    @Query private var recurringRules: [RecurringRule]
-    @Query private var rates: [ExchangeRate]
-    
-    @State private var showDeleteConfirmation = false
-    @State private var showCategorySheet = false
-    
+    @Environment(\.dismiss) private var dismiss
+
+    @Query private var userProfiles: [UserProfile]
+    @Query private var danaDaruratConfigs: [DanaDaruratConfig]
+    @Query private var pockets: [Pocket]
+    @Query private var expenses: [Expense]
+    @Query private var incomes: [Income]
+    @Query private var transferInternals: [TransferInternal]
+    @Query private var kategoriExpenses: [KategoriExpense]
+    @Query private var kategoriIncomes: [KategoriIncome]
+    @Query private var expenseTerjadwals: [ExpenseTerjadwal]
+    @Query private var incomeTerjadwals: [IncomeTerjadwal]
+    @Query private var transferInternalTerjadwals: [TransferInternalTerjadwal]
+    @Query private var goals: [Goal]
+    @Query private var riwayatMencicils: [RiwayatMencicilMenabung]
+    @Query private var investasiHoldings: [InvestasiHolding]
+    @Query private var budgetBulanans: [BudgetBulanan]
+    @Query private var rencanaAnggarans: [RencanaAnggaranTahunan]
+    @Query private var asetNonFinansials: [AsetNonFinansial]
+    @Query private var kategoriAsets: [KategoriAset]
+    @Query private var updateSaldos: [UpdateSaldo]
+    @Query private var debiturs: [Debitur]
+    @Query private var krediturs: [Kreditur]
+    @Query private var fgis: [FGI]
+
+    @State private var editedNama: String = ""
+    @State private var editedGreeting: String = ""
+    @State private var editedJumlahBulan: Int = 3
+    @State private var showResetConfirmation = false
+    @State private var hasLoadedProfile = false
+
+    private var userProfile: UserProfile? {
+        userProfiles.first
+    }
+
+    private var danaDaruratConfig: DanaDaruratConfig? {
+        danaDaruratConfigs.first
+    }
+
     var body: some View {
         NavigationStack {
             List {
+                // MARK: - Profil Section
                 Section {
                     HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Total Akun")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("\(accounts.count)")
-                                .font(.title2.bold())
-                        }
+                        Text("Nama")
+                            .foregroundStyle(.secondary)
                         Spacer()
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Text("Total Transaksi")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("\(transactions.count)")
-                                .font(.title2.bold())
-                        }
+                        TextField("Nama", text: $editedNama)
+                            .multilineTextAlignment(.trailing)
                     }
-                    .padding(.vertical, 8)
-                    
+
                     HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Investasi")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("\(holdings.count)")
-                                .font(.title2.bold())
-                        }
+                        Text("Greeting")
+                            .foregroundStyle(.secondary)
                         Spacer()
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Text("Kategori")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("\(categories.count)")
-                                .font(.title2.bold())
-                        }
+                        TextField("Greeting", text: $editedGreeting)
+                            .multilineTextAlignment(.trailing)
                     }
-                    .padding(.vertical, 8)
+                } header: {
+                    Text("Profil")
+                } footer: {
+                    Text("Nama dan teks sapaan ditampilkan di halaman utama.")
+                }
+
+                // MARK: - Dana Darurat Section
+                Section {
+                    Stepper("Jumlah Bulan: \(editedJumlahBulan)", value: $editedJumlahBulan, in: 1...24)
+                } header: {
+                    Text("Dana Darurat")
+                } footer: {
+                    Text("Target dana darurat dihitung berdasarkan rata-rata pengeluaran bulanan dikalikan jumlah bulan.")
+                }
+
+                // MARK: - Data Section
+                Section {
+                    dataRow(title: "Pocket", count: pockets.count, icon: "wallet.pass.fill", color: .blue)
+                    dataRow(title: "Pengeluaran", count: expenses.count, icon: "arrow.up.circle.fill", color: .red)
+                    dataRow(title: "Pemasukan", count: incomes.count, icon: "arrow.down.circle.fill", color: .green)
+                    dataRow(title: "Transfer", count: transferInternals.count, icon: "arrow.left.arrow.right.circle.fill", color: .orange)
+                    dataRow(title: "Goal", count: goals.count, icon: "target", color: .purple)
+                    dataRow(title: "Investasi", count: investasiHoldings.count, icon: "chart.line.uptrend.xyaxis", color: .cyan)
+                    dataRow(title: "Terjadwal", count: expenseTerjadwals.count + incomeTerjadwals.count + transferInternalTerjadwals.count, icon: "calendar.badge.clock", color: .indigo)
+                    dataRow(title: "Kategori", count: kategoriExpenses.count + kategoriIncomes.count, icon: "tag.fill", color: .teal)
                 } header: {
                     Text("Statistik Data")
                 }
-                
-                Section {
-                    Button {
-                        showCategorySheet = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "tag.fill")
-                            Text("Kelola Kategori")
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .foregroundStyle(.primary)
-                } header: {
-                    Text("Kategori")
-                }
-                
+
+                // MARK: - Danger Zone
                 Section {
                     Button(role: .destructive) {
-                        showDeleteConfirmation = true
+                        showResetConfirmation = true
                     } label: {
                         HStack {
                             Image(systemName: "trash.fill")
@@ -88,17 +102,18 @@ struct SettingsView: View {
                         }
                     }
                 } header: {
-                    Text("Data")
+                    Text("Danger Zone")
                 } footer: {
-                    Text("Menghapus semua data termasuk akun, transaksi, dan investasi. Tindakan ini tidak dapat dibatalkan.")
+                    Text("Menghapus semua data termasuk pocket, transaksi, kategori, goal, dan investasi. Tindakan ini tidak dapat dibatalkan.")
                         .font(.caption)
                 }
-                
+
+                // MARK: - App Info
                 Section {
                     HStack {
                         Text("Versi")
                         Spacer()
-                        Text("1.0.0")
+                        Text("2.0.0")
                             .foregroundStyle(.secondary)
                     }
                 } header: {
@@ -106,12 +121,32 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Pengaturan")
-            .sheet(isPresented: $showCategorySheet) {
-                CategoryManagementView()
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Batal") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Simpan") {
+                        saveChanges()
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+            .onAppear {
+                if !hasLoadedProfile {
+                    editedNama = userProfile?.nama ?? "User"
+                    editedGreeting = userProfile?.greetingText ?? "Welcome back"
+                    editedJumlahBulan = danaDaruratConfig?.jumlahBulan ?? 3
+                    hasLoadedProfile = true
+                }
             }
             .confirmationDialog(
                 "Reset Semua Data?",
-                isPresented: $showDeleteConfirmation,
+                isPresented: $showResetConfirmation,
                 titleVisibility: .visible
             ) {
                 Button("Reset Semua Data", role: .destructive) {
@@ -119,21 +154,85 @@ struct SettingsView: View {
                 }
                 Button("Batal", role: .cancel) {}
             } message: {
-                Text("Semua data akun, transaksi, dan investasi akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.")
+                Text("Semua data pocket, transaksi, kategori, goal, dan investasi akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.")
             }
         }
     }
-    
-    private func resetAllData() {
-        accounts.forEach { context.delete($0) }
-        transactions.forEach { context.delete($0) }
-        holdings.forEach { context.delete($0) }
-        lots.forEach { context.delete($0) }
-        prices.forEach { context.delete($0) }
-        recurringRules.forEach { context.delete($0) }
-        rates.forEach { context.delete($0) }
-        categories.filter { !$0.isDefault }.forEach { context.delete($0) }
-        
+
+    // MARK: - Data Row
+
+    private func dataRow(title: String, count: Int, icon: String, color: Color) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+                .frame(width: 24)
+            Text(title)
+            Spacer()
+            Text("\(count)")
+                .foregroundStyle(.secondary)
+                .fontWeight(.medium)
+        }
+    }
+
+    // MARK: - Save Changes
+
+    private func saveChanges() {
+        if let profile = userProfile {
+            profile.nama = editedNama
+            profile.greetingText = editedGreeting
+        } else {
+            let newProfile = UserProfile(nama: editedNama, greetingText: editedGreeting)
+            context.insert(newProfile)
+        }
+
+        if let config = danaDaruratConfig {
+            config.jumlahBulan = editedJumlahBulan
+        } else {
+            let newConfig = DanaDaruratConfig(jumlahBulan: editedJumlahBulan)
+            context.insert(newConfig)
+        }
+
         try? context.save()
+    }
+
+    // MARK: - Reset All Data
+
+    private func resetAllData() {
+        expenses.forEach { context.delete($0) }
+        incomes.forEach { context.delete($0) }
+        transferInternals.forEach { context.delete($0) }
+        pockets.forEach { context.delete($0) }
+        kategoriExpenses.forEach { context.delete($0) }
+        kategoriIncomes.forEach { context.delete($0) }
+        expenseTerjadwals.forEach { context.delete($0) }
+        incomeTerjadwals.forEach { context.delete($0) }
+        transferInternalTerjadwals.forEach { context.delete($0) }
+        goals.forEach { context.delete($0) }
+        riwayatMencicils.forEach { context.delete($0) }
+        investasiHoldings.forEach { context.delete($0) }
+        budgetBulanans.forEach { context.delete($0) }
+        rencanaAnggarans.forEach { context.delete($0) }
+        asetNonFinansials.forEach { context.delete($0) }
+        kategoriAsets.forEach { context.delete($0) }
+        updateSaldos.forEach { context.delete($0) }
+        debiturs.forEach { context.delete($0) }
+        krediturs.forEach { context.delete($0) }
+        fgis.forEach { context.delete($0) }
+
+        // Reset profile to defaults instead of deleting
+        if let profile = userProfile {
+            profile.nama = "Dika"
+            profile.greetingText = "Welcome back"
+        }
+        if let config = danaDaruratConfig {
+            config.jumlahBulan = 3
+        }
+
+        try? context.save()
+
+        // Update local state
+        editedNama = "Dika"
+        editedGreeting = "Welcome back"
+        editedJumlahBulan = 3
     }
 }
