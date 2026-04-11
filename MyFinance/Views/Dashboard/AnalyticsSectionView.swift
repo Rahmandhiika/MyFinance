@@ -292,39 +292,8 @@ struct AnalyticsSectionView: View {
             VStack(alignment: .leading, spacing: 12) {
                 analyticsHeader("Total Saldo", value: totalAll, color: .orange)
 
-                ForEach(KelompokPocket.allCases, id: \.self) { kelompok in
-                    let filtered = byKelompok[kelompok] ?? []
-                    if !filtered.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Image(systemName: kelompok.icon)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(kelompok.displayName)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                Text(filtered.reduce(0) { $0 + $1.saldo }.idrFormatted)
-                                    .font(.caption.weight(.bold))
-                            }
-
-                            ForEach(filtered) { pocket in
-                                HStack {
-                                    pocketLogoView(pocket)
-                                        .frame(width: 24, height: 24)
-
-                                    Text(pocket.nama)
-                                        .font(.subheadline)
-                                        .lineLimit(1)
-                                    Spacer()
-                                    Text(pocket.saldo.idrFormatted)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(pocket.saldo >= 0 ? .primary : .red)
-                                }
-                            }
-                        }
-                        Divider()
-                    }
+                ForEach(KelompokPocket.allCases.filter { byKelompok[$0]?.isEmpty == false }, id: \.self) { kelompok in
+                    pocketKelompokSection(kelompok: kelompok, pockets: byKelompok[kelompok] ?? [])
                 }
             }
         }
@@ -506,6 +475,38 @@ struct AnalyticsSectionView: View {
             Circle().fill(color).frame(width: 8, height: 8)
             Text(label).font(.caption2).foregroundStyle(.secondary)
         }
+    }
+
+    @ViewBuilder
+    private func pocketKelompokSection(kelompok: KelompokPocket, pockets: [Pocket]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: kelompok.icon)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(kelompok.displayName)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(pockets.reduce(0) { $0 + $1.saldo }.idrFormatted)
+                    .font(.caption.weight(.bold))
+            }
+
+            ForEach(pockets, id: \.id) { pocket in
+                HStack {
+                    pocketLogoView(pocket)
+                        .frame(width: 24, height: 24)
+                    Text(pocket.nama)
+                        .font(.subheadline)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(pocket.saldo.idrFormatted)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(pocket.saldo >= 0 ? Color.primary : Color.red)
+                }
+            }
+        }
+        Divider()
     }
 
     private func pocketLogoView(_ pocket: Pocket) -> some View {
