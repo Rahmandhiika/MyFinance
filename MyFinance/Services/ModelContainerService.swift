@@ -1,6 +1,7 @@
 import SwiftData
 import Foundation
 
+@MainActor
 class ModelContainerService {
     static let shared = ModelContainerService()
     let container: ModelContainer
@@ -8,38 +9,51 @@ class ModelContainerService {
     private init() {
         let schema = Schema([
             Pocket.self,
-            UpdateSaldo.self,
-            Expense.self,
-            Income.self,
+            KategoriPocket.self,
+            Transaksi.self,
             TransferInternal.self,
-            KategoriExpense.self,
-            KategoriIncome.self,
-            Debitur.self,
-            Kreditur.self,
-            Goal.self,
-            RiwayatMencicilMenabung.self,
-            InvestasiHolding.self,
-            AsetNonFinansial.self,
-            KategoriAset.self,
-            UserProfile.self,
+            Kategori.self,
+            Target.self,
+            SimpanKeTarget.self,
+            Aset.self,
+            Anggaran.self,
+            TransaksiOtomatis.self,
+            UserProfile.self
         ])
 
-        let config = ModelConfiguration(isStoredInMemoryOnly: false)
+        let storeURL = URL.applicationSupportDirectory
+            .appendingPathComponent("myfinance-v3.store")
+
+        let config = ModelConfiguration(schema: schema, url: storeURL)
 
         do {
-            container = try ModelContainer(for: schema, configurations: [config])
+            container = try ModelContainer(for: schema, configurations: config)
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
     }
 
-    @MainActor
     func ensureUserProfile() {
         let context = container.mainContext
-        let desc = FetchDescriptor<UserProfile>()
-        let count = (try? context.fetchCount(desc)) ?? 0
+        let descriptor = FetchDescriptor<UserProfile>()
+        let count = (try? context.fetchCount(descriptor)) ?? 0
         if count == 0 {
-            context.insert(UserProfile())
+            let profile = UserProfile(nama: "Dika", greetingText: "Halo")
+            context.insert(profile)
+            try? context.save()
+        }
+        ensureKategoriPocket()
+    }
+
+    private func ensureKategoriPocket() {
+        let context = container.mainContext
+        let descriptor = FetchDescriptor<KategoriPocket>()
+        let count = (try? context.fetchCount(descriptor)) ?? 0
+        if count == 0 {
+            let defaults = ["Rekening Bank", "E-Wallet", "E-Money", "Dompet", "Kartu Kredit/PayLater", "Akun Brand", "Lainnya"]
+            for nama in defaults {
+                context.insert(KategoriPocket(nama: nama))
+            }
             try? context.save()
         }
     }

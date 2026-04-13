@@ -1,86 +1,32 @@
 import SwiftData
 import Foundation
 
-@Model
-final class Expense {
+@Model final class Transaksi {
     var id: UUID
     var tanggal: Date
-    var nominal: Double
-    var kategoriID: UUID?
-    var pocketID: UUID?
+    var nominal: Decimal
+    var tipe: TipeTransaksi
+    var subTipe: SubTipeTransaksi
+    var kategori: Kategori?
+    var pocket: Pocket?
     var catatan: String?
-    var debiturID: UUID?
-    var krediturID: UUID?
-    var fileGambar: Data?
-    var terjadwalID: UUID?
+    var goalID: UUID?       // linked Target if subTipe != .normal
+    var otomatisID: UUID?   // linked TransaksiOtomatis if auto-generated
     var createdAt: Date
 
-    init(tanggal: Date, nominal: Double, kategoriID: UUID? = nil, pocketID: UUID? = nil,
-         catatan: String? = nil, debiturID: UUID? = nil, krediturID: UUID? = nil,
-         terjadwalID: UUID? = nil) {
+    init(tanggal: Date = Date(), nominal: Decimal, tipe: TipeTransaksi,
+         subTipe: SubTipeTransaksi = .normal, kategori: Kategori? = nil,
+         pocket: Pocket? = nil, catatan: String? = nil, goalID: UUID? = nil) {
         self.id = UUID()
         self.tanggal = tanggal
         self.nominal = nominal
-        self.kategoriID = kategoriID
-        self.pocketID = pocketID
+        self.tipe = tipe
+        self.subTipe = subTipe
+        self.kategori = kategori
+        self.pocket = pocket
         self.catatan = catatan
-        self.debiturID = debiturID
-        self.krediturID = krediturID
-        self.terjadwalID = terjadwalID
-        self.createdAt = Date()
-    }
-}
-
-@Model
-final class Income {
-    var id: UUID
-    var tanggal: Date
-    var nominal: Double
-    var kategoriID: UUID?
-    var pocketID: UUID?
-    var catatan: String?
-    var debiturID: UUID?
-    var krediturID: UUID?
-    var fileGambar: Data?
-    var terjadwalID: UUID?
-    var createdAt: Date
-
-    init(tanggal: Date, nominal: Double, kategoriID: UUID? = nil, pocketID: UUID? = nil,
-         catatan: String? = nil, debiturID: UUID? = nil, krediturID: UUID? = nil,
-         terjadwalID: UUID? = nil) {
-        self.id = UUID()
-        self.tanggal = tanggal
-        self.nominal = nominal
-        self.kategoriID = kategoriID
-        self.pocketID = pocketID
-        self.catatan = catatan
-        self.debiturID = debiturID
-        self.krediturID = krediturID
-        self.terjadwalID = terjadwalID
-        self.createdAt = Date()
-    }
-}
-
-@Model
-final class TransferInternal {
-    var id: UUID
-    var tanggal: Date
-    var nominal: Double
-    var pocketAsalID: UUID
-    var pocketTujuanID: UUID
-    var catatan: String?
-    var terjadwalID: UUID?
-    var createdAt: Date
-
-    init(tanggal: Date, nominal: Double, pocketAsalID: UUID, pocketTujuanID: UUID,
-         catatan: String? = nil, terjadwalID: UUID? = nil) {
-        self.id = UUID()
-        self.tanggal = tanggal
-        self.nominal = nominal
-        self.pocketAsalID = pocketAsalID
-        self.pocketTujuanID = pocketTujuanID
-        self.catatan = catatan
-        self.terjadwalID = terjadwalID
+        self.goalID = goalID
+        self.otomatisID = nil
         self.createdAt = Date()
     }
 }

@@ -3,178 +3,292 @@ import SwiftData
 import PhotosUI
 
 struct AddEditPocketView: View {
-    @Environment(\.modelContext) private var context
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    var existingPocket: Pocket?
+    var existingPocket: Pocket? = nil
 
-    @State private var nama = ""
+    @Query private var allKategoriPocket: [KategoriPocket]
+
+    // Form state
+    @State private var nama: String = ""
     @State private var kelompok: KelompokPocket = .biasa
-    @State private var kategori: NamaKategoriPocket = .rekeningBank
-    @State private var saldoAwal: Double = 0
-    @State private var limit: Double = 0
-    @State private var catatan = ""
-
-    // Photo
-    @State private var selectedPhoto: PhotosPickerItem?
-    @State private var logoImage: Image?
-    @State private var logoData: Data?
+    @State private var selectedKategori: KategoriPocket? = nil
+    @State private var saldoAwal: Decimal = 0
+    @State private var limit: Decimal = 0
+    @State private var catatan: String = ""
+    @State private var logoData: Data? = nil
+    @State private var selectedPhotoItem: PhotosPickerItem? = nil
 
     private var isEditing: Bool { existingPocket != nil }
-    private var isKreditType: Bool { kategori == .kartuKreditPayLater }
+
+    private var showLimitField: Bool {
+        guard let k = selectedKategori else { return false }
+        return k.nama.lowercased().contains("kartu kredit") || k.nama.lowercased().contains("paylater")
+    }
+
+    private var canSave: Bool {
+        !nama.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    // MARK: - Body
 
     var body: some View {
         NavigationStack {
-            Form {
-                // Logo picker section
-                Section {
-                    HStack {
-                        Spacer()
-                        PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                            ZStack(alignment: .bottomTrailing) {
-                                if let logoImage {
-                                    logoImage
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 80, height: 80)
-                                        .clipShape(RoundedRectangle(cornerRadius: 20))
-                                } else {
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .fill(Color(.tertiarySystemGroupedBackground))
-                                        .frame(width: 80, height: 80)
-                                        .overlay(
-                                            VStack(spacing: 4) {
-                                                if nama.isEmpty {
-                                                    Image(systemName: "photo.badge.plus")
-                                                        .font(.title2)
-                                                        .foregroundStyle(.secondary)
-                                                } else {
-                                                    Text(String(nama.prefix(1)).uppercased())
-                                                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                                                        .foregroundStyle(.blue)
-                                                }
-                                                Text("Foto")
-                                                    .font(.caption2)
-                                                    .foregroundStyle(.secondary)
-                                            }
-                                        )
-                                }
+            ZStack {
+                Color(hex: "#0D0D0D").ignoresSafeArea()
 
-                                Circle()
-                                    .fill(Color.blue)
-                                    .frame(width: 24, height: 24)
-                                    .overlay(
-                                        Image(systemName: "pencil")
-                                            .font(.caption2.bold())
-                                            .foregroundStyle(.white)
-                                    )
-                            }
+                ScrollView {
+                    VStack(spacing: 20) {
+
+                        // Logo picker
+                        logoPicker
+
+                        // Nama
+                        formSection("Nama Pocket") {
+                            TextField("Contoh: BCA Utama, GoPay", text: $nama)
+                                .foregroundStyle(.white)
+                                .padding(12)
+                                .background(Color.white.opacity(0.07))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
-                        .onChange(of: selectedPhoto) { _, newItem in
-                            Task {
-                                if let data = try? await newItem?.loadTransferable(type: Data.self) {
-                                    logoData = data
-                                    if let uiImage = UIImage(data: data) {
-                                        logoImage = Image(uiImage: uiImage)
+
+                        // Kelompok segmented
+                        formSection("Kelompok") {
+                            Picker("Kelompok", selection: $kelompok) {
+                                ForEach(KelompokPocket.allCases) { k in
+                                    Text(k.displayName).tag(k)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+
+                        // KategoriPocket picker
+                        formSection("Kategori Pocket") {
+                            if allKategoriPocket.isEmpty {
+                                Text("Tidak ada kategori tersedia")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.gray)
+                                    .padding(12)
+                            } else {
+                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                                    ForEach(allKategoriPocket.sorted { $0.nama < $1.nama }) { k in
+                                        KategoriPocketChip(
+                                            nama: k.nama,
+                                            isSelected: selectedKategori?.id == k.id
+                                        )
+                                        .onTapGesture {
+                                            selectedKategori = selectedKategori?.id == k.id ? nil : k
+                                        }
                                     }
                                 }
                             }
                         }
-                        Spacer()
-                    }
-                    .listRowBackground(Color.clear)
 
-                    if logoData != nil {
-                        Button(role: .destructive) {
-                            logoData = nil
-                            logoImage = nil
-                            selectedPhoto = nil
-                        } label: {
-                            Label("Hapus Foto", systemImage: "trash")
-                                .font(.subheadline)
+                        // Saldo Awal (only for new pocket)
+                        if !isEditing {
+                            formSection("Saldo Awal") {
+                                VStack(spacing: 4) {
+                                    Text(saldoAwal > 0 ? saldoAwal.idrFormatted : "Rp 0")
+                                        .font(.title3.weight(.semibold))
+                                        .foregroundStyle(.white)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    CurrencyInputField(value: $saldoAwal)
+                                }
+                            }
                         }
-                    }
-                }
 
-                Section("Info Pocket") {
-                    TextField("Nama Pocket", text: $nama)
-
-                    Picker("Kelompok", selection: $kelompok) {
-                        ForEach(KelompokPocket.allCases, id: \.self) {
-                            Text($0.displayName).tag($0)
+                        // Limit (Kartu Kredit/PayLater only)
+                        if showLimitField {
+                            formSection("Limit Kredit") {
+                                VStack(spacing: 4) {
+                                    Text(limit > 0 ? limit.idrFormatted : "Rp 0")
+                                        .font(.title3.weight(.semibold))
+                                        .foregroundStyle(.white)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    CurrencyInputField(value: $limit)
+                                }
+                            }
                         }
-                    }
 
-                    Picker("Kategori", selection: $kategori) {
-                        ForEach(NamaKategoriPocket.allCases, id: \.self) {
-                            Text($0.displayName).tag($0)
+                        // Catatan
+                        formSection("Catatan (Opsional)") {
+                            TextField("Tulis catatan...", text: $catatan, axis: .vertical)
+                                .foregroundStyle(.white)
+                                .lineLimit(3...)
+                                .padding(12)
+                                .background(Color.white.opacity(0.07))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
+
+                        Spacer(minLength: 32)
                     }
-                }
-
-                if isKreditType {
-                    Section("Kartu Kredit / PayLater") {
-                        CurrencyInputField(label: "Limit", amount: $limit)
-                    }
-                }
-
-                Section("Saldo") {
-                    CurrencyInputField(label: isEditing ? "Saldo" : "Saldo Awal", amount: $saldoAwal)
-                }
-
-                Section {
-                    TextField("Catatan (opsional)", text: $catatan, axis: .vertical)
-                        .lineLimit(3)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
                 }
             }
             .navigationTitle(isEditing ? "Edit Pocket" : "Tambah Pocket")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Batal") { dismiss() }
+                        .foregroundStyle(.gray)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Simpan") { save() }
-                        .disabled(nama.isEmpty)
+                    Button("Simpan") { savePocket() }
+                        .fontWeight(.semibold)
+                        .foregroundStyle(canSave ? Color(hex: "#22C55E") : .gray)
+                        .disabled(!canSave)
                 }
             }
-            .onAppear { loadExisting() }
+            .onAppear { populateIfEditing() }
+            .onChange(of: selectedPhotoItem) { _, newItem in
+                Task {
+                    if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                        logoData = data
+                    }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    // MARK: - Logo Picker
+
+    private var logoPicker: some View {
+        VStack(spacing: 10) {
+            PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                ZStack {
+                    if let data = logoData, let uiImage = UIImage(data: data) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 80, height: 80)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(Color(hex: "#22C55E"), lineWidth: 2)
+                            )
+                    } else {
+                        Circle()
+                            .fill(Color.white.opacity(0.08))
+                            .frame(width: 80, height: 80)
+                            .overlay(
+                                VStack(spacing: 4) {
+                                    Image(systemName: "camera.fill")
+                                        .font(.title3)
+                                        .foregroundStyle(.gray)
+                                    Text("Foto")
+                                        .font(.caption2)
+                                        .foregroundStyle(.gray)
+                                }
+                            )
+                    }
+
+                    // Edit badge
+                    Circle()
+                        .fill(Color(hex: "#22C55E"))
+                        .frame(width: 24, height: 24)
+                        .overlay(
+                            Image(systemName: "pencil")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(.black)
+                        )
+                        .offset(x: 28, y: 28)
+                }
+            }
+
+            if logoData != nil {
+                Button("Hapus Foto") {
+                    logoData = nil
+                    selectedPhotoItem = nil
+                }
+                .font(.caption)
+                .foregroundStyle(.red)
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    // MARK: - Form Section Helper
+
+    @ViewBuilder
+    private func formSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.gray)
+                .textCase(.uppercase)
+                .tracking(0.5)
+            content()
         }
     }
 
-    private func loadExisting() {
+    // MARK: - Logic
+
+    private func populateIfEditing() {
         guard let p = existingPocket else { return }
         nama = p.nama
         kelompok = p.kelompokPocket
-        kategori = p.kategoriPocket
-        saldoAwal = p.saldo
-        limit = p.limit ?? 0
+        selectedKategori = p.kategoriPocket
         catatan = p.catatan ?? ""
-        if let data = p.logo, let uiImage = UIImage(data: data) {
-            logoData = data
-            logoImage = Image(uiImage: uiImage)
-        }
+        logoData = p.logo
+        if let l = p.limit { limit = l }
     }
 
-    private func save() {
-        if let p = existingPocket {
-            p.nama = nama
-            p.kelompokPocket = kelompok
-            p.kategoriPocket = kategori
-            p.saldo = saldoAwal
-            p.limit = isKreditType ? limit : nil
-            p.catatan = catatan.isEmpty ? nil : catatan
-            p.logo = logoData
+    private func savePocket() {
+        let trimmedNama = nama.trimmingCharacters(in: .whitespaces)
+        guard !trimmedNama.isEmpty else { return }
+
+        let limitValue: Decimal? = showLimitField && limit > 0 ? limit : nil
+
+        if let existing = existingPocket {
+            existing.nama = trimmedNama
+            existing.kelompokPocket = kelompok
+            existing.kategoriPocket = selectedKategori
+            existing.catatan = catatan.isEmpty ? nil : catatan
+            existing.logo = logoData
+            existing.limit = limitValue
         } else {
-            let pocket = Pocket(
-                nama: nama, kelompokPocket: kelompok, kategoriPocket: kategori,
-                saldo: saldoAwal, catatan: catatan.isEmpty ? nil : catatan,
-                limit: isKreditType ? limit : nil
+            let newPocket = Pocket(
+                nama: trimmedNama,
+                kelompokPocket: kelompok,
+                kategoriPocket: selectedKategori,
+                saldo: saldoAwal,
+                catatan: catatan.isEmpty ? nil : catatan,
+                limit: limitValue
             )
-            pocket.logo = logoData
-            context.insert(pocket)
+            newPocket.logo = logoData
+            modelContext.insert(newPocket)
         }
-        try? context.save()
+
+        try? modelContext.save()
         dismiss()
+    }
+}
+
+// MARK: - KategoriPocket Chip
+
+private struct KategoriPocketChip: View {
+    let nama: String
+    let isSelected: Bool
+
+    var body: some View {
+        Text(nama)
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(isSelected ? .black : .white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
+            .background(isSelected ? Color(hex: "#22C55E") : Color.white.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(isSelected ? Color(hex: "#22C55E") : Color.white.opacity(0.12), lineWidth: 1)
+            )
     }
 }

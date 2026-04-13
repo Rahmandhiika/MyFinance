@@ -3,15 +3,17 @@ import SwiftData
 
 @main
 struct MyFinanceApp: App {
-    let container = ModelContainerService.shared.container
+    let containerService = ModelContainerService.shared
+
+    init() {
+        containerService.ensureUserProfile()
+    }
 
     var body: some Scene {
         WindowGroup {
             MainTabView()
-                .modelContainer(container)
-                .onAppear {
-                    ModelContainerService.shared.ensureUserProfile()
-                }
+                .modelContainer(containerService.container)
+                .preferredColorScheme(.dark)
         }
     }
 }

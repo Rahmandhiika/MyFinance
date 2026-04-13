@@ -1,198 +1,163 @@
-import SwiftUI
+import Foundation
 
-// MARK: - Pocket
+// MARK: - Transaksi
 
-enum KelompokPocket: String, Codable, CaseIterable {
-    case biasa = "biasa"
-    case investasi = "investasi"
-    case utang = "utang"
+enum TipeTransaksi: String, Codable, CaseIterable, Identifiable {
+    case pengeluaran = "pengeluaran"
+    case pemasukan = "pemasukan"
 
-    var displayName: String {
-        switch self {
-        case .biasa: "Biasa"
-        case .investasi: "Investasi"
-        case .utang: "Utang"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .biasa: "wallet.pass"
-        case .investasi: "chart.line.uptrend.xyaxis"
-        case .utang: "creditcard.fill"
-        }
-    }
-}
-
-enum NamaKategoriPocket: String, Codable, CaseIterable {
-    case rekeningBank = "Rekening Bank"
-    case eWallet = "E-Wallet"
-    case eMoney = "E-Money"
-    case dompet = "Dompet"
-    case financing = "Financing"
-    case akunBrand = "Akun Brand"
-    case cryptoExchange = "Crypto Exchange"
-    case akunSekuritas = "Akun Sekuritas"
-    case cryptoWallet = "Crypto Wallet"
-    case kartuKreditPayLater = "Kartu Kredit/PayLater"
-
-    var displayName: String { rawValue }
-}
-
-enum WaktuUpdate: String, Codable, CaseIterable {
-    case pagi = "pagi"
-    case malam = "malam"
-    var displayName: String {
-        switch self {
-        case .pagi: "Pagi"
-        case .malam: "Malam"
-        }
-    }
-}
-
-// MARK: - Kategori Expense
-
-enum Prioritas: String, Codable, CaseIterable {
-    case blank = "blank"
-    case p0 = "p0"
-    case p1 = "p1"
-    case p2 = "p2"
-    case p3 = "p3"
-    case p4 = "p4"
+    var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .blank: "—"
-        case .p0: "P0"
-        case .p1: "P1"
-        case .p2: "P2"
-        case .p3: "P3"
-        case .p4: "P4"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .blank: .gray
-        case .p0: .red
-        case .p1: .orange
-        case .p2: .yellow
-        case .p3: .green
-        case .p4: .blue
+        case .pengeluaran: "Pengeluaran"
+        case .pemasukan: "Pemasukan"
         }
     }
 }
 
-enum KelompokExpense: String, Codable, CaseIterable {
-    case expense = "expense"
-    case nonExpense = "nonExpense"
+enum SubTipeTransaksi: String, Codable, CaseIterable, Identifiable {
+    case normal = "normal"
+    case simpanKeTarget = "simpanKeTarget"
+    case pakaiDariTarget = "pakaiDariTarget"
+
+    var id: String { rawValue }
+
     var displayName: String {
         switch self {
-        case .expense: "Expense"
-        case .nonExpense: "Non-Expense"
+        case .normal: "Normal"
+        case .simpanKeTarget: "Simpan ke Target"
+        case .pakaiDariTarget: "Pakai dari Target"
         }
     }
 }
 
-// MARK: - Kategori Income
+// MARK: - Klasifikasi Expense
 
-enum KelompokIncome: String, Codable, CaseIterable {
+enum KlasifikasiExpense: String, Codable, CaseIterable, Identifiable {
+    case kebutuhanPokok = "kebutuhanPokok"
+    case gayaHidup = "gayaHidup"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .kebutuhanPokok: "Kebutuhan Pokok"
+        case .gayaHidup: "Gaya Hidup"
+        }
+    }
+}
+
+// MARK: - Kelompok Income
+
+enum KelompokIncome: String, Codable, CaseIterable, Identifiable {
     case gaji = "gaji"
+    case freelance = "freelance"
     case produkDigital = "produkDigital"
     case jasaProfesional = "jasaProfesional"
     case passiveIncome = "passiveIncome"
     case socialMedia = "socialMedia"
-    case nonIncome = "nonIncome"
+    case lainnya = "lainnya"
+
+    var id: String { rawValue }
 
     var displayName: String {
         switch self {
         case .gaji: "Gaji"
+        case .freelance: "Freelance"
         case .produkDigital: "Produk Digital"
         case .jasaProfesional: "Jasa Profesional"
         case .passiveIncome: "Passive Income"
         case .socialMedia: "Social Media"
-        case .nonIncome: "Non-Income"
+        case .lainnya: "Lainnya"
         }
     }
 }
 
-// MARK: - Investasi
+// MARK: - Pocket
 
-enum TipeInvestasi: String, Codable, CaseIterable {
-    case reksadana = "reksadana"
+enum KelompokPocket: String, Codable, CaseIterable, Identifiable {
+    case biasa = "biasa"
+    case utang = "utang"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .biasa: "Biasa"
+        case .utang: "Utang"
+        }
+    }
+}
+
+// MARK: - Aset
+
+enum TipeAset: String, Codable, CaseIterable, Identifiable {
     case saham = "saham"
-    case emas = "emas"
     case kripto = "kripto"
+    case reksadana = "reksadana"
+    case emas = "emas"
+
+    var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .reksadana: "Reksadana"
         case .saham: "Saham"
-        case .emas: "Emas"
         case .kripto: "Kripto"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .reksadana: "chart.pie.fill"
-        case .saham: "chart.bar.fill"
-        case .emas: "circle.fill"
-        case .kripto: "bitcoinsign.circle.fill"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .reksadana: .purple
-        case .saham: .blue
-        case .emas: .orange
-        case .kripto: .cyan
+        case .reksadana: "Reksadana"
+        case .emas: "Emas"
         }
     }
 }
 
-// MARK: - Goal
+// MARK: - Anggaran
 
-enum TipeGoal: String, Codable, CaseIterable {
-    case tabungan = "tabungan"
-    case cicilan = "cicilan"
+enum TipeAnggaran: String, Codable, CaseIterable, Identifiable {
+    case bulanan = "bulanan"
+    case harian = "harian"
+
+    var id: String { rawValue }
+
     var displayName: String {
         switch self {
-        case .tabungan: "Tabungan"
-        case .cicilan: "Cicilan"
+        case .bulanan: "Bulanan"
+        case .harian: "Harian"
         }
     }
 }
 
-// MARK: - Transaksi (for voice/NLP parsing)
+// MARK: - Kripto
 
-enum TipeTransaksi: String, Codable, CaseIterable {
-    case expense = "expense"
-    case income = "income"
-    case transfer = "transfer"
+enum MataUangKripto: String, Codable, CaseIterable, Identifiable {
+    case idr = "IDR"
+    case usdt = "USDT"
+
+    var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .expense: "Pengeluaran"
-        case .income: "Pemasukan"
-        case .transfer: "Transfer"
+        case .idr: "IDR"
+        case .usdt: "USDT"
         }
     }
+}
 
-    var icon: String {
-        switch self {
-        case .expense: "arrow.up.circle.fill"
-        case .income: "arrow.down.circle.fill"
-        case .transfer: "arrow.left.arrow.right.circle.fill"
-        }
-    }
+// MARK: - Emas
 
-    var color: Color {
+enum JenisEmas: String, Codable, CaseIterable, Identifiable {
+    case lmAntam = "LMAntam"
+    case ubs = "UBS"
+    case antamRetro = "AntamRetro"
+    case ubsRetro = "UBSRetro"
+
+    var id: String { rawValue }
+
+    var displayName: String {
         switch self {
-        case .expense: .red
-        case .income: .green
-        case .transfer: .blue
+        case .lmAntam: "LM Antam"
+        case .ubs: "UBS"
+        case .antamRetro: "Antam Retro"
+        case .ubsRetro: "UBS Retro"
         }
     }
 }

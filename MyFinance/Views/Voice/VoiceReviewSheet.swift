@@ -2,142 +2,210 @@ import SwiftUI
 import SwiftData
 
 struct VoiceReviewSheet: View {
-    @Environment(\.modelContext) private var context
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Query(filter: #Predicate<Pocket> { $0.isAktif }) private var pockets: [Pocket]
-    @Query private var kategoriExpense: [KategoriExpense]
-    @Query private var kategoriIncome: [KategoriIncome]
 
-    let transcribedText: String
+    @Query(filter: #Predicate<Pocket> { $0.isAktif }) private var pockets: [Pocket]
+    @Query private var allKategoris: [Kategori]
+
+    let parsed: ParsedResult
     let onDone: () -> Void
 
-    @State private var tipe: TipeTransaksi = .expense
-    @State private var nominal: Double = 0
-    @State private var selectedPocketID: UUID?
-    @State private var selectedKategoriExpenseID: UUID?
-    @State private var selectedKategoriIncomeID: UUID?
-    @State private var selectedPocketTujuanID: UUID?
+    // Editable form state
+    @State private var tipe: TipeTransaksi = .pengeluaran
+    @State private var nominal: Decimal = 0
+    @State private var selectedKategori: Kategori? = nil
+    @State private var selectedPocket: Pocket? = nil
     @State private var catatan: String = ""
-    @State private var tanggal = Date()
+    @State private var tanggal: Date = Date()
+
+    // Derived
+    private var filteredKategoris: [Kategori] {
+        allKategoris.filter { $0.tipe == tipe }.sorted { $0.urutan < $1.urutan }
+    }
+
+    private var canSave: Bool {
+        nominal > 0 && selectedPocket != nil
+    }
+
+    private var nominalDisplay: String {
+        nominal > 0 ? nominal.idrFormatted : "Rp 0"
+    }
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Hasil Parse") {
-                    Text(transcribedText)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+            ZStack {
+                Color(hex: "#0D0D0D").ignoresSafeArea()
 
-                Section("Tipe Transaksi") {
-                    Picker("Tipe", selection: $tipe) {
-                        ForEach(TipeTransaksi.allCases, id: \.self) {
-                            Text($0.displayName).tag($0)
+                ScrollView {
+                    VStack(spacing: 24) {
+
+                        // Nominal display + input
+                        VStack(spacing: 8) {
+                            Text(nominalDisplay)
+                                .font(.system(size: 40, weight: .bold))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.5)
+
+                            CurrencyInputField(value: $nominal)
+                                .padding(.horizontal, 24)
                         }
-                    }
-                    .pickerStyle(.segmented)
-                }
+                        .padding(.top, 12)
 
-                Section("Detail") {
-                    CurrencyInputField(label: "Nominal", amount: $nominal)
-                    DatePicker("Tanggal", selection: $tanggal, displayedComponents: .date)
-
-                    if tipe == .expense {
-                        Picker("Kategori", selection: $selectedKategoriExpenseID) {
-                            Text("Pilih Kategori").tag(Optional<UUID>.none)
-                            ForEach(kategoriExpense) { k in
-                                Text(k.nama).tag(Optional(k.id))
+                        // Tipe segmented
+                        VStack(alignment: .leading, spacing: 8) {
+                            sectionLabel("Tipe Transaksi")
+                            Picker("Tipe", selection: $tipe) {
+                                ForEach(TipeTransaksi.allCases) { t in
+                                    Text(t.displayName).tag(t)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .onChange(of: tipe) { _, _ in
+                                selectedKategori = nil
                             }
                         }
-                    } else if tipe == .income {
-                        Picker("Kategori", selection: $selectedKategoriIncomeID) {
-                            Text("Pilih Kategori").tag(Optional<UUID>.none)
-                            ForEach(kategoriIncome) { k in
-                                Text(k.nama).tag(Optional(k.id))
+                        .padding(.horizontal, 20)
+
+                        // Kategori grid
+                        VStack(alignment: .leading, spacing: 10) {
+                            sectionLabel("Kategori")
+                            if filteredKategoris.isEmpty {
+                                Text("Belum ada kategori")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                    .padding(.horizontal, 4)
+                            } else {
+                                KategoriGridPicker(
+                                    kategoris: filteredKategoris,
+                                    selected: $selectedKategori
+                                )
                             }
                         }
-                    }
+                        .padding(.horizontal, 20)
 
-                    if tipe == .transfer {
-                        Picker("Pocket Asal", selection: $selectedPocketID) {
-                            Text("Pilih").tag(Optional<UUID>.none)
-                            ForEach(pockets) { p in Text(p.nama).tag(Optional(p.id)) }
+                        // Pocket chip picker
+                        VStack(alignment: .leading, spacing: 10) {
+                            sectionLabel("Pocket")
+                            if pockets.isEmpty {
+                                Text("Belum ada pocket")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                    .padding(.horizontal, 4)
+                            } else {
+                                PocketChipPicker(pockets: pockets, selected: $selectedPocket)
+                            }
                         }
-                        Picker("Pocket Tujuan", selection: $selectedPocketTujuanID) {
-                            Text("Pilih").tag(Optional<UUID>.none)
-                            ForEach(pockets) { p in Text(p.nama).tag(Optional(p.id)) }
-                        }
-                    } else {
-                        Picker("Pocket", selection: $selectedPocketID) {
-                            Text("Pilih Pocket").tag(Optional<UUID>.none)
-                            ForEach(pockets) { p in Text(p.nama).tag(Optional(p.id)) }
-                        }
-                    }
+                        .padding(.horizontal, 20)
 
-                    TextField("Catatan", text: $catatan)
+                        // Tanggal
+                        VStack(alignment: .leading, spacing: 8) {
+                            sectionLabel("Tanggal")
+                            DatePicker("", selection: $tanggal, displayedComponents: [.date, .hourAndMinute])
+                                .datePickerStyle(.compact)
+                                .labelsHidden()
+                                .colorScheme(.dark)
+                        }
+                        .padding(.horizontal, 20)
+
+                        // Catatan
+                        VStack(alignment: .leading, spacing: 8) {
+                            sectionLabel("Catatan")
+                            TextField("Tulis catatan...", text: $catatan)
+                                .foregroundStyle(.white)
+                                .padding(12)
+                                .background(Color.white.opacity(0.07))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .padding(.horizontal, 20)
+
+                        // Simpan CTA
+                        Button {
+                            save()
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                Text("Simpan Transaksi")
+                                    .fontWeight(.semibold)
+                            }
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(canSave ? .black : .gray)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(canSave ? Color(hex: "#22C55E") : Color.white.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .shadow(
+                                color: canSave ? Color(hex: "#22C55E").opacity(0.35) : .clear,
+                                radius: 10, y: 4
+                            )
+                        }
+                        .disabled(!canSave)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 32)
+                    }
                 }
             }
             .navigationTitle("Review Transaksi")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Batal") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Simpan") { save() }
-                        .disabled(nominal <= 0)
+                        .foregroundStyle(.gray)
                 }
             }
-            .onAppear { parseText() }
+            .onAppear {
+                populateFromParsed()
+            }
         }
+        .preferredColorScheme(.dark)
     }
 
-    private func parseText() {
-        let parser = NLPParser.shared
-        let parsed = parser.parse(text: transcribedText, pocketNames: pockets.map { $0.nama })
+    // MARK: - Helpers
 
-        nominal = parsed.amount
-        catatan = parsed.note
+    @ViewBuilder
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.gray)
+            .textCase(.uppercase)
+            .tracking(0.5)
+    }
 
-        switch parsed.type {
-        case .expense: tipe = .expense
-        case .income: tipe = .income
-        case .transfer: tipe = .transfer
-        }
+    // MARK: - Logic
 
-        if let matchedPocket = parsed.matchedPocketName {
-            selectedPocketID = pockets.first { $0.nama.lowercased() == matchedPocket.lowercased() }?.id
-        }
+    private func populateFromParsed() {
+        tipe = parsed.tipe
+        nominal = parsed.nominal
+        catatan = parsed.catatan
+        selectedPocket = parsed.matchedPocket
+        selectedKategori = parsed.matchedKategori
     }
 
     private func save() {
-        switch tipe {
-        case .expense:
-            let exp = Expense(tanggal: tanggal, nominal: nominal,
-                             kategoriID: selectedKategoriExpenseID,
-                             pocketID: selectedPocketID,
-                             catatan: catatan.isEmpty ? nil : catatan)
-            context.insert(exp)
-            TransactionProcessor.applyExpense(exp, context: context)
+        guard let pocket = selectedPocket else { return }
 
-        case .income:
-            let inc = Income(tanggal: tanggal, nominal: nominal,
-                            kategoriID: selectedKategoriIncomeID,
-                            pocketID: selectedPocketID,
-                            catatan: catatan.isEmpty ? nil : catatan)
-            context.insert(inc)
-            TransactionProcessor.applyIncome(inc, context: context)
+        let transaksi = Transaksi(
+            tanggal: tanggal,
+            nominal: nominal,
+            tipe: tipe,
+            subTipe: .normal,
+            kategori: selectedKategori,
+            pocket: pocket,
+            catatan: catatan.isEmpty ? nil : catatan
+        )
+        modelContext.insert(transaksi)
 
-        case .transfer:
-            guard let asalID = selectedPocketID, let tujuanID = selectedPocketTujuanID else { return }
-            let transfer = TransferInternal(tanggal: tanggal, nominal: nominal,
-                                           pocketAsalID: asalID, pocketTujuanID: tujuanID,
-                                           catatan: catatan.isEmpty ? nil : catatan)
-            context.insert(transfer)
-            TransactionProcessor.applyTransfer(transfer, context: context)
+        // Adjust pocket saldo
+        if tipe == .pengeluaran {
+            pocket.saldo -= nominal
+        } else {
+            pocket.saldo += nominal
         }
 
-        try? context.save()
+        try? modelContext.save()
         onDone()
         dismiss()
     }

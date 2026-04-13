@@ -1,39 +1,30 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @State private var selectedTab: Int = 0
+    @State private var selectedTab = 0
 
     var body: some View {
         TabView(selection: $selectedTab) {
             HomeView()
-                .tabItem {
-                    Label("Home", systemImage: "house.fill")
-                }
+                .tabItem { Label("Ringkasan", systemImage: "square.grid.2x2.fill") }
                 .tag(0)
 
-            TrackerView()
-                .tabItem {
-                    Label("Tracker", systemImage: "list.bullet.rectangle")
-                }
+            TransaksiTabView()
+                .tabItem { Label("Transaksi", systemImage: "list.bullet") }
                 .tag(1)
 
             VoiceTabView()
-                .tabItem {
-                    Label("Voice", systemImage: "mic.fill")
-                }
+                .tabItem { Label("", systemImage: "mic.fill") }
                 .tag(2)
 
-            InvestTabView()
-                .tabItem {
-                    Label("Invest", systemImage: "chart.line.uptrend.xyaxis")
-                }
+            PocketTabView()
+                .tabItem { Label("Pocket", systemImage: "wallet.pass.fill") }
                 .tag(3)
 
-            PocketTabView()
-                .tabItem {
-                    Label("Pocket", systemImage: "wallet.pass.fill")
-                }
+            PengaturanView()
+                .tabItem { Label("Pengaturan", systemImage: "gearshape.fill") }
                 .tag(4)
         }
+        .tint(Color(hex: "#22C55E"))
     }
 }

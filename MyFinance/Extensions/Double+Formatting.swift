@@ -23,3 +23,23 @@ extension Double {
         return String(format: "%.0f", self)
     }
 }
+
+extension Decimal {
+    var idrFormatted: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "IDR"
+        formatter.currencySymbol = "Rp "
+        formatter.maximumFractionDigits = 0
+        formatter.minimumFractionDigits = 0
+        return formatter.string(from: self as NSDecimalNumber) ?? "Rp 0"
+    }
+
+    var shortFormatted: String {
+        let d = Double(truncating: self as NSDecimalNumber)
+        if abs(d) >= 1_000_000_000 { return String(format: "%.1fM", d / 1_000_000_000) }
+        if abs(d) >= 1_000_000 { return String(format: "%.1fjt", d / 1_000_000) }
+        if abs(d) >= 1_000 { return String(format: "%.1frb", d / 1_000) }
+        return String(format: "%.0f", d)
+    }
+}
