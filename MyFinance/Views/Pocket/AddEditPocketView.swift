@@ -15,6 +15,7 @@ struct AddEditPocketView: View {
     @State private var kelompok: KelompokPocket = .biasa
     @State private var selectedKategori: KategoriPocket? = nil
     @State private var saldoAwal: Decimal = 0
+    @State private var saldoEdit: Decimal = 0
     @State private var limit: Decimal = 0
     @State private var catatan: String = ""
     @State private var logoData: Data? = nil
@@ -85,8 +86,22 @@ struct AddEditPocketView: View {
                             }
                         }
 
-                        // Saldo Awal (only for new pocket)
-                        if !isEditing {
+                        // Saldo — awal saat tambah baru, update manual saat edit
+                        if isEditing {
+                            formSection("Saldo Saat Ini") {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack(spacing: 8) {
+                                        Text("Rp")
+                                            .foregroundStyle(.white.opacity(0.5))
+                                            .font(.subheadline)
+                                        CurrencyInputField(value: $saldoEdit)
+                                    }
+                                    Text("Perubahan saldo tidak dicatat sebagai transaksi.")
+                                        .font(.caption)
+                                        .foregroundStyle(.white.opacity(0.35))
+                                }
+                            }
+                        } else {
                             formSection("Saldo Awal") {
                                 VStack(spacing: 4) {
                                     Text(saldoAwal > 0 ? saldoAwal.idrFormatted : "Rp 0")
@@ -235,6 +250,7 @@ struct AddEditPocketView: View {
         selectedKategori = p.kategoriPocket
         catatan = p.catatan ?? ""
         logoData = p.logo
+        saldoEdit = p.saldo
         if let l = p.limit { limit = l }
     }
 
@@ -251,6 +267,7 @@ struct AddEditPocketView: View {
             existing.catatan = catatan.isEmpty ? nil : catatan
             existing.logo = logoData
             existing.limit = limitValue
+            existing.saldo = saldoEdit
         } else {
             let newPocket = Pocket(
                 nama: trimmedNama,

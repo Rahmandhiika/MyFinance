@@ -4,49 +4,111 @@ import SwiftUI
 
 struct CurrencyInputField: View {
     @Binding var value: Decimal
+    /// Aktifkan untuk field yang butuh angka di belakang koma (harga aset, NAV, dll)
+    var allowsDecimal: Bool = false
 
     @State private var text: String = ""
     @FocusState private var focused: Bool
 
     var body: some View {
         TextField("0", text: $text)
-            .keyboardType(.numberPad)
+            .keyboardType(allowsDecimal ? .decimalPad : .numberPad)
             .focused($focused)
             .padding(12)
             .background(Color.white.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .foregroundStyle(.white)
             .onChange(of: text) { _, newValue in
-                let digits = newValue.filter { $0.isNumber }
-                if digits != newValue { text = digits }
-                value = Decimal(string: digits) ?? 0
+                // Guard: hanya parse saat user aktif mengetik.
+                // Kalau tidak focused, perubahan text berasal dari formatter (bukan user)
+                // dan akan menyebabkan bug: titik ribuan terbaca sebagai desimal.
+                guard focused else { return }
+                let filtered = filterInput(newValue)
+                if filtered != newValue { text = filtered }
+                value = parseDecimal(filtered)
             }
             .onChange(of: value) { _, newValue in
+                // Hanya reformat saat tidak sedang diketik
                 if !focused {
-                    let intVal = NSDecimalNumber(decimal: newValue).intValue
-                    text = intVal > 0 ? formatWithSeparator(intVal) : ""
+                    text = formatForDisplay(newValue)
                 }
             }
             .onAppear {
-                let intVal = NSDecimalNumber(decimal: value).intValue
-                text = intVal > 0 ? formatWithSeparator(intVal) : ""
+                text = formatForDisplay(value)
             }
             .onChange(of: focused) { _, isFocused in
-                let intVal = NSDecimalNumber(decimal: value).intValue
                 if isFocused {
-                    text = intVal > 0 ? String(intVal) : ""
-                } else if intVal > 0 {
-                    text = formatWithSeparator(intVal)
+                    // Saat mulai edit: tunjukkan angka mentah tanpa ribuan separator
+                    text = value > 0 ? formatForEditing(value) : ""
+                } else {
+                    // Saat selesai: tunjukkan format lengkap
+                    text = formatForDisplay(value)
                 }
             }
     }
 
-    private func formatWithSeparator(_ val: Int) -> String {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        f.groupingSeparator = "."
-        f.maximumFractionDigits = 0
-        return f.string(from: NSNumber(value: val)) ?? "\(val)"
+    // MARK: - Helpers
+
+    /// Hanya boleh digit + satu pemisah desimal (koma atau titik)
+    private func filterInput(_ input: String) -> String {
+        if allowsDecimal {
+            var hasDecimal = false
+            var result = ""
+            for ch in input {
+                if ch.isNumber {
+                    result.append(ch)
+                } else if (ch == "," || ch == ".") && !hasDecimal {
+                    result.append(",") // normalkan ke koma
+                    hasDecimal = true
+                }
+            }
+            return result
+        } else {
+            return input.filter { $0.isNumber }
+        }
+    }
+
+    /// Parse string ke Decimal, handle koma atau titik sebagai desimal
+    private func parseDecimal(_ input: String) -> Decimal {
+        let normalized = input.replacingOccurrences(of: ",", with: ".")
+        return Decimal(string: normalized) ?? 0
+    }
+
+    /// Format untuk mode edit (tidak pakai ribuan separator, desimal pakai koma)
+    private func formatForEditing(_ val: Decimal) -> String {
+        if allowsDecimal {
+            let d = Double(truncating: val as NSDecimalNumber)
+            // Kalau bulat, tampilkan tanpa desimal supaya user bisa lanjut ketik
+            if d == d.rounded() && !text.contains(",") {
+                return String(Int(d))
+            }
+            return String(format: "%.2f", d).replacingOccurrences(of: ".", with: ",")
+        } else {
+            let intVal = NSDecimalNumber(decimal: val).intValue
+            return intVal > 0 ? String(intVal) : ""
+        }
+    }
+
+    /// Format untuk tampilan idle (ribuan separator titik, desimal koma)
+    private func formatForDisplay(_ val: Decimal) -> String {
+        guard val > 0 else { return "" }
+        if allowsDecimal {
+            let f = NumberFormatter()
+            f.numberStyle = .decimal
+            f.groupingSeparator = "."
+            f.decimalSeparator = ","
+            f.minimumFractionDigits = 2
+            f.maximumFractionDigits = 2
+            return f.string(from: val as NSDecimalNumber) ?? "\(val)"
+        } else {
+            let intVal = NSDecimalNumber(decimal: val).intValue
+            guard intVal > 0 else { return "" }
+            let f = NumberFormatter()
+            f.numberStyle = .decimal
+            f.groupingSeparator = "."
+            f.maximumFractionDigits = 0
+            return f.string(from: NSNumber(value: intVal)) ?? "\(intVal)"
+        }
     }
 }
 

@@ -11,6 +11,7 @@ import Foundation
     var isAktif: Bool
     var catatan: String?
     var limit: Decimal?  // untuk Kartu Kredit/PayLater
+    var urutan: Int      // untuk drag reorder di tab Pocket
     var createdAt: Date
 
     @Relationship(deleteRule: .cascade, inverse: \Transaksi.pocket)
@@ -27,6 +28,7 @@ import Foundation
         self.isAktif = true
         self.catatan = catatan
         self.limit = limit
+        self.urutan = 0
         self.createdAt = Date()
     }
 }

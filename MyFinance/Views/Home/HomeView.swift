@@ -55,7 +55,7 @@ struct HomeView: View {
         allPockets.filter { $0.kelompokPocket == .utang }.reduce(0) { $0 + $1.saldo }
     }
     private var totalAset: Decimal {
-        allAset.reduce(0) { $0 + $1.nilaiSaatIni }
+        allAset.reduce(0) { $0 + $1.nilaiEfektif }
     }
     private var totalKekayaan: Decimal {
         cash + danaTersimpan + totalAset - hutang
@@ -322,7 +322,7 @@ struct HomeView: View {
                 Divider()
                     .frame(width: 1, height: 36)
                     .background(Color.white.opacity(0.15))
-                kekayaanColumn(label: "HUTANG KAMU", value: hutang, color: accentRed)
+                kekayaanColumn(label: "ASET", value: totalAset, color: Color(hex: "#3B82F6"))
             }
         }
         .padding(16)
@@ -419,17 +419,9 @@ struct HomeView: View {
                 Button {
                     showAddTransaksi = true
                 } label: {
-                    HStack(spacing: 4) {
-                        Text("Ngegas")
-                        Image(systemName: "arrow.up")
-                    }
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(accentGreen)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(accentGreen.opacity(0.15))
-                    .clipShape(Capsule())
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(accentGreen)
                 }
             }
 

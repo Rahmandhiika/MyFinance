@@ -5,14 +5,11 @@ struct PocketChipPicker: View {
     @Binding var selected: Pocket?
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(pockets) { pocket in
-                    PocketChip(pocket: pocket, isSelected: selected?.id == pocket.id)
-                        .onTapGesture { selected = selected?.id == pocket.id ? nil : pocket }
-                }
+        FlowLayout(spacing: 8, lineSpacing: 8) {
+            ForEach(pockets) { pocket in
+                PocketChip(pocket: pocket, isSelected: selected?.id == pocket.id)
+                    .onTapGesture { selected = selected?.id == pocket.id ? nil : pocket }
             }
-            .padding(.horizontal, 1)
         }
     }
 }

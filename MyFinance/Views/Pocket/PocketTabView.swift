@@ -7,6 +7,7 @@ struct PocketTabView: View {
 
     @State private var showAddPocket = false
     @State private var selectedPocket: Pocket? = nil
+    @State private var isReordering = false
 
     private var activePockets: [Pocket] {
         allPockets.filter { $0.isAktif }
@@ -14,7 +15,7 @@ struct PocketTabView: View {
 
     private var biasaPockets: [Pocket] {
         activePockets.filter { $0.kelompokPocket == .biasa }
-            .sorted { $0.createdAt < $1.createdAt }
+            .sorted { $0.urutan == $1.urutan ? $0.createdAt < $1.createdAt : $0.urutan < $1.urutan }
     }
 
     private var utangPockets: [Pocket] {
@@ -39,11 +40,7 @@ struct PocketTabView: View {
 
                         // Biasa Section
                         if !biasaPockets.isEmpty {
-                            pocketSection(
-                                title: "BIASA",
-                                pockets: biasaPockets,
-                                accentColor: Color(hex: "#22C55E")
-                            )
+                            biasaSection
                         }
 
                         // Utang Section
@@ -96,6 +93,17 @@ struct PocketTabView: View {
             .sheet(item: $selectedPocket) { pocket in
                 PocketDetailSheet(pocket: pocket)
             }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    if !biasaPockets.isEmpty {
+                        Button(isReordering ? "Selesai" : "Atur Urutan") {
+                            isReordering.toggle()
+                        }
+                        .foregroundStyle(isReordering ? Color(hex: "#22C55E") : .white.opacity(0.7))
+                        .font(.subheadline)
+                    }
+                }
+            }
         }
         .preferredColorScheme(.dark)
     }
@@ -126,7 +134,62 @@ struct PocketTabView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    // MARK: - Section
+    // MARK: - Biasa Section (with drag reorder)
+
+    private var biasaSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("BIASA")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.gray)
+                    .tracking(1)
+                Spacer()
+                if isReordering {
+                    Text("Seret untuk mengatur urutan")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                } else {
+                    Text("\(biasaPockets.count)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color(hex: "#22C55E"))
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Color(hex: "#22C55E").opacity(0.15))
+                        .clipShape(Capsule())
+                }
+            }
+
+            // List for drag reorder; plain static list when not reordering
+            List {
+                ForEach(biasaPockets) { pocket in
+                    PocketRow(pocket: pocket)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            if !isReordering { selectedPocket = pocket }
+                        }
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets())
+                }
+                .onMove { source, destination in
+                    var pockets = biasaPockets
+                    pockets.move(fromOffsets: source, toOffset: destination)
+                    for (index, pocket) in pockets.enumerated() {
+                        pocket.urutan = index
+                    }
+                    try? modelContext.save()
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .scrollDisabled(true)
+            .frame(height: CGFloat(biasaPockets.count) * 72)
+            .background(Color.white.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .environment(\.editMode, isReordering ? .constant(.active) : .constant(.inactive))
+        }
+    }
+
+    // MARK: - Generic Section (utang, etc.)
 
     @ViewBuilder
     private func pocketSection(title: String, pockets: [Pocket], accentColor: Color) -> some View {
@@ -140,8 +203,7 @@ struct PocketTabView: View {
                 Text("\(pockets.count)")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(accentColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(accentColor.opacity(0.15))
                     .clipShape(Capsule())
             }
@@ -150,7 +212,6 @@ struct PocketTabView: View {
                 ForEach(pockets) { pocket in
                     PocketRow(pocket: pocket)
                         .onTapGesture { selectedPocket = pocket }
-
                     if pocket.id != pockets.last?.id {
                         Divider()
                             .background(Color.white.opacity(0.07))

@@ -5,7 +5,7 @@ struct KategoriGridPicker: View {
     let kategoris: [Kategori]
     @Binding var selected: Kategori?
 
-    let columns = [GridItem(.adaptive(minimum: 80))]
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 4)
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 12) {
@@ -26,14 +26,14 @@ struct KategoriCell: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(isSelected ? Color(hex: kategori.warna) : Color(hex: kategori.warna).opacity(0.2))
-                    .frame(width: 56, height: 56)
+                    .frame(width: 52, height: 52)
 
                 if let emoji = kategori.ikonCustom, !emoji.isEmpty {
-                    Text(emoji).font(.title2)
+                    Text(emoji).font(.title3)
                 } else {
                     Image(systemName: kategori.ikon)
                         .foregroundStyle(isSelected ? .white : Color(hex: kategori.warna))
-                        .font(.title3)
+                        .font(.body)
                 }
             }
             .overlay(
@@ -42,11 +42,13 @@ struct KategoriCell: View {
             )
 
             Text(kategori.nama)
-                .font(.caption2)
+                .font(.system(size: 10, weight: .regular))
                 .foregroundStyle(.white)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(width: 72)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
     }
 }

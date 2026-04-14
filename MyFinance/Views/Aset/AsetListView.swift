@@ -2,15 +2,16 @@ import SwiftUI
 import SwiftData
 
 struct AsetListView: View {
-    @Query(sort: \Aset.createdAt) var allAset: [Aset]
+    @Query(sort: [SortDescriptor(\Aset.urutan), SortDescriptor(\Aset.createdAt)]) var allAset: [Aset]
 
     @State private var priceService = AsetPriceService.shared
     @State private var selectedAset: Aset? = nil
     @State private var showAdd = false
+    @State private var showReorder = false
 
     // MARK: - Computed Totals
 
-    private var totalNilai: Decimal { allAset.reduce(0) { $0 + $1.nilaiSaatIni } }
+    private var totalNilai: Decimal { allAset.reduce(0) { $0 + $1.nilaiEfektif } }
     private var totalModal: Decimal { allAset.reduce(0) { $0 + $1.modal } }
     private var keuntungan: Decimal { totalNilai - totalModal }
     private var returnPersen: Double {
@@ -21,9 +22,11 @@ struct AsetListView: View {
     // MARK: - Grouped
 
     private var asetBySaham:     [Aset] { allAset.filter { $0.tipe == .saham } }
-    private var asetByKripto:    [Aset] { allAset.filter { $0.tipe == .kripto } }
+    private var asetBySahamAS:   [Aset] { allAset.filter { $0.tipe == .sahamAS } }
     private var asetByReksadana: [Aset] { allAset.filter { $0.tipe == .reksadana } }
+    private var asetByValas:     [Aset] { allAset.filter { $0.tipe == .valas } }
     private var asetByEmas:      [Aset] { allAset.filter { $0.tipe == .emas } }
+    private var asetByDeposito:  [Aset] { allAset.filter { $0.tipe == .deposito } }
 
     // MARK: - Body
 
@@ -60,16 +63,27 @@ struct AsetListView: View {
                 refreshButton
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showAdd = true
-                } label: {
-                    Label("Tambah", systemImage: "plus")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.black)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(.white)
-                        .clipShape(Capsule())
+                HStack(spacing: 8) {
+                    if allAset.count > 1 {
+                        Button {
+                            showReorder = true
+                        } label: {
+                            Image(systemName: "arrow.up.arrow.down")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
+                    }
+                    Button {
+                        showAdd = true
+                    } label: {
+                        Label("Tambah", systemImage: "plus")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(.white)
+                            .clipShape(Capsule())
+                    }
                 }
             }
         }
@@ -85,6 +99,11 @@ struct AsetListView: View {
         }
         .sheet(isPresented: $showAdd) {
             AddEditAsetView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showReorder) {
+            AsetReorderSheet()
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
@@ -131,7 +150,7 @@ struct AsetListView: View {
                             .clipShape(Capsule())
                     }
 
-                    Text(totalNilai.idrFormatted)
+                    Text(totalNilai.idrDecimalFormatted)
                         .font(.system(size: 28, weight: .bold))
                         .foregroundStyle(.white)
                 }
@@ -161,13 +180,13 @@ struct AsetListView: View {
 
             // Stats row
             HStack {
-                PortfolioStat(label: "TOTAL MODAL", value: totalModal.idrFormatted)
+                PortfolioStat(label: "TOTAL MODAL", value: totalModal.idrDecimalFormatted)
                 Divider()
                     .background(Color.white.opacity(0.1))
                     .frame(height: 36)
                 PortfolioStat(
                     label: "KEUNTUNGAN",
-                    value: "\(keuntungan >= 0 ? "+" : "")\(keuntungan.idrFormatted)",
+                    value: "\(keuntungan >= 0 ? "+" : "")\(keuntungan.idrDecimalFormatted)",
                     valueColor: keuntungan >= 0 ? Color(hex: "#22C55E") : Color(hex: "#EF4444")
                 )
             }
@@ -197,14 +216,20 @@ struct AsetListView: View {
             if !asetBySaham.isEmpty {
                 AsetSection(tipe: .saham, items: asetBySaham, onTap: { selectedAset = $0 })
             }
-            if !asetByKripto.isEmpty {
-                AsetSection(tipe: .kripto, items: asetByKripto, onTap: { selectedAset = $0 })
+            if !asetBySahamAS.isEmpty {
+                AsetSection(tipe: .sahamAS, items: asetBySahamAS, onTap: { selectedAset = $0 })
             }
             if !asetByReksadana.isEmpty {
                 AsetSection(tipe: .reksadana, items: asetByReksadana, onTap: { selectedAset = $0 })
             }
+            if !asetByValas.isEmpty {
+                AsetSection(tipe: .valas, items: asetByValas, onTap: { selectedAset = $0 })
+            }
             if !asetByEmas.isEmpty {
                 AsetSection(tipe: .emas, items: asetByEmas, onTap: { selectedAset = $0 })
+            }
+            if !asetByDeposito.isEmpty {
+                AsetSection(tipe: .deposito, items: asetByDeposito, onTap: { selectedAset = $0 })
             }
         }
     }
@@ -226,7 +251,7 @@ struct AsetListView: View {
                 Text("Belum Ada Aset")
                     .font(.title3.weight(.bold))
                     .foregroundStyle(.white)
-                Text("Catat investasi kamu — saham, kripto,\nreksadana, atau emas.")
+                Text("Catat investasi kamu — saham, reksadana,\nvalas, emas, atau deposito.")
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.5))
                     .multilineTextAlignment(.center)
@@ -294,7 +319,7 @@ private struct AsetSection: View {
     let items: [Aset]
     let onTap: (Aset) -> Void
 
-    var sectionTotal: Decimal { items.reduce(0) { $0 + $1.nilaiSaatIni } }
+    var sectionPnl: Decimal { items.reduce(0) { $0 + $1.pnl } }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -317,9 +342,13 @@ private struct AsetSection: View {
                         .clipShape(Capsule())
                 }
                 Spacer()
-                Text(sectionTotal.shortFormatted)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.5))
+                HStack(spacing: 3) {
+                    Image(systemName: sectionPnl >= 0 ? "arrow.up.right" : "arrow.down.right")
+                        .font(.system(size: 9, weight: .bold))
+                    Text("\(sectionPnl >= 0 ? "+" : "")\(sectionPnl.shortFormatted)")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(sectionPnl >= 0 ? Color(hex: "#22C55E") : Color(hex: "#EF4444"))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -377,7 +406,7 @@ private struct AsetRow: View {
 
             // Value + P&L
             VStack(alignment: .trailing, spacing: 3) {
-                Text(aset.nilaiSaatIni.idrFormatted)
+                Text(aset.nilaiEfektif.idrDecimalFormatted)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .lineLimit(1)

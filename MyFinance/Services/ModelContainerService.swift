@@ -22,7 +22,7 @@ class ModelContainerService {
         ])
 
         let storeURL = URL.applicationSupportDirectory
-            .appendingPathComponent("myfinance-v3.store")
+            .appendingPathComponent("myfinance-v6.store")
 
         let config = ModelConfiguration(schema: schema, url: storeURL)
 

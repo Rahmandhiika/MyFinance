@@ -90,22 +90,26 @@ enum KelompokPocket: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Aset
+// MARK: - Aset (5 tipe)
 
 enum TipeAset: String, Codable, CaseIterable, Identifiable {
-    case saham = "saham"
-    case kripto = "kripto"
+    case saham     = "saham"
+    case sahamAS   = "sahamAS"
     case reksadana = "reksadana"
-    case emas = "emas"
+    case valas     = "valas"
+    case emas      = "emas"
+    case deposito  = "deposito"
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .saham: "Saham"
-        case .kripto: "Kripto"
+        case .saham:     "Saham IDN"
+        case .sahamAS:   "Saham AS"
         case .reksadana: "Reksadana"
-        case .emas: "Emas"
+        case .valas:     "Valas"
+        case .emas:      "Emas"
+        case .deposito:  "Deposito"
         }
     }
 }
@@ -114,50 +118,68 @@ enum TipeAset: String, Codable, CaseIterable, Identifiable {
 
 enum TipeAnggaran: String, Codable, CaseIterable, Identifiable {
     case bulanan = "bulanan"
-    case harian = "harian"
+    case harian  = "harian"
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
         case .bulanan: "Bulanan"
-        case .harian: "Harian"
+        case .harian:  "Harian"
         }
     }
 }
 
-// MARK: - Kripto
+// MARK: - Valas
 
-enum MataUangKripto: String, Codable, CaseIterable, Identifiable {
-    case idr = "IDR"
-    case usdt = "USDT"
+enum MataUangValas: String, Codable, CaseIterable, Identifiable {
+    case usd = "USD"
+    case sgd = "SGD"
+    case jpy = "JPY"
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .idr: "IDR"
-        case .usdt: "USDT"
+        case .usd: "US Dollar (USD)"
+        case .sgd: "Singapore Dollar (SGD)"
+        case .jpy: "Japanese Yen (JPY)"
         }
     }
+
+    var flag: String {
+        switch self {
+        case .usd: "🇺🇸"
+        case .sgd: "🇸🇬"
+        case .jpy: "🇯🇵"
+        }
+    }
+
+    /// Franfkurter API currency code
+    var apiCode: String { rawValue }
 }
 
 // MARK: - Emas
 
 enum JenisEmas: String, Codable, CaseIterable, Identifiable {
-    case lmAntam = "LMAntam"
-    case ubs = "UBS"
-    case antamRetro = "AntamRetro"
-    case ubsRetro = "UBSRetro"
+    case lmAntam     = "LMAntam"
+    case ubs         = "UBS"
+    case antamRetro  = "AntamRetro"
+    case ubsRetro    = "UBSRetro"
+    case emasDigital = "EmasDigital"
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .lmAntam: "LM Antam"
-        case .ubs: "UBS"
-        case .antamRetro: "Antam Retro"
-        case .ubsRetro: "UBS Retro"
+        case .lmAntam:     "LM Antam"
+        case .ubs:         "UBS"
+        case .antamRetro:  "Antam Retro"
+        case .ubsRetro:    "UBS Retro"
+        case .emasDigital: "Emas Digital"
         }
     }
+
+    /// Emas digital (Pluang, dll) tidak punya tahun cetak
+    var isDigital: Bool { self == .emasDigital }
 }

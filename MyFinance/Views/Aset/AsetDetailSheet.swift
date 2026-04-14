@@ -5,8 +5,14 @@ struct AsetDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     let aset: Aset
 
+    @Environment(\.modelContext) private var modelContext
+
     @State private var showEdit = false
     @State private var editMode: AsetEditMode = .edit
+    @State private var isRefreshingKurs = false
+    @State private var showCairkan = false
+    @State private var showJual = false
+    @State private var showHapusAlert = false
 
     var body: some View {
         NavigationStack {
@@ -23,6 +29,9 @@ struct AsetDetailSheet: View {
 
                         // MARK: Action Buttons
                         actionButtonsSection
+
+                        // MARK: Hapus
+                        hapusButton
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 24)
@@ -54,6 +63,22 @@ struct AsetDetailSheet: View {
         .sheet(isPresented: $showEdit) {
             AddEditAsetView(existingAset: aset, mode: editMode)
         }
+        .sheet(isPresented: $showCairkan) {
+            CairkanDepositoSheet(aset: aset) { dismiss() }
+        }
+        .sheet(isPresented: $showJual) {
+            JualAsetSheet(aset: aset) { dismiss() }
+        }
+        .alert("Hapus \(aset.nama)?", isPresented: $showHapusAlert) {
+            Button("Hapus", role: .destructive) {
+                modelContext.delete(aset)
+                try? modelContext.save()
+                dismiss()
+            }
+            Button("Batal", role: .cancel) {}
+        } message: {
+            Text("Data aset ini akan dihapus permanen dan tidak bisa dipulihkan.")
+        }
     }
 
     // MARK: - Header Section
@@ -75,7 +100,7 @@ struct AsetDetailSheet: View {
                 .foregroundStyle(.white.opacity(0.5))
                 .tracking(1)
 
-            Text(aset.nilaiSaatIni.idrFormatted)
+            Text(aset.nilaiEfektif.idrDecimalFormatted)
                 .font(.system(size: 32, weight: .bold))
                 .foregroundStyle(.white)
 
@@ -83,7 +108,7 @@ struct AsetDetailSheet: View {
             HStack(spacing: 6) {
                 Image(systemName: aset.pnl >= 0 ? "arrow.up.right" : "arrow.down.right")
                     .font(.caption)
-                Text("\(aset.pnl.idrFormatted) (\(aset.returnPersen.percentFormatted))")
+                Text("\(aset.pnl.idrDecimalFormatted) (\(aset.returnPersen.percentFormatted))")
                     .font(.subheadline.weight(.semibold))
             }
             .foregroundStyle(aset.pnl >= 0 ? Color(hex: "#22C55E") : Color(hex: "#EF4444"))
@@ -108,20 +133,24 @@ struct AsetDetailSheet: View {
             switch aset.tipe {
             case .saham:
                 sahamDetails
-            case .kripto:
-                kriptoDetails
+            case .sahamAS:
+                sahamASDetails
             case .reksadana:
                 reksadanaDetails
+            case .valas:
+                valasDetails
             case .emas:
                 emasDetails
+            case .deposito:
+                depositoDetails
             }
 
             Divider().background(Color.white.opacity(0.08))
-            DetailRow(label: "Total Modal", value: aset.modal.idrFormatted)
+            DetailRow(label: "Total Modal", value: aset.modal.idrDecimalFormatted)
             Divider().background(Color.white.opacity(0.08))
             DetailRow(
                 label: "Keuntungan / Rugi",
-                value: "\(aset.pnl >= 0 ? "+" : "")\(aset.pnl.idrFormatted)",
+                value: "\(aset.pnl >= 0 ? "+" : "")\(aset.pnl.idrDecimalFormatted)",
                 valueColor: aset.pnl >= 0 ? Color(hex: "#22C55E") : Color(hex: "#EF4444")
             )
             Divider().background(Color.white.opacity(0.08))
@@ -142,31 +171,93 @@ struct AsetDetailSheet: View {
             Divider().background(Color.white.opacity(0.08))
         }
         if let harga = aset.hargaPerLembar {
-            DetailRow(label: "Harga Beli/Lembar", value: harga.idrFormatted)
+            DetailRow(label: "Harga Beli/Lembar", value: harga.idrDecimalFormatted)
             Divider().background(Color.white.opacity(0.08))
             let hargaSaatIniPerLembar = aset.lot != nil && aset.lot! > 0
                 ? aset.nilaiSaatIni / ((aset.lot ?? 1) * 100)
                 : 0
-            DetailRow(label: "Harga Saat Ini/Lembar", value: hargaSaatIniPerLembar.idrFormatted)
+            DetailRow(label: "Harga Saat Ini/Lembar", value: hargaSaatIniPerLembar.idrDecimalFormatted)
             Divider().background(Color.white.opacity(0.08))
         }
     }
 
     @ViewBuilder
-    private var kriptoDetails: some View {
-        if let mataUang = aset.mataUang {
-            DetailRow(label: "Mata Uang", value: mataUang.displayName)
+    private var sahamASDetails: some View {
+        if let kode = aset.kode, !kode.isEmpty {
+            DetailRow(label: "Ticker", value: kode.uppercased())
             Divider().background(Color.white.opacity(0.08))
         }
-        if let hargaPerUnit = aset.hargaPerUnit, hargaPerUnit > 0 {
-            let jumlahUnit = aset.totalInvestasiKripto != nil && hargaPerUnit > 0
-                ? (aset.totalInvestasiKripto! / hargaPerUnit)
-                : Decimal(0)
-            DetailRow(label: "Jumlah Koin", value: "\(Double(truncating: jumlahUnit as NSDecimalNumber).formatted(.number.precision(.fractionLength(4))))")
+        if let totalUSD = aset.totalInvestasiUSD {
+            DetailRow(label: "Total Investasi (USD)", value: "$\(totalUSD.unitFormatted(2))")
             Divider().background(Color.white.opacity(0.08))
         }
-        if let harga = aset.hargaPerUnit {
-            DetailRow(label: "Harga Beli/Unit", value: harga.idrFormatted)
+        let shares = aset.jumlahSharesAS
+        if shares > 0 {
+            DetailRow(label: "Jumlah Shares", value: "\(shares.unitFormatted(4)) share")
+            Divider().background(Color.white.opacity(0.08))
+        }
+        if let hargaBeli = aset.hargaBeliPerShareUSD {
+            DetailRow(label: "Harga Beli/Share", value: "$\(hargaBeli.unitFormatted(2))")
+            Divider().background(Color.white.opacity(0.08))
+        }
+        // Harga saat ini + refresh
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Harga Saat Ini/Share")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.6))
+                if let hargaNow = aset.hargaSaatIniUSD {
+                    Text("$\(hargaNow.unitFormatted(2))")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                } else {
+                    Text("–")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.4))
+                }
+            }
+            Spacer()
+            Button {
+                guard let kode = aset.kode else { return }
+                isRefreshingKurs = true
+                Task {
+                    async let hargaTask = AsetPriceService.shared.fetchUSStockPrice(ticker: kode)
+                    async let kursTask = AsetPriceService.shared.fetchKursValas(.usd)
+                    let (harga, kurs) = await (hargaTask, kursTask)
+                    if let h = harga { aset.hargaSaatIniUSD = h }
+                    if let k = kurs { aset.kursSaatIniUSD = k }
+                    if let h = harga ?? aset.hargaSaatIniUSD,
+                       let k = kurs ?? aset.kursSaatIniUSD {
+                        aset.nilaiSaatIni = aset.jumlahSharesAS * h * k
+                    }
+                    isRefreshingKurs = false
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    if isRefreshingKurs {
+                        ProgressView().tint(Color(hex: "#F97316")).scaleEffect(0.8)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption.weight(.semibold))
+                    }
+                    Text("Update")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(Color(hex: "#F97316"))
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Color(hex: "#F97316").opacity(0.12))
+                .clipShape(Capsule())
+            }
+            .disabled(isRefreshingKurs || aset.kode == nil)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        Divider().background(Color.white.opacity(0.08))
+        if let kursBeliUSD = aset.kursBeliUSD {
+            DetailRow(label: "Kurs Beli (IDR/USD)", value: kursBeliUSD.idrDecimalFormatted)
+            Divider().background(Color.white.opacity(0.08))
+        }
+        if let kursNow = aset.kursSaatIniUSD {
+            DetailRow(label: "Kurs Saat Ini (IDR/USD)", value: kursNow.idrDecimalFormatted)
             Divider().background(Color.white.opacity(0.08))
         }
     }
@@ -177,12 +268,176 @@ struct AsetDetailSheet: View {
             DetailRow(label: "Jenis", value: jenis)
             Divider().background(Color.white.opacity(0.08))
         }
-        if let nav = aset.nav {
-            DetailRow(label: "NAV/Unit", value: nav.idrFormatted)
+        if let hargaBeli = aset.hargaBeliPerUnit {
+            DetailRow(label: "NAV Saat Beli/Unit", value: hargaBeli.idrDecimalFormatted)
             Divider().background(Color.white.opacity(0.08))
-            let totalInv = aset.totalInvestasiReksadana ?? 0
-            let unitCount = nav > 0 ? totalInv / nav : Decimal(0)
-            DetailRow(label: "Jumlah Unit", value: "\(Double(truncating: unitCount as NSDecimalNumber).formatted(.number.precision(.fractionLength(2))))")
+        }
+        if let navNow = aset.navSaatIni {
+            DetailRow(label: "NAV Saat Ini/Unit", value: navNow.idrDecimalFormatted)
+            Divider().background(Color.white.opacity(0.08))
+        }
+        let unitCount = aset.estimasiUnitReksadana
+        if unitCount > 0 {
+            DetailRow(label: "Jumlah Unit (Est.)", value: unitCount.unitFormatted(4))
+            Divider().background(Color.white.opacity(0.08))
+        }
+        if let totalInv = aset.totalInvestasiReksadana {
+            DetailRow(label: "Total Investasi", value: totalInv.idrDecimalFormatted)
+            Divider().background(Color.white.opacity(0.08))
+        }
+    }
+
+    @ViewBuilder
+    private var valasDetails: some View {
+        if let mata = aset.mataUangValas {
+            DetailRow(label: "Mata Uang", value: "\(mata.flag) \(mata.rawValue)")
+            Divider().background(Color.white.opacity(0.08))
+        }
+        if let jumlah = aset.jumlahValas {
+            let mata = aset.mataUangValas?.rawValue ?? ""
+            DetailRow(label: "Jumlah", value: "\(jumlah.unitFormatted(2)) \(mata)")
+            Divider().background(Color.white.opacity(0.08))
+        }
+        if let kursBeli = aset.kursBeliPerUnit {
+            DetailRow(label: "Kurs Beli", value: kursBeli.idrDecimalFormatted)
+            Divider().background(Color.white.opacity(0.08))
+        }
+        // Kurs saat ini + refresh button
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Kurs Saat Ini")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.6))
+                if let kursNow = aset.kursSaatIni {
+                    Text(kursNow.idrDecimalFormatted)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                } else {
+                    Text("–")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.4))
+                }
+            }
+            Spacer()
+            Button {
+                guard let mata = aset.mataUangValas else { return }
+                isRefreshingKurs = true
+                Task {
+                    if let kurs = await AsetPriceService.shared.fetchKursValas(mata) {
+                        aset.kursSaatIni = kurs
+                        aset.nilaiSaatIni = (aset.jumlahValas ?? 0) * kurs
+                    }
+                    isRefreshingKurs = false
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    if isRefreshingKurs {
+                        ProgressView().tint(Color(hex: "#06B6D4")).scaleEffect(0.8)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption.weight(.semibold))
+                    }
+                    Text("Update")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(Color(hex: "#06B6D4"))
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Color(hex: "#06B6D4").opacity(0.12))
+                .clipShape(Capsule())
+            }
+            .disabled(isRefreshingKurs || aset.mataUangValas == nil)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        Divider().background(Color.white.opacity(0.08))
+        // Selisih kurs
+        if let kursBeli = aset.kursBeliPerUnit, let kursNow = aset.kursSaatIni {
+            let selisih = kursNow - kursBeli
+            let naik = selisih >= 0
+            DetailRow(
+                label: "Selisih Kurs/Unit",
+                value: "\(naik ? "+" : "")\(selisih.idrDecimalFormatted)",
+                valueColor: naik ? Color(hex: "#22C55E") : Color(hex: "#EF4444")
+            )
+            Divider().background(Color.white.opacity(0.08))
+        }
+    }
+
+    @ViewBuilder
+    private var depositoDetails: some View {
+        // Progress bar — tenor berjalan
+        let progress = aset.progressDeposito
+        let hariLagi = aset.hariLagiDeposito
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Progres Tenor")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.6))
+                Spacer()
+                Text(hariLagi == 0 ? "Jatuh tempo!" : "\(hariLagi) hari lagi")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(hariLagi <= 7 ? Color(hex: "#EF4444") : Color(hex: "#A78BFA"))
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.white.opacity(0.08))
+                        .frame(height: 8)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(hex: "#A78BFA"), Color(hex: "#7C3AED")],
+                                startPoint: .leading, endPoint: .trailing
+                            )
+                        )
+                        .frame(width: geo.size.width * CGFloat(progress), height: 8)
+                }
+            }
+            .frame(height: 8)
+            HStack {
+                Text(aset.tanggalMulaiDeposito.map { $0.formatted(date: .abbreviated, time: .omitted) } ?? "–")
+                    .font(.caption2).foregroundStyle(.white.opacity(0.4))
+                Spacer()
+                Text(aset.jatuhTempoDeposito.map { $0.formatted(date: .abbreviated, time: .omitted) } ?? "–")
+                    .font(.caption2).foregroundStyle(.white.opacity(0.4))
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 14)
+        Divider().background(Color.white.opacity(0.08))
+
+        if let nominal = aset.nominalDeposito {
+            DetailRow(label: "Nominal", value: nominal.idrDecimalFormatted)
+            Divider().background(Color.white.opacity(0.08))
+        }
+        if let bunga = aset.bungaPA {
+            DetailRow(label: "Bunga p.a.", value: "\(bunga.unitFormatted(2))%")
+            Divider().background(Color.white.opacity(0.08))
+        }
+        if let pph = aset.pphFinal {
+            DetailRow(label: "PPh Final", value: "\(pph.unitFormatted(0))%")
+            Divider().background(Color.white.opacity(0.08))
+        }
+        if let tenor = aset.tenorBulan {
+            DetailRow(label: "Tenor", value: "\(tenor) bulan")
+            Divider().background(Color.white.opacity(0.08))
+        }
+        if let jatuhTempo = aset.jatuhTempoDeposito {
+            DetailRow(label: "Jatuh Tempo", value: jatuhTempo.formatted(date: .abbreviated, time: .omitted))
+            Divider().background(Color.white.opacity(0.08))
+        }
+        if let pocket = aset.pocketSumber {
+            DetailRow(label: "Bank / Pocket", value: pocket.nama)
+            Divider().background(Color.white.opacity(0.08))
+        }
+        let bungaBersih = aset.bungaBersihDeposito
+        if bungaBersih > 0 {
+            DetailRow(label: "Bunga Bersih (s/d hari ini)", value: "+ \(bungaBersih.idrDecimalFormatted)", valueColor: Color(hex: "#22C55E"))
+            Divider().background(Color.white.opacity(0.08))
+            let totalEst = (aset.nominalDeposito ?? 0) + bungaBersih
+            DetailRow(label: "Est. Total Pencairan", value: totalEst.idrDecimalFormatted, valueColor: Color(hex: "#A78BFA"))
+            Divider().background(Color.white.opacity(0.08))
+        }
+        if aset.autoRollOver {
+            DetailRow(label: "Auto Roll Over", value: "Aktif")
             Divider().background(Color.white.opacity(0.08))
         }
     }
@@ -193,16 +448,16 @@ struct AsetDetailSheet: View {
             DetailRow(label: "Jenis Emas", value: jenis.displayName)
             Divider().background(Color.white.opacity(0.08))
         }
-        if let tahun = aset.tahunCetak {
+        if let tahun = aset.tahunCetak, aset.jenisEmas?.isDigital != true {
             DetailRow(label: "Tahun Cetak", value: "\(tahun)")
             Divider().background(Color.white.opacity(0.08))
         }
         if let berat = aset.beratGram {
-            DetailRow(label: "Berat", value: "\(Double(truncating: berat as NSDecimalNumber).formatted(.number.precision(.fractionLength(2)))) gram")
+            DetailRow(label: "Berat", value: "\(berat.unitFormatted(2)) gram")
             Divider().background(Color.white.opacity(0.08))
         }
         if let harga = aset.hargaBeliPerGram {
-            DetailRow(label: "Harga Beli/Gram", value: harga.idrFormatted)
+            DetailRow(label: "Harga Beli/Gram", value: harga.idrDecimalFormatted)
             Divider().background(Color.white.opacity(0.08))
         }
     }
@@ -225,33 +480,67 @@ struct AsetDetailSheet: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
 
-            // Jual
-            Button {
-                editMode = .jual
-                showEdit = true
-            } label: {
-                Label("Jual", systemImage: "arrow.up.right.circle.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color(hex: "#EF4444"))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Color(hex: "#EF4444").opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
+            if aset.tipe == .deposito {
+                // Cairkan
+                Button {
+                    showCairkan = true
+                } label: {
+                    Label("Cairkan", systemImage: "banknote.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color(hex: "#A78BFA"))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color(hex: "#A78BFA").opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            } else {
+                // Jual
+                Button {
+                    showJual = true
+                } label: {
+                    Label("Jual", systemImage: "arrow.up.right.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color(hex: "#EF4444"))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color(hex: "#EF4444").opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
 
-            // Beli
-            Button {
-                editMode = .beli
-                showEdit = true
-            } label: {
-                Label("Beli", systemImage: "arrow.down.left.circle.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color(hex: "#22C55E"))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Color(hex: "#22C55E").opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                // Beli
+                Button {
+                    editMode = .beli
+                    showEdit = true
+                } label: {
+                    Label("Beli", systemImage: "arrow.down.left.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color(hex: "#22C55E"))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color(hex: "#22C55E").opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
             }
+        }
+    }
+
+    // MARK: - Hapus Button
+
+    private var hapusButton: some View {
+        Button {
+            showHapusAlert = true
+        } label: {
+            Label("Hapus Aset", systemImage: "trash")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color(hex: "#EF4444").opacity(0.8))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(Color(hex: "#EF4444").opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color(hex: "#EF4444").opacity(0.2), lineWidth: 1)
+                )
         }
     }
 }

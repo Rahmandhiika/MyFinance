@@ -210,28 +210,35 @@ struct TargetDetailSheet: View {
 
     @ViewBuilder
     private func riwayatRow(_ record: SimpanKeTarget) -> some View {
+        let isSaldoAwal = record.catatan == "Saldo awal"
+        let isPenyesuaian = record.catatan == "Penyesuaian manual"
+        let isSpecial = isSaldoAwal || isPenyesuaian
+        let rowColor: Color = isSaldoAwal ? Color(hex: "#A78BFA") : isPenyesuaian ? Color(hex: "#F59E0B") : targetColor
+
         HStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(targetColor.opacity(0.15))
+                    .fill(rowColor.opacity(0.15))
                     .frame(width: 36, height: 36)
-                Image(systemName: "arrow.down.circle.fill")
+                Image(systemName: isSaldoAwal ? "flag.fill" : isPenyesuaian ? "pencil.circle.fill" : "arrow.down.circle.fill")
                     .font(.system(size: 16))
-                    .foregroundStyle(targetColor)
+                    .foregroundStyle(rowColor)
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(target.nama)
+                Text(isSpecial ? (record.catatan ?? "") : target.nama)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.white)
                 HStack(spacing: 6) {
-                    Text("Simpan ke Target")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(targetColor)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(targetColor.opacity(0.12))
-                        .clipShape(Capsule())
+                    if !isSpecial {
+                        Text("Simpan ke Target")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(rowColor)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(rowColor.opacity(0.12))
+                            .clipShape(Capsule())
+                    }
                     Text(record.tanggal.formatted(date: .abbreviated, time: .omitted))
                         .font(.caption)
                         .foregroundStyle(.gray)
@@ -240,9 +247,9 @@ struct TargetDetailSheet: View {
 
             Spacer()
 
-            Text("-\(record.nominal.idrFormatted)")
+            Text("\(record.nominal >= 0 ? "+" : "")\(record.nominal.idrFormatted)")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color(hex: "#22D3EE"))
+                .foregroundStyle(record.nominal >= 0 ? Color(hex: "#22D3EE") : Color(hex: "#EF4444"))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)

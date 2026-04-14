@@ -35,11 +35,44 @@ extension Decimal {
         return formatter.string(from: self as NSDecimalNumber) ?? "Rp 0"
     }
 
+    /// Format dengan 2 angka di belakang koma — dipakai untuk nilai Aset
+    /// Contoh: Rp 2.333,14
+    var idrDecimalFormatted: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "IDR"
+        formatter.currencySymbol = "Rp "
+        formatter.maximumFractionDigits = 2
+        formatter.minimumFractionDigits = 2
+        return formatter.string(from: self as NSDecimalNumber) ?? "Rp 0,00"
+    }
+
     var shortFormatted: String {
         let d = Double(truncating: self as NSDecimalNumber)
         if abs(d) >= 1_000_000_000 { return String(format: "%.1fM", d / 1_000_000_000) }
         if abs(d) >= 1_000_000 { return String(format: "%.1fjt", d / 1_000_000) }
         if abs(d) >= 1_000 { return String(format: "%.1frb", d / 1_000) }
         return String(format: "%.0f", d)
+    }
+
+    /// Format unit/kuantitas ke N desimal dengan rounding yang tepat — tanpa konversi via Double.
+    /// Menggunakan NSDecimalNumberHandler (.plain = round half away from zero).
+    func unitFormatted(_ fractionDigits: Int = 4) -> String {
+        let handler = NSDecimalNumberHandler(
+            roundingMode: .plain,
+            scale: Int16(fractionDigits),
+            raiseOnExactness: false,
+            raiseOnOverflow: false,
+            raiseOnUnderflow: false,
+            raiseOnDivideByZero: false
+        )
+        let rounded = (self as NSDecimalNumber).rounding(accordingToBehavior: handler)
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = fractionDigits
+        formatter.maximumFractionDigits = fractionDigits
+        formatter.decimalSeparator = ","
+        formatter.groupingSeparator = "."
+        return formatter.string(from: rounded) ?? "0"
     }
 }
