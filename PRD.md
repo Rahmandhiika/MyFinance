@@ -195,11 +195,14 @@ Transaksi terjadwal (model tersedia, engine belum aktif).
 
 ---
 
-## File Structure
+## File Structure (MVC)
+
+Proyek menggunakan pola **MVC (Model – View – Controller)** dengan 4 folder utama di dalam `MyFinance/`:
 
 ```
 MyFinance/
-├── Models/
+│
+├── Model/                        ← Data layer (SwiftData @Model classes + Enums)
 │   ├── Pocket.swift
 │   ├── Transaksi.swift
 │   ├── Kategori.swift
@@ -211,94 +214,94 @@ MyFinance/
 │   ├── TransferInternal.swift
 │   ├── TransaksiOtomatis.swift
 │   ├── UserConfig.swift          — profil user (nama, foto, greeting)
-│   └── AppEnums.swift            — semua enum
+│   └── AppEnums.swift            — semua enum app
 │
-├── Services/
-│   ├── ModelContainerService.swift   — SwiftData container setup
-│   ├── AsetPriceService.swift        — fetch harga Yahoo Finance + Frankfurter
+├── View/                         ← UI layer (SwiftUI Views, dikelompokkan per fitur)
+│   ├── Main/
+│   │   └── MainTabView.swift         — Tab bar utama (5 tab)
+│   │
+│   ├── Home/
+│   │   └── HomeView.swift            — Dashboard lengkap
+│   │
+│   ├── Transaksi/
+│   │   ├── TransaksiTabView.swift        — List transaksi per bulan + filter
+│   │   ├── AddEditTransaksiSheet.swift   — Form tambah/edit transaksi
+│   │   ├── TransaksiDetailSheet.swift    — Detail transaksi
+│   │   ├── TransaksiGroupSheet.swift     — Grup transaksi per hari
+│   │   └── TransferInternalSheet.swift  — Transfer antar pocket
+│   │
+│   ├── Voice/
+│   │   ├── VoiceTabView.swift        — Tombol mic + trigger speech
+│   │   └── VoiceReviewSheet.swift    — Review hasil voice input sebelum simpan
+│   │
+│   ├── Pocket/
+│   │   ├── PocketTabView.swift           — List pocket + saldo + kelompok
+│   │   ├── PocketDetailSheet.swift       — Detail pocket + histori transaksi
+│   │   ├── PocketDetailView.swift
+│   │   ├── AddEditPocketView.swift       — Form tambah/edit pocket
+│   │   └── DanaDaruratConfigView.swift   — Konfigurasi dana darurat
+│   │
+│   ├── Aset/
+│   │   ├── AsetListView.swift            — Portfolio list (toolbar: Analisa + Reorder + Plus)
+│   │   ├── AsetDetailSheet.swift         — Detail aset (routing Beli/Update/Jual per tipe)
+│   │   ├── AddEditAsetView.swift         — Form tambah/edit aset semua tipe
+│   │   ├── BeliSahamSheet.swift          — Beli lot saham (weighted avg + komisi)
+│   │   ├── TambahReksadanaSheet.swift    — Tambah investasi reksadana (weighted avg NAV)
+│   │   ├── JualAsetSheet.swift           — Jual aset (+ biaya admin, auto hasilAset)
+│   │   ├── CairkanDepositoSheet.swift    — Cairkan deposito
+│   │   ├── AsetReorderSheet.swift        — Drag reorder aset
+│   │   ├── AnalisaSahamView.swift        — List analisa teknikal saham IDN
+│   │   └── AnalisaSahamDetailSheet.swift — Detail sinyal per saham
+│   │
+│   ├── Target/
+│   │   ├── TargetListView.swift      — List target (kartu + foto background)
+│   │   ├── TargetDetailSheet.swift   — Detail + riwayat setoran
+│   │   └── AddEditTargetView.swift   — Form tambah/edit + PhotosPicker
+│   │
+│   ├── Langganan/
+│   │   ├── LanggananBulanIniCard.swift   — Card di HomeView
+│   │   ├── LanggananManagementView.swift — CRUD + reorder sheet
+│   │   ├── AddEditLanggananView.swift    — Form tambah/edit + PhotosPicker logo
+│   │   └── LanggananReorderSheet.swift  — Drag reorder langganan
+│   │
+│   ├── Analitik/
+│   │   └── AnalitikView.swift        — Grafik cashflow, kategori, tren bulanan
+│   │
+│   ├── Pengaturan/
+│   │   ├── PengaturanView.swift               — Menu pengaturan (profil, manajemen, backup, reset)
+│   │   ├── KategoriManagementView.swift       — CRUD kategori
+│   │   ├── AddEditKategoriView.swift          — Form + toggle flags (isNabung, isAdmin, isHasilAset)
+│   │   ├── AnggaranManagementView.swift       — CRUD anggaran
+│   │   ├── AddEditAnggaranView.swift
+│   │   ├── TransaksiOtomatisView.swift        — List transaksi terjadwal (UI only)
+│   │   ├── AddEditTransaksiOtomatisView.swift
+│   │   └── BackupRestoreView.swift            — Export/import JSON backup
+│   │
+│   └── Components/                   — Komponen reusable
+│       ├── CurrencyInputField.swift      — Input nominal custom keyboard
+│       ├── QuickAmountButtons.swift      — Tombol +10rb/+50rb/+100rb/+500rb/+1jt
+│       ├── KategoriGridPicker.swift      — Grid picker kategori
+│       ├── PocketChipPicker.swift        — Chip picker pocket
+│       ├── ProgressBarView.swift         — Progress bar reusable
+│       ├── MonthNavigator.swift          — Navigasi bulan (prev/next + label)
+│       ├── IkonColorPicker.swift         — SF Symbol + color picker
+│       └── FlowLayout.swift             — Custom flow layout
+│
+├── Controller/                   ← Business logic layer (Services)
+│   ├── ModelContainerService.swift   — SwiftData container setup + schema
+│   ├── AsetPriceService.swift        — Fetch harga Yahoo Finance + Frankfurter
 │   ├── StockAnalysisService.swift    — EMA20, RSI14, volume analysis
-│   ├── BackupService.swift           — export/import JSON backup
-│   ├── ReksadanaSearchService.swift  — search reksadana dari bundled JSON
-│   ├── NLPParser.swift               — voice input parser
-│   └── SpeechRecognitionService.swift
+│   ├── BackupService.swift           — Export/import JSON backup
+│   ├── ReksadanaSearchService.swift  — Search reksadana dari bundled JSON
+│   ├── NLPParser.swift               — Voice input parser (tipe, nominal, pocket, kategori)
+│   └── SpeechRecognitionService.swift — Speech-to-text wrapper
 │
-├── Extensions/
-│   ├── Color+Hex.swift           — Color(hex: "#RRGGBB")
-│   ├── Color+App.swift           — .appBg, .appGreen, .appRed, dll
-│   ├── Date+Helpers.swift        — .isSameMonth(), .startOfMonth, .endOfMonth
-│   ├── Double+Formatting.swift   — .percentFormatted
-│   └── TipeAset+UI.swift         — icon + warna per TipeAset
-│
-└── Views/
-    ├── Main/
-    │   └── MainTabView.swift         — Tab bar utama (5 tab)
-    │
-    ├── Home/
-    │   └── HomeView.swift            — Dashboard lengkap
-    │
-    ├── Transaksi/
-    │   ├── TransaksiTabView.swift        — List transaksi per bulan + filter
-    │   ├── AddEditTransaksiSheet.swift   — Form tambah/edit transaksi
-    │   ├── TransaksiDetailSheet.swift    — Detail transaksi
-    │   ├── TransaksiGroupSheet.swift     — Grup transaksi per hari
-    │   └── TransferInternalSheet.swift  — Transfer antar pocket
-    │
-    ├── Voice/
-    │   ├── VoiceTabView.swift        — Tombol mic + trigger speech
-    │   └── VoiceReviewSheet.swift    — Review hasil voice input sebelum simpan
-    │
-    ├── Pocket/
-    │   ├── PocketTabView.swift       — List pocket + saldo + kelompok
-    │   ├── PocketDetailSheet.swift   — Detail pocket + histori transaksi
-    │   ├── PocketDetailView.swift
-    │   ├── AddEditPocketView.swift   — Form tambah/edit pocket
-    │   └── DanaDaruratConfigView.swift — Konfigurasi dana darurat
-    │
-    ├── Aset/
-    │   ├── AsetListView.swift            — Portfolio list (toolbar: Analisa + Reorder + Plus)
-    │   ├── AsetDetailSheet.swift         — Detail aset (routing Beli/Update/Jual per tipe)
-    │   ├── AddEditAsetView.swift         — Form tambah/edit aset semua tipe
-    │   ├── BeliSahamSheet.swift          — Beli lot saham (weighted avg + komisi)
-    │   ├── TambahReksadanaSheet.swift    — Tambah investasi reksadana (weighted avg NAV)
-    │   ├── JualAsetSheet.swift           — Jual aset (+ biaya admin, auto hasilAset)
-    │   ├── CairkanDepositoSheet.swift    — Cairkan deposito
-    │   ├── AsetReorderSheet.swift        — Drag reorder aset
-    │   ├── AnalisaSahamView.swift        — List analisa teknikal saham IDN
-    │   └── AnalisaSahamDetailSheet.swift — Detail sinyal per saham
-    │
-    ├── Target/
-    │   ├── TargetListView.swift      — List target (kartu + foto background)
-    │   ├── TargetDetailSheet.swift   — Detail + riwayat setoran
-    │   └── AddEditTargetView.swift   — Form tambah/edit + PhotosPicker
-    │
-    ├── Langganan/
-    │   ├── LanggananBulanIniCard.swift   — Card di HomeView
-    │   ├── LanggananManagementView.swift — CRUD + reorder sheet
-    │   ├── AddEditLanggananView.swift    — Form tambah/edit + PhotosPicker logo
-    │   └── LanggananReorderSheet.swift  — Drag reorder langganan
-    │
-    ├── Analitik/
-    │   └── AnalitikView.swift        — Grafik cashflow, kategori, tren bulanan
-    │
-    ├── Pengaturan/
-    │   ├── PengaturanView.swift              — Menu pengaturan (profil, manajemen, backup, reset)
-    │   ├── KategoriManagementView.swift      — CRUD kategori
-    │   ├── AddEditKategoriView.swift         — Form + toggle flags (isNabung, isAdmin, isHasilAset)
-    │   ├── AnggaranManagementView.swift      — CRUD anggaran
-    │   ├── AddEditAnggaranView.swift
-    │   ├── TransaksiOtomatisView.swift       — List transaksi terjadwal (UI only)
-    │   ├── AddEditTransaksiOtomatisView.swift
-    │   └── BackupRestoreView.swift           — Export/import JSON backup
-    │
-    └── Components/
-        ├── CurrencyInputField.swift      — Input nominal custom keyboard
-        ├── QuickAmountButtons.swift      — Tombol +10rb/+50rb/+100rb/+500rb/+1jt
-        ├── KategoriGridPicker.swift      — Grid picker kategori
-        ├── PocketChipPicker.swift        — Chip picker pocket
-        ├── ProgressBarView.swift         — Progress bar reusable
-        ├── MonthNavigator.swift          — Navigasi bulan (prev/next + label)
-        ├── IkonColorPicker.swift         — SF Symbol + color picker
-        └── FlowLayout.swift             — Custom flow layout
+└── Extension/                    ← Helper extensions
+    ├── Color+Hex.swift           — Color(hex: "#RRGGBB")
+    ├── Color+App.swift           — Static constants: .appBg, .appGreen, .appRed, dll
+    ├── Date+Helpers.swift        — .isSameMonth(), .startOfMonth, .endOfMonth
+    ├── Double+Formatting.swift   — .percentFormatted
+    └── TipeAset+UI.swift         — Icon + warna per TipeAset
 ```
 
 ---
@@ -501,4 +504,4 @@ try? context.save()
 | `context` vs `modelContext` naming tidak konsisten | Low | Half-half |
 | iCloud/CloudKit sync | Future | User belum punya Dev account aktif |
 | Target — belum ada drag reorder | Future | Sort by createdAt |
-| `HomeView_OLD.swift`, `PocketTabView_OLD.swift` | Low | File lama belum dihapus |
+| `View/Main/TrackerView.swift` | Low | File placeholder, belum digunakan |
