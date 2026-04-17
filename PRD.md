@@ -1,710 +1,504 @@
-# Product Requirements Document — MyFinance
-**Owner:** Dika  
+# MyFinance — Product Requirements Document
+
 **Platform:** iOS (SwiftUI + SwiftData)  
-**Version:** 3.0 Final  
-**Status:** Ready for Development
+**Versi App:** v1.0  
+**Last Updated:** April 2026  
+**Author:** Rahmandhika Putra Purwadi Wicaksono  
 
 ---
 
-## 1. Executive Summary
+## Overview
 
-Aplikasi manajemen keuangan pribadi offline-first untuk iOS. Menggantikan Coda tracker yang tidak mobile-friendly. Semua data lokal, tidak ada server, tidak ada subscription. Input manual + voice input untuk kecepatan pencatatan. Fitur Aset menggunakan API harga real-time (koneksi internet opsional).
-
----
-
-## 2. Prinsip Dasar
-
-- **Offline-first** — semua fitur core berjalan tanpa internet (kecuali harga Aset)
-- **Manual input** — tidak ada integrasi bank
-- **Personal** — hanya untuk satu user (Dika), tidak ada multi-user
-- **No onboarding** — app langsung buka ke Home, data kosong, user isi sendiri
-- **No data seeding** — tidak ada kategori/pocket default, semua dibuat manual
-- **No auth** — tidak ada FaceID/TouchID
+MyFinance adalah aplikasi keuangan personal berbasis iOS yang dirancang untuk **penggunaan offline**, **input manual**, dan tampilan **dark mode** dengan bahasa Indonesia. Tujuan utamanya adalah membantu pengguna memantau arus kas, mengelola aset, melacak target tabungan, dan memahami pola pengeluaran secara menyeluruh.
 
 ---
 
-## 3. Technical Stack
+## Arsitektur Teknis
 
-| Layer | Technology |
+| Komponen | Detail |
 |---|---|
+| Framework | SwiftUI + SwiftData |
 | Language | Swift 6 |
-| UI | SwiftUI |
-| Database | SwiftData |
-| Voice | SFSpeechRecognizer (on-device) |
-| NLP | Custom rule-based parser (Bahasa Indonesia) |
-| Charts | SwiftUI Charts |
-| Network | URLSession (hanya untuk harga Aset) |
-| Notifications | UserNotifications framework |
-| Background | BackgroundTasks framework |
+| Min OS | iOS 17+ |
+| Storage | SwiftData (offline-first, on-device) |
+| Actor isolation | `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` |
+| Tipe moneter | `Decimal` (bukan `Double`) |
+| Sync cloud | Belum ada (no iCloud/CloudKit) |
 
 ---
 
-## 4. Navigasi — Tab Bar (5 Tab)
+## Navigasi Utama (Tab Bar)
 
-| # | Tab | Icon | Keterangan |
+```
+[ Home ]  [ Transaksi ]  [ 🎙 Voice ]  [ Pocket ]  [ Pengaturan ]
+    0           1              2              3            4
+```
+
+---
+
+## Models (SwiftData)
+
+### `Pocket`
+Rekening atau dompet pengguna.
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| `nama` | String | Nama pocket (mis. BCA, GoPay) |
+| `kelompokPocket` | `KelompokPocket` | `biasa` / `utang` |
+| `kategoriPocket` | `KategoriPocket?` | Sub-kategori pocket (linked model) |
+| `saldo` | Decimal | Saldo saat ini (auto-adjust per transaksi) |
+| `logo` | Data? | Foto logo custom |
+| `limit` | Decimal? | Limit kredit / PayLater |
+| `isAktif` | Bool | Soft delete |
+| `urutan` | Int | Urutan tampil (drag reorder) |
+
+---
+
+### `Transaksi`
+Semua transaksi keuangan (masuk/keluar).
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| `tanggal` | Date | Tanggal transaksi |
+| `nominal` | Decimal | Nominal transaksi |
+| `tipe` | `TipeTransaksi` | `pemasukan` / `pengeluaran` |
+| `subTipe` | `SubTipeTransaksi` | `normal` / `simpanKeTarget` / `pakaiDariTarget` |
+| `kategori` | `Kategori?` | Kategori transaksi |
+| `pocket` | `Pocket?` | Pocket asal/tujuan |
+| `catatan` | String? | Catatan bebas |
+| `goalID` | UUID? | Link ke Target (jika subTipe bukan normal) |
+| `otomatisID` | UUID? | Link ke TransaksiOtomatis (engine belum aktif) |
+
+---
+
+### `Kategori`
+Kategori yang bisa dikustomisasi pengguna.
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| `nama` | String | Nama kategori |
+| `tipe` | `TipeTransaksi` | Pengeluaran / Pemasukan |
+| `ikon` | String | SF Symbol name |
+| `warna` | String | Hex color |
+| `klasifikasi` | `KlasifikasiExpense?` | `kebutuhanPokok` / `gayaHidup` (pengeluaran only) |
+| `kelompokIncome` | `KelompokIncome?` | Gaji / Freelance / dll (pemasukan only) |
+| `isNabung` | Bool | Pengeluaran → masuk "Nabung" di dashboard |
+| `isAdmin` | Bool | Auto-assign ke biaya admin transfer/jual |
+| `isHasilAset` | Bool | Auto-assign ke pemasukan hasil jual aset |
+| `urutan` | Int | Urutan tampil |
+
+---
+
+### `Anggaran`
+Anggaran bulanan per kategori.
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| `kategori` | `Kategori?` | Kategori target anggaran (nil = global) |
+| `nominal` | Decimal | Batas anggaran |
+| `tipe` | `TipeAnggaran` | `bulanan` |
+| `isAktif` | Bool | Toggle aktif/nonaktif |
+
+---
+
+### `Target`
+Target tabungan atau investasi.
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| `nama` | String | Nama target (mis. DP Rumah) |
+| `targetNominal` | Decimal | Nominal yang ingin dicapai |
+| `deadline` | Date? | Deadline target |
+| `jenisTarget` | `JenisTarget` | `biasa` / `investasi` |
+| `fotoData` | Data? | Foto background kartu (dari PhotosPicker) |
+| `linkedAset` | `Aset?` | Aset yang menjadi wadah target investasi |
+| `riwayat` | `[SimpanKeTarget]` | Riwayat setoran (untuk target biasa) |
+| `isSelesai` | Bool | Tandai selesai |
+
+**Computed:**
+- `tersimpan` — sum riwayat setoran (biasa) atau `nilaiEfektif` aset (investasi)
+- `progressPersen` — persentase progres (0–100+)
+- `sisa` — selisih target − tersimpan
+
+---
+
+### `Aset`
+Portfolio aset investasi.
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| `tipe` | `TipeAset` | 6 tipe (lihat bawah) |
+| `nama` | String | Nama aset |
+| `kode` | String? | Ticker saham (BBCA, NVDA, dll) |
+| `urutan` | Int | Urutan tampil (drag reorder) |
+| `nilaiSaatIni` | Decimal | Nilai terkini dalam IDR (disimpan, diupdate service) |
+| `pocketSumber` | `Pocket?` | Pocket asal dana |
+| `linkedTarget` | `Target?` | Target investasi yang terhubung |
+
+**Per tipe aset:**
+
+| Tipe | Fields Khusus |
+|---|---|
+| Saham IDN | `lot`, `hargaPerLembar` (weighted avg + komisi) |
+| Saham AS | `totalInvestasiUSD`, `hargaBeliPerShareUSD`, `hargaSaatIniUSD`, `kursBeliUSD`, `kursSaatIniUSD` |
+| Reksadana | `jenisReksadana`, `totalInvestasiReksadana`, `hargaBeliPerUnit` (NAV), `navSaatIni` |
+| Valas | `mataUangValas`, `jumlahValas`, `kursBeliPerUnit`, `kursSaatIni` |
+| Emas | `jenisEmas`, `tahunCetak`, `beratGram`, `hargaBeliPerGram` |
+| Deposito | `nominalDeposito`, `bungaPA`, `pphFinal`, `tenorBulan`, `tanggalMulaiDeposito`, `autoRollOver` |
+
+---
+
+### `Langganan`
+Langganan berbayar (Spotify, Netflix, dll).
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| `nama` | String | Nama layanan |
+| `nominal` | Decimal | Nominal per bulan |
+| `tanggalTagih` | Int | Tanggal tagih (1–28) |
+| `kategori` | `Kategori?` | Kategori transaksi saat bayar |
+| `logo` | Data? | Foto logo custom |
+| `isAktif` | Bool | Toggle aktif/nonaktif |
+| `urutan` | Int | Urutan tampil (drag reorder) |
+| `pembayaran` | `[PembayaranLangganan]` | Riwayat bayar per bulan |
+
+---
+
+### `TransferInternal`
+Transfer antar pocket.
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| `pocketAsal` | `Pocket?` | Pocket pengirim |
+| `pocketTujuan` | `Pocket?` | Pocket penerima |
+| `nominal` | Decimal | Nominal yang ditransfer |
+| `biayaAdmin` | Decimal | Biaya admin opsional |
+| `catatan` | String? | Catatan |
+
+---
+
+### `TransaksiOtomatis`
+Transaksi terjadwal (model tersedia, engine belum aktif).
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| `nama` | String | Nama transaksi |
+| `nominal` | Decimal | Nominal |
+| `tipe` | `TipeTransaksi` | Pemasukan / Pengeluaran |
+| `kategori` | `Kategori?` | Kategori |
+| `pocket` | `Pocket?` | Pocket tujuan |
+| `frekuensi` | String | Harian / Mingguan / Bulanan |
+| `tanggalMulai` | Date | Mulai aktif |
+| `isAktif` | Bool | Toggle |
+
+> ⚠️ Engine penjadwalan belum diimplementasikan. UI sudah ada di Pengaturan → Transaksi Otomatis.
+
+---
+
+## File Structure
+
+```
+MyFinance/
+├── Models/
+│   ├── Pocket.swift
+│   ├── Transaksi.swift
+│   ├── Kategori.swift
+│   ├── KategoriPocket.swift
+│   ├── Anggaran.swift
+│   ├── Target.swift              — + fotoData, linkedAset
+│   ├── Aset.swift                — 6 tipe aset investasi
+│   ├── Langganan.swift           — + PembayaranLangganan
+│   ├── TransferInternal.swift
+│   ├── TransaksiOtomatis.swift
+│   ├── UserConfig.swift          — profil user (nama, foto, greeting)
+│   └── AppEnums.swift            — semua enum
+│
+├── Services/
+│   ├── ModelContainerService.swift   — SwiftData container setup
+│   ├── AsetPriceService.swift        — fetch harga Yahoo Finance + Frankfurter
+│   ├── StockAnalysisService.swift    — EMA20, RSI14, volume analysis
+│   ├── BackupService.swift           — export/import JSON backup
+│   ├── ReksadanaSearchService.swift  — search reksadana dari bundled JSON
+│   ├── NLPParser.swift               — voice input parser
+│   └── SpeechRecognitionService.swift
+│
+├── Extensions/
+│   ├── Color+Hex.swift           — Color(hex: "#RRGGBB")
+│   ├── Color+App.swift           — .appBg, .appGreen, .appRed, dll
+│   ├── Date+Helpers.swift        — .isSameMonth(), .startOfMonth, .endOfMonth
+│   ├── Double+Formatting.swift   — .percentFormatted
+│   └── TipeAset+UI.swift         — icon + warna per TipeAset
+│
+└── Views/
+    ├── Main/
+    │   └── MainTabView.swift         — Tab bar utama (5 tab)
+    │
+    ├── Home/
+    │   └── HomeView.swift            — Dashboard lengkap
+    │
+    ├── Transaksi/
+    │   ├── TransaksiTabView.swift        — List transaksi per bulan + filter
+    │   ├── AddEditTransaksiSheet.swift   — Form tambah/edit transaksi
+    │   ├── TransaksiDetailSheet.swift    — Detail transaksi
+    │   ├── TransaksiGroupSheet.swift     — Grup transaksi per hari
+    │   └── TransferInternalSheet.swift  — Transfer antar pocket
+    │
+    ├── Voice/
+    │   ├── VoiceTabView.swift        — Tombol mic + trigger speech
+    │   └── VoiceReviewSheet.swift    — Review hasil voice input sebelum simpan
+    │
+    ├── Pocket/
+    │   ├── PocketTabView.swift       — List pocket + saldo + kelompok
+    │   ├── PocketDetailSheet.swift   — Detail pocket + histori transaksi
+    │   ├── PocketDetailView.swift
+    │   ├── AddEditPocketView.swift   — Form tambah/edit pocket
+    │   └── DanaDaruratConfigView.swift — Konfigurasi dana darurat
+    │
+    ├── Aset/
+    │   ├── AsetListView.swift            — Portfolio list (toolbar: Analisa + Reorder + Plus)
+    │   ├── AsetDetailSheet.swift         — Detail aset (routing Beli/Update/Jual per tipe)
+    │   ├── AddEditAsetView.swift         — Form tambah/edit aset semua tipe
+    │   ├── BeliSahamSheet.swift          — Beli lot saham (weighted avg + komisi)
+    │   ├── TambahReksadanaSheet.swift    — Tambah investasi reksadana (weighted avg NAV)
+    │   ├── JualAsetSheet.swift           — Jual aset (+ biaya admin, auto hasilAset)
+    │   ├── CairkanDepositoSheet.swift    — Cairkan deposito
+    │   ├── AsetReorderSheet.swift        — Drag reorder aset
+    │   ├── AnalisaSahamView.swift        — List analisa teknikal saham IDN
+    │   └── AnalisaSahamDetailSheet.swift — Detail sinyal per saham
+    │
+    ├── Target/
+    │   ├── TargetListView.swift      — List target (kartu + foto background)
+    │   ├── TargetDetailSheet.swift   — Detail + riwayat setoran
+    │   └── AddEditTargetView.swift   — Form tambah/edit + PhotosPicker
+    │
+    ├── Langganan/
+    │   ├── LanggananBulanIniCard.swift   — Card di HomeView
+    │   ├── LanggananManagementView.swift — CRUD + reorder sheet
+    │   ├── AddEditLanggananView.swift    — Form tambah/edit + PhotosPicker logo
+    │   └── LanggananReorderSheet.swift  — Drag reorder langganan
+    │
+    ├── Analitik/
+    │   └── AnalitikView.swift        — Grafik cashflow, kategori, tren bulanan
+    │
+    ├── Pengaturan/
+    │   ├── PengaturanView.swift              — Menu pengaturan (profil, manajemen, backup, reset)
+    │   ├── KategoriManagementView.swift      — CRUD kategori
+    │   ├── AddEditKategoriView.swift         — Form + toggle flags (isNabung, isAdmin, isHasilAset)
+    │   ├── AnggaranManagementView.swift      — CRUD anggaran
+    │   ├── AddEditAnggaranView.swift
+    │   ├── TransaksiOtomatisView.swift       — List transaksi terjadwal (UI only)
+    │   ├── AddEditTransaksiOtomatisView.swift
+    │   └── BackupRestoreView.swift           — Export/import JSON backup
+    │
+    └── Components/
+        ├── CurrencyInputField.swift      — Input nominal custom keyboard
+        ├── QuickAmountButtons.swift      — Tombol +10rb/+50rb/+100rb/+500rb/+1jt
+        ├── KategoriGridPicker.swift      — Grid picker kategori
+        ├── PocketChipPicker.swift        — Chip picker pocket
+        ├── ProgressBarView.swift         — Progress bar reusable
+        ├── MonthNavigator.swift          — Navigasi bulan (prev/next + label)
+        ├── IkonColorPicker.swift         — SF Symbol + color picker
+        └── FlowLayout.swift             — Custom flow layout
+```
+
+---
+
+## Fitur Lengkap
+
+### Tab Home — Dashboard
+
+Widget-widget yang tampil di dashboard:
+
+| Widget | Keterangan |
+|---|---|
+| **Top Bar** | Avatar + nama user + greeting. Toggle hide balance (ikon mata). |
+| **Month Navigator** | Navigasi bulan (← bulan →) |
+| **Cashflow Card** | Pemasukan, Pengeluaran, Nabung bulan ini |
+| **Aman Dibelanjakan** | `pemasukan - pengeluaran - nabung` |
+| **Total Kekayaan** | `cash + dana tersimpan + nilai aset - utang` |
+| **Rincian Biaya** | % Kebutuhan Pokok, % Gaya Hidup, % Dana Tersimpan |
+| **Anggaran Bulan Ini** | Summary total + per-kategori dengan progress bar (kuning >80%, merah over) |
+| **Target Aktif** | Kartu target dengan foto background + progress bar |
+| **Langganan Bulan Ini** | List langganan + status bayar + tombol bayar |
+| **Kategori Teratas** | Top 3 kategori pengeluaran terbesar |
+| **Transaksi Terbaru** | 5 transaksi terakhir |
+
+---
+
+### Tab Transaksi
+
+- List transaksi per bulan
+- Filter per tipe (pemasukan/pengeluaran) dan kategori
+- Tambah / Edit / Hapus transaksi
+- Tampil detail + catatan
+- Support sub-tipe: Simpan ke Target, Pakai dari Target
+
+**Form Tambah/Edit Transaksi:**
+- Nominal → `CurrencyInputField` + `QuickAmountButtons`
+- Tipe: Pemasukan / Pengeluaran
+- Kategori: `KategoriGridPicker`
+- Pocket: `PocketChipPicker`
+- Tanggal, Catatan
+- Biaya admin opsional (untuk pengeluaran, auto-assign ke kategori `isAdmin`)
+- Sub-tipe Simpan ke Target → pilih target + langsung update progres
+
+---
+
+### Tab Voice Input
+
+- Tekan tombol mic → speech-to-text realtime
+- NLP parser otomatis deteksi: tipe transaksi, nominal, pocket, kategori dari ucapan bebas
+- Review sheet sebelum disimpan: user bisa edit semua field hasil parse
+
+---
+
+### Tab Pocket
+
+- List semua pocket dikelompokkan: **Biasa** dan **Utang**
+- Tampil saldo masing-masing + total per kelompok
+- Tap pocket → detail saldo + histori transaksi pocket itu
+- Tambah / Edit / Hapus pocket
+- Logo custom (PhotosPicker)
+- Drag reorder
+- **Dana Darurat Config** — set target nominal dana darurat, tampil progress dari saldo pocket tertentu
+
+---
+
+### Aset & Portfolio
+
+**6 Tipe Aset:**
+
+| Tipe | Beli | Update Harga | Jual |
 |---|---|---|---|
-| 1 | Home | square.grid.2x2 | Dashboard + ringkasan bulanan |
-| 2 | Transaksi | list.bullet | Riwayat transaksi per bulan |
-| 3 | Voice | mic.fill | Center button, mic langsung aktif |
-| 4 | Pocket | wallet.pass | Manajemen pocket/rekening |
-| 5 | Pengaturan | gearshape | Konfigurasi, kategori, anggaran, dll |
+| Saham IDN | BeliSahamSheet (lot + komisi, weighted avg) | Auto-fetch Yahoo Finance (.JK) | JualAsetSheet |
+| Saham AS | AddEditAsetView | Auto-fetch Yahoo Finance + Frankfurter kurs | JualAsetSheet |
+| Reksadana | TambahReksadanaSheet (nominal + NAV, weighted avg) | Manual (user input NAV terbaru) | JualAsetSheet |
+| Valas | AddEditAsetView | Auto-fetch Frankfurter | JualAsetSheet |
+| Emas | AddEditAsetView | Manual (user input harga/gram) | JualAsetSheet |
+| Deposito | AddEditAsetView | — | CairkanDepositoSheet |
 
-Add transaksi bisa dilakukan dari Home (tombol +) dan dari tab Voice.
-
----
-
-## 5. Data Model
-
-### 5.1 Pocket
-
-```
-Pocket
-├── id: UUID
-├── nama: String
-├── kelompokPocket: Enum (Biasa | Utang)
-├── kategoriPocket: → KategoriPocket
-├── saldo: Decimal
-├── logo: Data?
-├── isAktif: Bool (default: true)
-├── catatan: String?
-├── limit: Decimal?         // khusus Kartu Kredit / PayLater
-└── createdAt: Date
-
-KategoriPocket
-├── id: UUID
-└── nama: String
-// Nilai: Rekening Bank, E-Wallet, E-Money, Dompet,
-//        Kartu Kredit/PayLater, Akun Brand, Lainnya
-```
-
-### 5.2 Transaksi
-
-```
-Transaksi
-├── id: UUID
-├── tanggal: Date
-├── nominal: Decimal
-├── tipe: Enum (Pengeluaran | Pemasukan)
-├── subTipe: Enum (Normal | SimpanKeTarget | PakaiDariTarget)
-├── kategori: → Kategori?
-├── pocket: → Pocket?           // wajib jika saldo ingin terpengaruh
-├── catatan: String?
-├── goalID: UUID?               // diisi jika subTipe = SimpanKeTarget / PakaiDariTarget
-├── otomatisID: → TransaksiOtomatis?
-└── createdAt: Date
-
-TransferInternal
-├── id: UUID
-├── tanggal: Date
-├── nominal: Decimal
-├── pocketAsal: → Pocket
-├── pocketTujuan: → Pocket
-├── catatan: String?
-└── createdAt: Date
-```
-
-### 5.3 Kategori
-
-```
-Kategori
-├── id: UUID
-├── nama: String
-├── tipe: Enum (Pengeluaran | Pemasukan)
-├── klasifikasi: Enum (KebutuhanPokok | GayaHidup)?   // khusus Pengeluaran
-├── kelompokIncome: Enum (Gaji | Freelance | ProdukDigital |
-│                         JasaProfesional | PassiveIncome |
-│                         SocialMedia | Lainnya)?       // khusus Pemasukan
-├── ikon: String               // SF Symbol name
-├── ikonCustom: String?        // emoji custom
-├── warna: String              // hex color
-├── urutan: Int                // untuk drag reorder
-└── createdAt: Date
-```
-
-### 5.4 Transaksi Otomatis
-
-```
-TransaksiOtomatis
-├── id: UUID
-├── nominal: Decimal
-├── tipe: Enum (Pengeluaran | Pemasukan)
-├── kategori: → Kategori?
-├── pocket: → Pocket?
-├── setiapTanggal: Int         // 1–28
-├── catatan: String?
-├── isAktif: Bool (default: true)
-└── createdAt: Date
-```
-
-### 5.5 Anggaran
-
-```
-Anggaran
-├── id: UUID
-├── nominal: Decimal
-├── tipeAnggaran: Enum (Bulanan | Harian)
-├── kategori: → Kategori?      // null = batas keseluruhan
-├── berulang: Bool             // Bulanan: reset otomatis tiap bulan
-├── pindahan: Bool             // Bulanan: sisa dibawa ke bulan depan
-├── harianBerulang: Bool       // Harian: tampil di semua hari
-├── bulan: Int?                // 1–12, untuk Bulanan
-├── tahun: Int?                // untuk Bulanan
-├── tanggal: Date?             // untuk Harian
-└── createdAt: Date
-```
-
-### 5.6 Target (Goals)
-
-```
-Target
-├── id: UUID
-├── nama: String
-├── targetNominal: Decimal
-├── deadline: Date?
-├── ikonCustom: String?        // emoji bebas
-├── ikon: String               // SF Symbol name
-├── warna: String              // hex color
-├── catatan: String?
-├── isSelesai: Bool (default: false)
-└── createdAt: Date
-
-SimpanKeTarget
-├── id: UUID
-├── target: → Target
-├── tanggal: Date
-├── nominal: Decimal
-├── catatan: String?
-└── createdAt: Date
-
-// Computed:
-// Tersimpan = Σ SimpanKeTarget.nominal per Target
-// Sisa      = targetNominal − Tersimpan
-// Progress  = Tersimpan / targetNominal × 100
-// Perlu Menyisihkan/Bulan = Sisa / sisa bulan hingga deadline
-```
-
-### 5.7 Aset
-
-```
-Aset
-├── id: UUID
-├── tipe: Enum (Saham | Kripto | Reksadana | Emas)
-├── nama: String
-├── kode: String?
-
-// Saham
-├── lot: Decimal?
-├── hargaPerLembar: Decimal?
-
-// Kripto
-├── mataUang: Enum (IDR | USDT)?
-├── totalInvestasi: Decimal?
-├── hargaPerUnit: Decimal?
-
-// Reksadana
-├── jenisReksadana: String?    // Campuran, Saham, Index ETF, dll
-├── totalInvestasi: Decimal?
-├── nav: Decimal?              // Harga per Unit (NAV)
-
-// Emas
-├── jenisEmas: Enum (LMAntam | UBS | AntamRetro | UBSRetro)?
-├── tahunCetak: Int?
-├── beratGram: Decimal?
-├── hargaBeliPerGram: Decimal?
-
-├── nilaiSaatIni: Decimal      // diupdate via API atau manual
-├── catatSbgPengeluaran: Bool  // otomatis potong saldo pocket
-├── pocketSumber: → Pocket?    // pocket yang dipotong jika catatSbgPengeluaran = true
-└── createdAt: Date
-
-// Computed:
-// Modal       = jumlah × hargaBeli (kalkulasi per tipe)
-// P&L         = nilaiSaatIni − Modal
-// Return %    = (P&L / Modal) × 100
-```
-
-### 5.8 UserProfile & Config
-
-```
-UserProfile
-├── id: UUID
-├── nama: String
-├── greetingText: String       // default "Halo", bisa custom
-├── fotoProfil: Data?
-└── tanggalGajian: Int?        // 1–28, untuk kalkulasi analytics per periode gajian
-```
+**Fitur tambahan Aset:**
+- **Jual Aset** → biaya admin opsional, auto-assign kategori `isHasilAset` ke pemasukan hasil jual
+- **Analisa Teknikal Saham IDN** — fetch data 3 bulan terakhir, hitung EMA20, RSI14, volume vs rata-rata, kesimpulan sinyal: **BUY / HOLD / SELL**
+- **Linked ke Target Investasi** — nilai aset otomatis update progress target
+- **Drag reorder** aset
 
 ---
 
-## 6. Kalkulasi Utama
+### Target Tabungan
 
-```
-// Home — Card Cashflow (per bulan)
-Pemasukan Bulan Ini     = Σ Transaksi.nominal (tipe=Pemasukan, bulan=aktif)
-Pengeluaran Bulan Ini   = Σ Transaksi.nominal (tipe=Pengeluaran, bulan=aktif)
-Nabung Bulan Ini        = Σ SimpanKeTarget.nominal (bulan=aktif)
-Dana Tersimpan          = Σ SimpanKeTarget.nominal (all time, semua target)
-Aman Dibelanjakan       = Pemasukan − Pengeluaran − Nabung Bulan Ini
+| Jenis | Cara Kerja |
+|---|---|
+| **Biasa** | User setoran manual → riwayat `SimpanKeTarget` → sum untuk progress |
+| **Investasi** | Linked ke `Aset` → `nilaiEfektif` aset = progress target (auto-update) |
 
-// Home — Card Total Kekayaan
-Cash                    = Σ Pocket.saldo (kelompok=Biasa)
-Hutang Kamu             = Σ Pocket.saldo (kelompok=Utang)
-Total Aset              = Σ Aset.nilaiSaatIni
-Total Kekayaan          = Cash + Dana Tersimpan + Total Aset − Hutang Kamu
-
-// Home — Rincian Biaya (per bulan)
-Total Pengeluaran       = Σ Transaksi (tipe=Pengeluaran, bulan=aktif)
-Kebutuhan Pokok %       = Σ Pengeluaran (klasifikasi=KebutuhanPokok) / Total Pengeluaran
-Gaya Hidup %            = Σ Pengeluaran (klasifikasi=GayaHidup) / Total Pengeluaran
-Dana Tersimpan %        = Nabung Bulan Ini / Pemasukan Bulan Ini
-```
+- Foto background kartu dari PhotosPicker
+- Estimasi setoran per bulan dari deadline
+- Tandai selesai
+- Riwayat setoran dengan detail tanggal + nominal
 
 ---
 
-## 7. Forms
+### Langganan
 
-### 7.1 Tambah / Edit Transaksi
-| Field | Type | Required |
-|---|---|---|
-| Nominal | NumberField (besar) | ✓ |
-| Tipe | Segmented (Pengeluaran / Pemasukan) | ✓ |
-| Sub-tipe | Segmented (Normal / Simpan ke Target / Pakai dari Target) | |
-| Kategori | Grid visual (ikon + nama) | |
-| Pocket | Chips dari list Pocket aktif | |
-| Target | Picker → Target (jika sub-tipe bukan Normal) | |
-| Catatan | TextField | |
-| Tanggal | DatePicker | ✓ |
-
-### 7.2 Transfer Internal
-| Field | Type | Required |
-|---|---|---|
-| Nominal | NumberField | ✓ |
-| Pocket Asal | Picker → Pocket aktif | ✓ |
-| Pocket Tujuan | Picker → Pocket aktif | ✓ |
-| Catatan | TextField | |
-| Tanggal | DatePicker | ✓ |
-
-### 7.3 Tambah Pocket
-| Field | Type | Required |
-|---|---|---|
-| Logo | ImagePicker (kamera/galeri) | |
-| Nama | TextField | ✓ |
-| Kelompok Pocket | Picker (Biasa / Utang) | ✓ |
-| Kategori Pocket | Picker → KategoriPocket | ✓ |
-| Saldo Awal | NumberField (default 0) | |
-| Limit | NumberField | khusus Kartu Kredit/PayLater |
-
-### 7.4 Tambah / Edit Kategori
-| Field | Type | Required |
-|---|---|---|
-| Nama | TextField | ✓ |
-| Tipe | Segmented (Pengeluaran / Pemasukan) | ✓ |
-| Klasifikasi | Segmented (Kebutuhan Pokok / Gaya Hidup) | khusus Pengeluaran |
-| Kelompok Income | Picker | khusus Pemasukan |
-| Ikon Custom | TextField (emoji) | |
-| Ikon | Grid preset SF Symbol | |
-| Warna | Palette 12 warna | |
-
-### 7.5 Tambah / Edit Transaksi Otomatis
-| Field | Type | Required |
-|---|---|---|
-| Nominal | NumberField | ✓ |
-| Tipe | Segmented (Pengeluaran / Pemasukan) | ✓ |
-| Kategori | Grid visual | |
-| Pocket | Chips dari list Pocket | |
-| Tanggal Tiap Bulan | Grid angka 1–28 | ✓ |
-| Catatan | TextField | |
-
-### 7.6 Tambah / Edit Anggaran
-| Field | Type | Required |
-|---|---|---|
-| Nominal Anggaran | NumberField | ✓ |
-| Tipe | Segmented (Bulanan / Harian) | ✓ |
-| Berulang | Toggle (reset otomatis tiap bulan) | khusus Bulanan |
-| Pindahan | Toggle (sisa dibawa ke bulan depan) | khusus Bulanan |
-| Harian Berulang | Toggle (tampil di semua hari) | khusus Harian |
-| Kategori | Grid visual (kosong = keseluruhan) | |
-
-### 7.7 Bikin Target Baru
-| Field | Type | Required |
-|---|---|---|
-| Nama | TextField | ✓ |
-| Butuh Dana | NumberField | |
-| Target Kapan Tercapai | DatePicker | |
-| Ikon Custom | TextField (emoji) | |
-| Ikon | Grid preset SF Symbol | |
-| Warna | Palette 12 warna | |
-
-### 7.8 Tambah Aset
-
-**Saham:**
-| Field | Type | Required |
-|---|---|---|
-| Nama / Kode | Search (autocomplete + harga pasar live) | ✓ |
-| Lot | NumberField | ✓ |
-| Harga per Lembar | NumberField | ✓ |
-| Catat sbg Pengeluaran | Toggle + Pocket picker | |
-
-**Kripto:**
-| Field | Type | Required |
-|---|---|---|
-| Mata Uang | Segmented (IDR / USDT) | ✓ |
-| Nama / Kode | Search | ✓ |
-| Total Investasi | NumberField | ✓ |
-| Harga per Unit | NumberField | ✓ |
-| Catat sbg Pengeluaran | Toggle + Pocket picker | |
-
-**Reksadana:**
-| Field | Type | Required |
-|---|---|---|
-| Filter Jenis | Grid (Campuran / Saham / Index ETF / Pasar Uang / Pendapatan Tetap / Syariah / Terproteksi) | |
-| Nama / Kode | Search | ✓ |
-| Total Investasi | NumberField | ✓ |
-| Harga per Unit (NAV) | NumberField | ✓ |
-| Catat sbg Pengeluaran | Toggle + Pocket picker | |
-
-**Emas:**
-| Field | Type | Required |
-|---|---|---|
-| Jenis Emas | Chips (LM Antam / UBS / Antam Retro / UBS Retro) | ✓ |
-| Tahun Cetak | Grid tahun (2018–sekarang) | ✓ |
-| Berat (gram) | NumberField | ✓ |
-| Harga Beli/gram | NumberField (+ current price info) | ✓ |
-| Catat sbg Pengeluaran | Toggle + Pocket picker | |
+- Catat semua langganan berbayar (Spotify, Netflix, iCloud, dll)
+- Nominal + tanggal tagih bulanan
+- **Bayar bulan ini** → deduct saldo pocket + buat transaksi otomatis
+- **Batal bayar** → refund saldo pocket + hapus transaksi
+- Item sudah bayar → turun ke bawah list
+- Logo custom (PhotosPicker)
+- Drag reorder
+- Card ringkasan tampil di HomeView
 
 ---
 
-## 8. Screens per Tab
+### Anggaran
 
-### Tab 1 — Home
-
-```
-[foto bulat]  {greetingText}, {nama}!
-
-< Bulan Tahun >
-
-┌─────────────────────────────────────┐
-│  AMAN DIBELANJAKAN / WAH OVER BUDGET│
-│  ± Rp XX.XXX.XXX                    │
-│  Tersisa: Rp XX.XXX.XXX             │
-│                                     │
-│  ↓ PEMASUKAN       ↑ PENGELUARAN    │
-│  Rp XX.X           Rp XX.X          │
-│                                     │
-│  NABUNG BULAN INI  TOTAL TABUNGAN   │
-│  Rp XX.X           Rp XX.X          │
-└─────────────────────────────────────┘
-
-[ Analitik ]  [ Target ]  [ Aset ]
-
-┌─────────────────────────────────────┐
-│  TOTAL KEKAYAAN                     │
-│  Rp XX.XXX.XXX                      │
-│  CASH      DANA TERSIMPAN  HUTANG   │
-│  Rp XX.X   Rp XX.X         Rp XX.X  │
-└─────────────────────────────────────┘
-
-┌──────────────────┐  ┌──────────────┐
-│  RINCIAN BIAYA   │  │              │
-│  Kebutuhan Pokok │  │  (kosong,    │
-│  Gaya Hidup      │  │  streak      │
-│  Dana Tersimpan  │  │  dihapus)    │
-└──────────────────┘  └──────────────┘
-
-// Muncul jika ada target aktif:
-┌─────────────────────────────────────┐
-│  [ikon] nama target    [Ngegas ↑]   │
-│  X% • Rp tersimpan / Rp target      │
-│  [progress bar]                     │
-│  Estimasi Kelar: tgl • X hari       │
-│  PERLU MENYISIHKAN: Rp X /bln       │
-└─────────────────────────────────────┘
-
-// Muncul jika ada data:
-KATEGORI TERATAS
-[ikon] nama kategori    Rp XX.X
-[progress bar warna kategori]
-
-TERBARU
-[ikon] nama  [badge tipe]    ± Rp XX.X
-...
-```
-
-### Tab 2 — Transaksi
-
-```
-< Bulan Tahun >
-[🔍 Cari transaksi...]  [filter]
-
-┌───────────────────────────────┐
-│  BERSIH            + Rp XX.X  │
-│  ↓ PEMASUKAN  ↑ PENGELUARAN   │
-│  Rp XX.X      Rp XX.X         │
-└───────────────────────────────┘
-
-DD Bulan YYYY
-[ikon] nama  [badge]    ± Rp XX.X
-...
-
-// Tap item → Detail bottom sheet
-// Tap Pemasukan/Pengeluaran card → list sheet
-```
-
-### Tab 3 — Voice
-
-```
-[Visualisasi gelombang suara]
-[Transkripsi real-time]
-[Tombol mic — tap untuk mulai/berhenti]
-
-→ Review Sheet (bottom sheet):
-  Tipe     [Pengeluaran / Pemasukan / Transfer]
-  Nominal  [hasil parse / kosong]
-  Kategori [hasil parse / kosong]
-  Pocket   [hasil parse / kosong]
-  Tanggal  [hari ini]
-  Catatan  [sisa kalimat yang tidak terparse]
-  [Simpan]
-```
-
-### Tab 4 — Pocket
-
-```
-Total Saldo: Rp XX.X
-
-BIASA
-└── [list pocket Biasa — nama, saldo, logo]
-
-UTANG
-└── [list pocket Utang — nama, saldo, limit, sisa limit]
-
-FAB (+) → Tambah Pocket
-```
-
-### Tab 5 — Pengaturan
-
-```
-PROFIL
-[foto]  nama  greeting text
-
-KONFIGURASI
-• Tanggal Gajian
-
-MANAJEMEN
-• Kategori      →
-• Anggaran      →
-• Transaksi Otomatis →
-
-DANGER ZONE
-• Reset Semua Data   [tombol merah]
-```
+- Buat anggaran per kategori atau global
+- Progress bar per anggaran: hijau → kuning (>80%) → merah (over budget)
+- Tampil summary di HomeView dan AnggaranManagementView
 
 ---
-
-## 9. Halaman dari Shortcut Home
 
 ### Analitik
-```
-< 1 - DD Bulan YYYY >   [filter]
 
-[Total Pengeluaran]  [Total Pemasukan]
-[Rata-rata/Hari]     [Jumlah Transaksi]
-
-PENGELUARAN TERBESAR
-Rp XX.X — kategori — tanggal
-
-HARI PALING BOROS
-Rp XX.X — hari
-
-TREN
-[Line chart: Pengeluaran / Pemasukan / Bersih]
-[Toggle: bar / line chart]
-
-PER KATEGORI
-[Donut chart + legend + % + progress bar]
-
-PER HARI
-[Horizontal bar chart per hari]
-```
-
-### Target
-```
-TOTAL TABUNGAN    Rp XX.X    [X TARGET]
-
-[ikon] nama target          [edit] [hapus]
-Saldo: Rp X
-Target: Rp XX.X             X%
-[progress bar]
-
-→ Tap item → Detail sheet:
-  TARGET              Rp XX.X
-  TARGET KAPAN        DD Bulan YYYY
-  TERSIMPAN           Rp XX.X
-  SISA                Rp XX.X
-  [↑ Tarik]
-
-  TRANSAKSI
-  [list transaksi bertipe SimpanKeTarget/PakaiDariTarget]
-```
-
-### Aset
-```
-[↺ refresh]   [+ Tambah]
-
-PORTOFOLIO                [X ASET]
-TOTAL NILAI    Rp XX.X
-TOTAL MODAL    Rp XX.X
-KEUNTUNGAN     ± Rp XX.X (±X%)
-
-SAHAM (X)
-[ikon] KODE        Rp XX.X
-       X lot        ± Rp XX.X (X%)
-
-KRIPTO (X) / REKSADANA (X) / EMAS (X)
-...
-
-→ Tap item → Detail sheet:
-  NILAI PASAR     Rp XX.X
-  Jumlah          X lot/gram/unit
-  Total Modal     Rp XX.X
-  Harga Rata-Rata Rp XX.X
-  Harga Saat Ini  Rp XX.X
-  Keuntungan      ± Rp XX.X (±X%)
-  [✏️ Edit]  [Jual]  [Beli]
-```
+- Grafik cashflow bulanan (bar chart pemasukan vs pengeluaran)
+- Breakdown pengeluaran per kategori
+- Tren bulanan beberapa bulan terakhir
 
 ---
 
-## 10. Detail Views (Bottom Sheet)
+### Backup & Restore
 
-| Item | Sheet Size | Konten |
+- **Export**: semua data → file JSON (pocket, transaksi, kategori, anggaran, target, aset, langganan, profil)
+- **Import**: restore dari file JSON
+- Backward-compatible: file lama tanpa field baru tetap bisa di-restore
+
+---
+
+### Pengaturan
+
+| Menu | Keterangan |
+|---|---|
+| Profil | Nama, foto, greeting text |
+| Kategori | CRUD + urutan + flags. Badge: cyan (nabung), kuning (admin), hijau (hasilAset) |
+| Anggaran | CRUD anggaran bulanan |
+| Langganan | CRUD + reorder |
+| Transaksi Otomatis | UI list + CRUD (engine belum aktif) |
+| Backup & Restore | Export/import JSON |
+| Reset Data | Hard reset semua data (dengan konfirmasi double) |
+
+---
+
+## External APIs
+
+| API | Tujuan | Auth |
 |---|---|---|
-| Pocket Biasa | Full | Saldo, histori transaksi, tombol Transfer |
-| Pocket Utang | Full | Limit, Sisa Limit, histori, tombol bayar |
-| Transaksi | Half | Detail lengkap + Edit + Hapus |
-| Transaksi Otomatis | Half | Detail rule + toggle Aktif + Edit + Hapus |
-| Target | Full | Progress, tersimpan, sisa, riwayat, Tarik |
-| Aset | Half | Nilai, modal, P&L, Return % + Edit + Jual + Beli |
-| Anggaran | Full | Anggaran / Terpakai / Sisa + list transaksi |
+| Yahoo Finance `/v8/finance/chart/{ticker}` | Harga saham IDN (`.JK`) dan AS | Tidak ada |
+| Yahoo Finance `?interval=1d&range=3mo` | Historical data untuk analisa teknikal | Tidak ada |
+| Frankfurter `api.frankfurter.app` | Kurs valas (USD, SGD, JPY) | Tidak ada |
 
 ---
 
-## 11. Voice Input — Parsing Rules
+## Konvensi Coding
 
-### Alur
-1. User tap tab Voice → mic aktif
-2. Transkripsi real-time via SFSpeechRecognizer (on-device)
-3. User selesai → parser jalan
-4. Review Sheet muncul (semua field bisa diedit)
-5. User konfirmasi → simpan
+```swift
+// Boolean field baru di @Model — default di property level
+var isNabung: Bool = false   // BUKAN hanya di init
 
-### Rules
+// Custom Codable di struct dengan memberwise init
+extension MyStruct: Codable {
+    init(from decoder: Decoder) throws { ... }
+}
+// BUKAN di dalam struct body (menghilangkan memberwise init)
 
-| Yang Dideteksi | Cara Deteksi |
-|---|---|
-| Nominal | angka + keyword (ribu/ratus/juta/rb/k/m) |
-| Tipe | keyword trigger: beli/bayar/keluar → Pengeluaran; terima/masuk/gajian → Pemasukan; transfer/pindah → Transfer |
-| Kategori | keyword mapping ke nama Kategori |
-| Pocket | fuzzy string matching ke nama Pocket aktif |
-| Catatan | sisa kalimat yang tidak terparse |
+// Pocket sort
+@Query(sort: \Pocket.urutan) private var allPockets: [Pocket]
 
-### Contoh
-```
-"beli nasi uduk 10rb pake gopay"
-→ Pengeluaran | Rp10.000 | [match kategori] | GoPay
+// Admin kategori lookup
+private var adminKategori: Kategori? {
+    allKategoris.first { $0.isAdmin && $0.tipe == .pengeluaran }
+}
 
-"transfer 500rb ke BCA dari mandiri"
-→ Transfer | Rp500.000 | Asal: Mandiri | Tujuan: BCA
+// Weighted average saham
+let modalLama = lotLama * 100 * hargaLama
+let avgBaru = (modalLama + nominalPocket) / totalShares
 
-"terima gaji 5 juta"
-→ Pemasukan | Rp5.000.000 | kategori: kosong | pocket: kosong
+// Save
+try? context.save()
 ```
 
 ---
 
-## 12. Transaksi Otomatis — Behavior
+## Known Technical Debt
 
-- Transaksi dibuat **otomatis di background** pada tanggal yang ditentukan
-- `otomatisID` pada Transaksi menandai bahwa record dibuat dari rule otomatis
-- Jika tanggal tidak ada di bulan tersebut → skip ke bulan berikutnya
-- Max tanggal: **28** (safe untuk semua bulan termasuk Februari)
-- User bisa toggle Aktif/nonaktif per rule tanpa menghapus
-
----
-
-## 13. Anggaran — Behavior
-
-### Bulanan
-- **Berulang ON:** anggaran otomatis dibuat ulang tiap bulan dengan nominal sama
-- **Pindahan ON:** sisa anggaran bulan ini ditambahkan ke anggaran bulan depan
-- Navigasi per bulan `< Bulan Tahun >`
-
-### Harian
-- **Harian Berulang ON:** anggaran berlaku di semua hari
-- Navigasi per hari `< Hari, DD Bulan >`
-- Warna merah jika over, kuning jika normal
-
-### Kategori Kosong
-- Jika kategori dikosongkan → anggaran berlaku untuk **total keseluruhan pengeluaran**
-
----
-
-## 14. Aset — Behavior
-
-- Harga Saham, Kripto, Reksadana, Emas diambil via **API real-time** (butuh internet)
-- Jika offline → tampilkan nilai terakhir yang tersimpan
-- **Catat sbg Pengeluaran ON:** saldo pocket sumber otomatis terpotong saat Tambah Aset
-- **Beli:** tambah jumlah kepemilikan, update modal
-- **Jual:** kurangi jumlah kepemilikan, catat sebagai Pemasukan (opsional)
-- `nilaiSaatIni` di-refresh saat user buka halaman Aset (jika ada koneksi)
-
----
-
-## 15. Settings — Pengaturan
-
-### Profil
-- Foto profil (kamera/galeri, opsional)
-- Nama — dipakai di greeting Home
-- Greeting text — free text, default "Halo"
-
-### Konfigurasi
-- **Tanggal Gajian** — untuk kalkulasi analytics per periode gajian
-
-### Manajemen
-- **Kategori** — CRUD + reorder drag, tipe Pengeluaran/Pemasukan
-- **Anggaran** — CRUD mode Bulanan & Harian
-- **Transaksi Otomatis** — CRUD + toggle Aktif
-
-### Danger Zone
-- **Reset Semua Data** — hapus seluruh data SwiftData (konfirmasi 2 langkah)
-
----
-
-## 16. Out of Scope v3
-
-- Export data (PDF/Excel/CSV)
-- iCloud sync
-- Widget iOS home screen
-- Integrasi bank / open banking
-- Multi-user
-- Backup & restore
-- Piutang & Utang (Debitur/Kreditur)
-- Aset Non-Finansial
-- Dana Darurat Calculator
-- Fear & Greed Index
-- Sistem Prioritas Kategori (P0–P4)
-- Struk/foto di transaksi
-
----
-
-## 17. Non-Functional Requirements
-
-| Kategori | Requirement |
-|---|---|
-| Platform | iOS 17+ |
-| Offline | 100% offline untuk semua fitur kecuali harga Aset |
-| Auth | Tidak ada |
-| Performance | Voice transcription on-device, latensi < 2 detik |
-| UI/UX | Dark mode first, Apple HIG |
-| Data | SwiftData, lokal saja |
-| Network | Hanya untuk fetch harga Aset (graceful degradation jika offline) |
+| Item | Prioritas | Catatan |
+|---|---|---|
+| `TransaksiOtomatis` — engine belum aktif | Medium | Model + UI ada, tapi tidak ada scheduler yang create transaksi |
+| `HomeView` fetch semua Transaksi in-memory | Low | Filter di memory, OK untuk sekarang |
+| `terpakai(for:)` duplikat di 2 view | Low | Kandidat pindah ke Anggaran extension |
+| Warna hard-coded — `Color+App.swift` sudah ada | Low | Belum semua view pakai static constants |
+| `context` vs `modelContext` naming tidak konsisten | Low | Half-half |
+| iCloud/CloudKit sync | Future | User belum punya Dev account aktif |
+| Target — belum ada drag reorder | Future | Sort by createdAt |
+| `HomeView_OLD.swift`, `PocketTabView_OLD.swift` | Low | File lama belum dihapus |
