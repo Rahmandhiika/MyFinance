@@ -277,13 +277,13 @@ private struct PocketRow: View {
                 // Utang: limit + sisa + progress bar
                 if isUtang, let limit = pocket.limit, let sisa = sisaLimit {
                     HStack(spacing: 8) {
-                        Text("Limit \(limit.idrFormatted)")
+                        Text("Limit \(limit.idrDecimalFormatted)")
                             .font(.caption2)
                             .foregroundStyle(.gray)
                         Text("·")
                             .font(.caption2)
                             .foregroundStyle(.gray)
-                        Text("Sisa \(sisa.idrFormatted)")
+                        Text("Sisa \(sisa.idrDecimalFormatted)")
                             .font(.caption2)
                             .foregroundStyle(sisa < 0 ? .red : .gray)
                     }
@@ -300,7 +300,7 @@ private struct PocketRow: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 3) {
-                Text(pocket.saldo.idrFormatted)
+                Text(pocket.saldo.idrDecimalFormatted)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(isUtang ? .red : .white)
                     .lineLimit(1)

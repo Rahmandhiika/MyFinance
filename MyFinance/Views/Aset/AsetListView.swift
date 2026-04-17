@@ -4,29 +4,33 @@ import SwiftData
 struct AsetListView: View {
     @Query(sort: [SortDescriptor(\Aset.urutan), SortDescriptor(\Aset.createdAt)]) var allAset: [Aset]
 
-    @State private var priceService = AsetPriceService.shared
+    private let priceService = AsetPriceService.shared
     @State private var selectedAset: Aset? = nil
     @State private var showAdd = false
     @State private var showReorder = false
+    @State private var showAnalisa = false
 
-    // MARK: - Computed Totals
+    // MARK: - Computed Totals (aset bebas saja, tidak termasuk linked target)
 
-    private var totalNilai: Decimal { allAset.reduce(0) { $0 + $1.nilaiEfektif } }
-    private var totalModal: Decimal { allAset.reduce(0) { $0 + $1.modal } }
+    private var freeAset: [Aset] { allAset.filter { $0.linkedTarget == nil } }
+    private var linkedAset: [Aset] { allAset.filter { $0.linkedTarget != nil } }
+
+    private var totalNilai: Decimal { freeAset.reduce(0) { $0 + $1.nilaiEfektif } }
+    private var totalModal: Decimal { freeAset.reduce(0) { $0 + $1.modal } }
     private var keuntungan: Decimal { totalNilai - totalModal }
     private var returnPersen: Double {
         guard totalModal > 0 else { return 0 }
         return Double(truncating: (keuntungan / totalModal * 100) as NSDecimalNumber)
     }
 
-    // MARK: - Grouped
+    // MARK: - Grouped (hanya aset bebas)
 
-    private var asetBySaham:     [Aset] { allAset.filter { $0.tipe == .saham } }
-    private var asetBySahamAS:   [Aset] { allAset.filter { $0.tipe == .sahamAS } }
-    private var asetByReksadana: [Aset] { allAset.filter { $0.tipe == .reksadana } }
-    private var asetByValas:     [Aset] { allAset.filter { $0.tipe == .valas } }
-    private var asetByEmas:      [Aset] { allAset.filter { $0.tipe == .emas } }
-    private var asetByDeposito:  [Aset] { allAset.filter { $0.tipe == .deposito } }
+    private var asetBySaham:     [Aset] { freeAset.filter { $0.tipe == .saham } }
+    private var asetBySahamAS:   [Aset] { freeAset.filter { $0.tipe == .sahamAS } }
+    private var asetByReksadana: [Aset] { freeAset.filter { $0.tipe == .reksadana } }
+    private var asetByValas:     [Aset] { freeAset.filter { $0.tipe == .valas } }
+    private var asetByEmas:      [Aset] { freeAset.filter { $0.tipe == .emas } }
+    private var asetByDeposito:  [Aset] { freeAset.filter { $0.tipe == .deposito } }
 
     // MARK: - Body
 
@@ -64,6 +68,15 @@ struct AsetListView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 8) {
+                    if !asetBySaham.isEmpty {
+                        Button {
+                            showAnalisa = true
+                        } label: {
+                            Image(systemName: "chart.xyaxis.line")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
+                    }
                     if allAset.count > 1 {
                         Button {
                             showReorder = true
@@ -107,6 +120,11 @@ struct AsetListView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showAnalisa) {
+            AnalisaSahamView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     // MARK: - Refresh Button
@@ -141,7 +159,7 @@ struct AsetListView: View {
                             .font(.caption)
                             .foregroundStyle(.white.opacity(0.5))
                             .tracking(1)
-                        Text("\(allAset.count) ASET")
+                        Text("\(freeAset.count) ASET")
                             .font(.caption2.weight(.bold))
                             .foregroundStyle(.white.opacity(0.8))
                             .padding(.horizontal, 8)
@@ -230,6 +248,9 @@ struct AsetListView: View {
             }
             if !asetByDeposito.isEmpty {
                 AsetSection(tipe: .deposito, items: asetByDeposito, onTap: { selectedAset = $0 })
+            }
+            if !linkedAset.isEmpty {
+                TargetAsetSection(items: linkedAset, onTap: { selectedAset = $0 })
             }
         }
     }
@@ -365,6 +386,131 @@ private struct AsetSection: View {
         }
         .background(Color.white.opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+// MARK: - Target Aset Section
+
+private struct TargetAsetSection: View {
+    let items: [Aset]
+    let onTap: (Aset) -> Void
+
+    var totalNilai: Decimal { items.reduce(0) { $0 + $1.nilaiEfektif } }
+    var totalPnl: Decimal { items.reduce(0) { $0 + $1.pnl } }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Section Header
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "target")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color(hex: "#22C55E"))
+                    Text("TARGET INVESTASI")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .tracking(0.8)
+                    Text("\(items.count)")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Color(hex: "#22C55E"))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(Color(hex: "#22C55E").opacity(0.15))
+                        .clipShape(Capsule())
+                }
+                Spacer()
+                HStack(spacing: 3) {
+                    Image(systemName: totalPnl >= 0 ? "arrow.up.right" : "arrow.down.right")
+                        .font(.system(size: 9, weight: .bold))
+                    Text("\(totalPnl >= 0 ? "+" : "")\(totalPnl.shortFormatted)")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(totalPnl >= 0 ? Color(hex: "#22C55E") : Color(hex: "#EF4444"))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(hex: "#22C55E").opacity(0.04))
+
+            // Rows
+            ForEach(Array(items.enumerated()), id: \.element.id) { idx, aset in
+                if idx > 0 {
+                    Divider().background(Color.white.opacity(0.06)).padding(.leading, 56)
+                }
+                TargetAsetRow(aset: aset)
+                    .onTapGesture { onTap(aset) }
+            }
+        }
+        .background(Color.white.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(hex: "#22C55E").opacity(0.15), lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - Target Aset Row
+
+private struct TargetAsetRow: View {
+    let aset: Aset
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(aset.tipe.color.opacity(0.15))
+                    .frame(width: 40, height: 40)
+                Image(systemName: aset.tipe.iconName)
+                    .font(.system(size: 16))
+                    .foregroundStyle(aset.tipe.color)
+            }
+
+            // Name + linked target
+            VStack(alignment: .leading, spacing: 3) {
+                Text(aset.nama)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                if let targetNama = aset.linkedTarget?.nama {
+                    HStack(spacing: 3) {
+                        Image(systemName: "target")
+                            .font(.system(size: 9))
+                        Text(targetNama)
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(Color(hex: "#22C55E").opacity(0.8))
+                } else {
+                    Text(aset.tipe.displayName)
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.4))
+                }
+            }
+
+            Spacer()
+
+            // Value + P&L
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(aset.nilaiEfektif.idrDecimalFormatted)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                HStack(spacing: 3) {
+                    Image(systemName: aset.pnl >= 0 ? "arrow.up.right" : "arrow.down.right")
+                        .font(.system(size: 9, weight: .bold))
+                    Text("\(aset.pnl >= 0 ? "+" : "")\(aset.pnl.shortFormatted) (\(aset.returnPersen.percentFormatted))")
+                        .font(.caption2.weight(.semibold))
+                }
+                .foregroundStyle(aset.pnl >= 0 ? Color(hex: "#22C55E") : Color(hex: "#EF4444"))
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.2))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
     }
 }
 

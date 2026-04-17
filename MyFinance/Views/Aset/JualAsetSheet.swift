@@ -8,14 +8,27 @@ struct JualAsetSheet: View {
     let aset: Aset
     var onJual: () -> Void
 
-    @Query var allPockets: [Pocket]
+    @Query(sort: \Pocket.urutan) var allPockets: [Pocket]
+    @Query(sort: \Kategori.urutan) private var allKategori: [Kategori]
+
     @State private var hasilJual: Decimal = 0
+    @State private var biayaAdmin: Decimal = 0
     @State private var selectedPocket: Pocket? = nil
     @State private var tanggalJual: Date = Date()
+    @State private var showConfirmJual = false
+
+    private var adminKategori: Kategori? {
+        allKategori.first { $0.isAdmin && $0.tipe == .pengeluaran }
+    }
+
+    private var hasilAsetKategori: Kategori? {
+        allKategori.first { $0.isHasilAset && $0.tipe == .pemasukan }
+    }
 
     private var modal: Decimal { aset.modal }
-    private var pnl: Decimal { hasilJual - modal }
+    private var pnl: Decimal { hasilJual - biayaAdmin - modal }
     private var pnlPositive: Bool { pnl >= 0 }
+    private var hasilBersih: Decimal { hasilJual - biayaAdmin }
 
     var body: some View {
         NavigationStack {
@@ -25,6 +38,7 @@ struct JualAsetSheet: View {
                     VStack(spacing: 20) {
                         asetInfoCard
                         hasilJualSection
+                        biayaAdminSection
                         pocketSection
                         tanggalSection
                         if hasilJual > 0 { pnlPreview }
@@ -46,6 +60,16 @@ struct JualAsetSheet: View {
                 }
             }
             .onAppear { hasilJual = aset.nilaiSaatIni }
+            .alert("Konfirmasi Jual?", isPresented: $showConfirmJual) {
+                Button("Jual", role: .destructive) { konfirmasiJual() }
+                Button("Batal", role: .cancel) {}
+            } message: {
+                if aset.linkedTarget != nil {
+                    Text("Aset ini terhubung ke target \"\(aset.linkedTarget?.nama ?? "")\". Menjual aset akan menghapus target tersebut secara permanen.")
+                } else {
+                    Text("Hasil bersih \(hasilBersih.idrFormatted) akan masuk ke pocket yang dipilih.")
+                }
+            }
         }
     }
 
@@ -109,6 +133,41 @@ struct JualAsetSheet: View {
         }
     }
 
+    // MARK: - Biaya Admin
+
+    private var biayaAdminSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "building.columns.fill")
+                    .font(.caption)
+                    .foregroundStyle(Color(hex: "#F59E0B"))
+                Text("BIAYA ADMIN (OPSIONAL)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.5))
+                    .tracking(1)
+            }
+            HStack(spacing: 8) {
+                Text("Rp")
+                    .foregroundStyle(.white.opacity(0.5))
+                    .font(.subheadline)
+                CurrencyInputField(value: $biayaAdmin, allowsDecimal: true)
+            }
+            .padding(14)
+            .background(Color.white.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            if biayaAdmin > 0 {
+                HStack(spacing: 4) {
+                    Image(systemName: "info.circle")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                    Text("Akan dicatat sebagai pengeluaran\(adminKategori != nil ? " kategori \"\(adminKategori!.nama)\"" : "") dari pocket yang sama")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                }
+            }
+        }
+    }
+
     // MARK: - Pocket Picker
 
     private var pocketSection: some View {
@@ -161,18 +220,40 @@ struct JualAsetSheet: View {
     // MARK: - P&L Preview
 
     private var pnlPreview: some View {
-        HStack(spacing: 0) {
-            pnlItem(label: "Modal", value: modal.idrDecimalFormatted, color: .white)
-            Divider().background(Color.white.opacity(0.1)).frame(height: 40)
-            pnlItem(label: "Hasil Jual", value: hasilJual.idrDecimalFormatted, color: .white)
-            Divider().background(Color.white.opacity(0.1)).frame(height: 40)
-            pnlItem(
-                label: pnlPositive ? "Untung" : "Rugi",
-                value: "\(pnlPositive ? "+" : "")\(pnl.idrDecimalFormatted)",
-                color: pnlPositive ? Color(hex: "#22C55E") : Color(hex: "#EF4444")
-            )
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                pnlItem(label: "Modal", value: modal.idrDecimalFormatted, color: .white)
+                Divider().background(Color.white.opacity(0.1)).frame(height: 40)
+                pnlItem(label: "Hasil Jual", value: hasilJual.idrDecimalFormatted, color: .white)
+                Divider().background(Color.white.opacity(0.1)).frame(height: 40)
+                pnlItem(
+                    label: pnlPositive ? "Untung" : "Rugi",
+                    value: "\(pnlPositive ? "+" : "")\(pnl.idrDecimalFormatted)",
+                    color: pnlPositive ? Color(hex: "#22C55E") : Color(hex: "#EF4444")
+                )
+            }
+            .padding(.vertical, 12)
+
+            if biayaAdmin > 0 {
+                Divider().background(Color.white.opacity(0.1))
+                HStack {
+                    HStack(spacing: 4) {
+                        Image(systemName: "building.columns.fill")
+                            .font(.caption2)
+                            .foregroundStyle(Color(hex: "#F59E0B"))
+                        Text("Setelah admin")
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
+                    Spacer()
+                    Text(hasilBersih.idrDecimalFormatted)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(hasilBersih >= modal ? Color(hex: "#22C55E") : Color(hex: "#EF4444"))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+            }
         }
-        .padding(.vertical, 12)
         .background(
             (pnlPositive ? Color(hex: "#22C55E") : Color(hex: "#EF4444")).opacity(0.07)
         )
@@ -194,7 +275,7 @@ struct JualAsetSheet: View {
     // MARK: - CTA
 
     private var jualButton: some View {
-        Button(action: konfirmasiJual) {
+        Button(action: { showConfirmJual = true }) {
             Label("Konfirmasi Jual", systemImage: "arrow.up.right.circle.fill")
                 .font(.headline).foregroundStyle(.black)
                 .frame(maxWidth: .infinity).padding(.vertical, 16)
@@ -220,7 +301,24 @@ struct JualAsetSheet: View {
             pocket: pocket,
             catatan: "Jual \(aset.tipe.displayName): \(aset.nama)"
         )
+        transaksi.kategori = hasilAsetKategori
         modelContext.insert(transaksi)
+
+        // Catat biaya admin jika ada
+        if biayaAdmin > 0 {
+            let adminTransaksi = Transaksi(
+                tanggal: tanggalJual,
+                nominal: biayaAdmin,
+                tipe: .pengeluaran,
+                subTipe: .normal,
+                pocket: pocket,
+                catatan: "Biaya admin jual \(aset.tipe.displayName): \(aset.nama)"
+            )
+            adminTransaksi.kategori = adminKategori
+            pocket.saldo -= biayaAdmin
+            modelContext.insert(adminTransaksi)
+        }
+
         modelContext.delete(aset)
 
         try? modelContext.save()

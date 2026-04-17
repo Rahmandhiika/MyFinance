@@ -6,7 +6,7 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             HomeView()
-                .tabItem { Label("Ringkasan", systemImage: "square.grid.2x2.fill") }
+                .tabItem { Label("Home", systemImage: "square.grid.2x2.fill") }
                 .tag(0)
 
             TransaksiTabView()

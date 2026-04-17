@@ -1,22 +1,6 @@
 import Foundation
 
-// MARK: - Legacy types (kept for backward compatibility)
-
-enum ParsedTipeTransaksi {
-    case expense
-    case income
-    case transfer
-}
-
-struct ParsedVoiceResult {
-    var type: ParsedTipeTransaksi = .expense
-    var amount: Double = 0
-    var matchedPocketName: String?
-    var matchedCategoryName: String?
-    var note: String = ""
-}
-
-// MARK: - v3 ParsedResult
+// MARK: - ParsedResult
 
 struct ParsedResult {
     var tipe: TipeTransaksi = .pengeluaran
@@ -32,9 +16,7 @@ class NLPParser {
     static let shared = NLPParser()
     private init() {}
 
-    private let transferKeywords = ["transfer ke", "kirim ke", "pindah ke"]
     private let incomeKeywords = ["terima", "dapat", "gaji", "gajian", "masuk", "diterima", "penghasilan"]
-    private let expenseKeywords = ["beli", "bayar", "keluar", "buat"]
 
     private let categoryMap: [String: String] = [
         "makan": "Makan & Minum", "nasi": "Makan & Minum", "kopi": "Makan & Minum",
@@ -53,13 +35,7 @@ class NLPParser {
         let lower = text.lowercased()
 
         // Tipe
-        let legacyType = detectType(lower)
-        switch legacyType {
-        case .income:
-            result.tipe = .pemasukan
-        default:
-            result.tipe = .pengeluaran
-        }
+        result.tipe = detectTipe(lower)
 
         // Nominal
         let amount = extractAmount(lower)
@@ -90,45 +66,13 @@ class NLPParser {
         return result
     }
 
-    // MARK: - Legacy parse method (kept for backward compatibility)
-
-    func parse(text: String, pocketNames: [String]) -> ParsedVoiceResult {
-        var result = ParsedVoiceResult()
-        let lower = text.lowercased()
-
-        result.type = detectType(lower)
-        result.amount = extractAmount(lower)
-        result.matchedPocketName = matchPocket(lower, pocketNames: pocketNames)
-        result.matchedCategoryName = matchCategory(lower)
-
-        var note = text
-        if result.amount > 0 {
-            let amountPatterns = ["\\d+[.,]?\\d*\\s*(ribu|rb|rbu|k|jt|juta|m)?", "\\d+"]
-            for pattern in amountPatterns {
-                if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
-                    note = regex.stringByReplacingMatches(
-                        in: note,
-                        range: NSRange(note.startIndex..., in: note),
-                        withTemplate: ""
-                    )
-                }
-            }
-        }
-        result.note = note.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        return result
-    }
-
     // MARK: - Private helpers
 
-    private func detectType(_ text: String) -> ParsedTipeTransaksi {
-        for kw in transferKeywords {
-            if text.contains(kw) { return .transfer }
-        }
+    private func detectTipe(_ text: String) -> TipeTransaksi {
         for kw in incomeKeywords {
-            if text.contains(kw) { return .income }
+            if text.contains(kw) { return .pemasukan }
         }
-        return .expense
+        return .pengeluaran
     }
 
     func extractAmount(_ text: String) -> Double {
@@ -163,26 +107,6 @@ class NLPParser {
         return 0
     }
 
-    private func matchPocket(_ text: String, pocketNames: [String]) -> String? {
-        let keywords = ["pake", "pakai", "dari", "ke", "lewat", "via"]
-        for keyword in keywords {
-            if let idx = text.range(of: keyword) {
-                let after = String(text[idx.upperBound...]).trimmingCharacters(in: .whitespaces)
-                for name in pocketNames {
-                    if after.lowercased().hasPrefix(name.lowercased()) {
-                        return name
-                    }
-                }
-            }
-        }
-        for name in pocketNames {
-            if text.contains(name.lowercased()) {
-                return name
-            }
-        }
-        return nil
-    }
-
     private func matchPocketObject(_ text: String, pockets: [Pocket]) -> Pocket? {
         let keywords = ["pake", "pakai", "dari", "ke", "lewat", "via"]
         for keyword in keywords {
@@ -199,13 +123,6 @@ class NLPParser {
             if text.contains(pocket.nama.lowercased()) {
                 return pocket
             }
-        }
-        return nil
-    }
-
-    private func matchCategory(_ text: String) -> String? {
-        for (keyword, category) in categoryMap {
-            if text.contains(keyword) { return category }
         }
         return nil
     }

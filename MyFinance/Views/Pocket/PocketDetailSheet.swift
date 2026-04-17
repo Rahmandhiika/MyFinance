@@ -163,7 +163,7 @@ struct PocketDetailSheet: View {
                 Text(isUtang ? "Terpakai" : "Saldo")
                     .font(.caption)
                     .foregroundStyle(.gray)
-                Text(pocket.saldo.idrFormatted)
+                Text(pocket.saldo.idrDecimalFormatted)
                     .font(.system(size: 34, weight: .bold))
                     .foregroundStyle(isUtang ? .red : .white)
                     .minimumScaleFactor(0.5)
@@ -186,7 +186,7 @@ struct PocketDetailSheet: View {
                         Text("Limit")
                             .font(.caption)
                             .foregroundStyle(.gray)
-                        Text(limit.idrFormatted)
+                        Text(limit.idrDecimalFormatted)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.white)
                     }
@@ -197,7 +197,7 @@ struct PocketDetailSheet: View {
                         Text("Sisa Limit")
                             .font(.caption)
                             .foregroundStyle(.gray)
-                        Text(sisa.idrFormatted)
+                        Text(sisa.idrDecimalFormatted)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(sisa < 0 ? .red : Color(hex: "#22C55E"))
                     }
@@ -390,7 +390,7 @@ private struct HistoriRow: View {
 
             Spacer()
 
-            Text((t.tipe == .pengeluaran ? "-" : "+") + t.nominal.idrFormatted)
+            Text((t.tipe == .pengeluaran ? "-" : "+") + t.nominal.idrDecimalFormatted)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(t.tipe == .pengeluaran ? .red : Color(hex: "#22C55E"))
                 .lineLimit(1)
@@ -430,7 +430,7 @@ private struct HistoriRow: View {
 
             Spacer()
 
-            Text((isOutgoing ? "-" : "+") + tf.nominal.idrFormatted)
+            Text((isOutgoing ? "-" : "+") + tf.nominal.idrDecimalFormatted)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(isOutgoing ? .red : Color(hex: "#22C55E"))
                 .lineLimit(1)

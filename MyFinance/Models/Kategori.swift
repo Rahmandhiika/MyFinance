@@ -11,6 +11,9 @@ import Foundation
     var ikonCustom: String?                // emoji
     var warna: String                      // hex color e.g. "#22C55E"
     var urutan: Int
+    var isNabung: Bool = false      // → masuk Nabung Bulan Ini
+    var isAdmin: Bool = false       // → auto-assign ke biaya admin transfer/jual
+    var isHasilAset: Bool = false   // → auto-assign ke pemasukan hasil jual aset
     var createdAt: Date
 
     init(nama: String, tipe: TipeTransaksi, klasifikasi: KlasifikasiExpense? = nil,

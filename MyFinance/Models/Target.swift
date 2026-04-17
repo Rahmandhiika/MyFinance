@@ -11,21 +11,40 @@ import Foundation
     var warna: String         // hex color
     var catatan: String?
     var isSelesai: Bool
+    var jenisTarget: JenisTarget  // biasa atau investasi
+    var fotoData: Data?            // foto background kartu (opsional)
     var createdAt: Date
 
     @Relationship(deleteRule: .cascade, inverse: \SimpanKeTarget.target)
     var riwayat: [SimpanKeTarget] = []
 
-    // Computed
-    var tersimpan: Decimal { riwayat.reduce(Decimal(0)) { $0 + $1.nominal } }
+    /// Untuk target investasi: aset yang menjadi "wadah" dana target ini.
+    /// Cascade: Target dihapus → Aset TIDAK dihapus (nullify).
+    /// Aset dihapus → Target ikut dihapus (dihandle di sisi Aset).
+    var linkedAset: Aset?
+
+    // MARK: - Computed
+
+    /// Nilai yang sudah terkumpul:
+    /// - Investasi: pakai nilaiEfektif aset (termasuk growth)
+    /// - Biasa: sum dari SimpanKeTarget
+    var tersimpan: Decimal {
+        if let aset = linkedAset {
+            return aset.nilaiEfektif
+        }
+        return riwayat.reduce(Decimal(0)) { $0 + $1.nominal }
+    }
+
     var sisa: Decimal { max(targetNominal - tersimpan, 0) }
+
     var progressPersen: Double {
         guard targetNominal > 0 else { return 0 }
         return Double(truncating: (tersimpan / targetNominal * 100) as NSDecimalNumber)
     }
 
     init(nama: String, targetNominal: Decimal = 0, deadline: Date? = nil,
-         ikon: String = "target", warna: String = "#22C55E") {
+         ikon: String = "target", warna: String = "#22C55E",
+         jenisTarget: JenisTarget = .biasa) {
         self.id = UUID()
         self.nama = nama
         self.targetNominal = targetNominal
@@ -35,6 +54,7 @@ import Foundation
         self.warna = warna
         self.catatan = nil
         self.isSelesai = false
+        self.jenisTarget = jenisTarget
         self.createdAt = Date()
     }
 }

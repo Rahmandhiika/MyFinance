@@ -2,11 +2,11 @@ import Foundation
 
 extension Date {
     var startOfMonth: Date {
-        Calendar.current.dateInterval(of: .month, for: self)!.start
+        Calendar.current.dateInterval(of: .month, for: self)?.start ?? self
     }
 
     var endOfMonth: Date {
-        Calendar.current.dateInterval(of: .month, for: self)!.end
+        Calendar.current.dateInterval(of: .month, for: self)?.end ?? self
     }
 
     func isSameMonth(as other: Date) -> Bool {

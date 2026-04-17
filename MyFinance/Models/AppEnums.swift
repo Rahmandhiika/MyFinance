@@ -114,18 +114,39 @@ enum TipeAset: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Target
+
+enum JenisTarget: String, Codable, CaseIterable, Identifiable {
+    case biasa     = "biasa"
+    case investasi = "investasi"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .biasa:     "Tabungan Biasa"
+        case .investasi: "Tabungan Investasi"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .biasa:     "banknote"
+        case .investasi: "chart.line.uptrend.xyaxis"
+        }
+    }
+}
+
 // MARK: - Anggaran
 
 enum TipeAnggaran: String, Codable, CaseIterable, Identifiable {
     case bulanan = "bulanan"
-    case harian  = "harian"
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
         case .bulanan: "Bulanan"
-        case .harian:  "Harian"
         }
     }
 }

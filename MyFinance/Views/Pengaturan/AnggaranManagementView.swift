@@ -7,40 +7,28 @@ struct AnggaranManagementView: View {
     @Query private var allAnggaran: [Anggaran]
     @Query private var allTransaksi: [Transaksi]
 
-    @State private var tipeAnggaran: TipeAnggaran = .bulanan
     @State private var selectedMonth = Date()
-    @State private var selectedDay = Date()
     @State private var showAdd = false
     @State private var editingAnggaran: Anggaran? = nil
 
     var currentAnggaran: [Anggaran] {
         let cal = Calendar.current
+        let m = cal.component(.month, from: selectedMonth)
+        let y = cal.component(.year, from: selectedMonth)
         return allAnggaran.filter { a in
-            if tipeAnggaran == .bulanan {
-                guard a.tipeAnggaran == .bulanan else { return false }
-                let m = cal.component(.month, from: selectedMonth)
-                let y = cal.component(.year, from: selectedMonth)
-                return (a.bulan == m && a.tahun == y) || a.berulang
-            } else {
-                guard a.tipeAnggaran == .harian else { return false }
-                if a.harianBerulang { return true }
-                if let t = a.tanggal { return cal.isDate(t, inSameDayAs: selectedDay) }
-                return false
-            }
+            guard a.tipeAnggaran == .bulanan else { return false }
+            return (a.bulan == m && a.tahun == y) || a.berulang
         }
     }
 
     var totalAnggaran: Decimal { currentAnggaran.reduce(0) { $0 + $1.nominal } }
 
     func terpakai(for anggaran: Anggaran) -> Decimal {
-        let cal = Calendar.current
-        return allTransaksi
+        allTransaksi
             .filter { t in
                 t.tipe == .pengeluaran &&
                 (anggaran.kategori == nil || t.kategori?.id == anggaran.kategori?.id) &&
-                (tipeAnggaran == .bulanan
-                    ? t.tanggal.isSameMonth(as: selectedMonth)
-                    : cal.isDate(t.tanggal, inSameDayAs: selectedDay))
+                t.tanggal.isSameMonth(as: selectedMonth)
             }
             .reduce(0) { $0 + $1.nominal }
     }
@@ -50,39 +38,9 @@ struct AnggaranManagementView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Bulanan/Harian toggle
-                Picker("Mode", selection: $tipeAnggaran) {
-                    Label("Bulanan", systemImage: "calendar").tag(TipeAnggaran.bulanan)
-                    Label("Harian", systemImage: "sun.max").tag(TipeAnggaran.harian)
-                }
-                .pickerStyle(.segmented)
-                .padding()
-
-                // Navigator
-                if tipeAnggaran == .bulanan {
-                    MonthNavigator(selectedMonth: $selectedMonth)
-                        .padding(.bottom, 8)
-                } else {
-                    HStack {
-                        Button {
-                            selectedDay = Calendar.current.date(byAdding: .day, value: -1, to: selectedDay) ?? selectedDay
-                        } label: {
-                            Image(systemName: "chevron.left").foregroundStyle(.white)
-                        }
-                        Spacer()
-                        Text(dayString(from: selectedDay))
-                            .font(.headline)
-                            .foregroundStyle(.white)
-                        Spacer()
-                        Button {
-                            selectedDay = Calendar.current.date(byAdding: .day, value: 1, to: selectedDay) ?? selectedDay
-                        } label: {
-                            Image(systemName: "chevron.right").foregroundStyle(.white)
-                        }
-                    }
-                    .padding(.horizontal)
+                // Navigasi bulan
+                MonthNavigator(selectedMonth: $selectedMonth)
                     .padding(.bottom, 8)
-                }
 
                 ScrollView {
                     VStack(spacing: 12) {
@@ -126,13 +84,13 @@ struct AnggaranManagementView: View {
                             ContentUnavailableView(
                                 "Belum Ada Anggaran",
                                 systemImage: "chart.bar",
-                                description: Text("Tambah anggaran untuk periode ini")
+                                description: Text("Tambah anggaran untuk bulan ini")
                             )
                             .padding(.top, 40)
                         } else {
                             VStack(spacing: 0) {
                                 HStack {
-                                    Label(tipeAnggaran == .bulanan ? "TIAP BULAN" : "HARIAN", systemImage: "clock")
+                                    Label("TIAP BULAN", systemImage: "calendar")
                                         .font(.caption)
                                         .foregroundStyle(.orange)
                                     Spacer()
@@ -212,26 +170,11 @@ struct AnggaranManagementView: View {
             }
         }
         .sheet(isPresented: $showAdd) {
-            AddEditAnggaranView(
-                initialTipe: tipeAnggaran,
-                selectedMonth: selectedMonth,
-                selectedDay: selectedDay
-            )
+            AddEditAnggaranView(selectedMonth: selectedMonth)
         }
         .sheet(item: $editingAnggaran) { a in
-            AddEditAnggaranView(
-                anggaran: a,
-                selectedMonth: selectedMonth,
-                selectedDay: selectedDay
-            )
+            AddEditAnggaranView(anggaran: a, selectedMonth: selectedMonth)
         }
         .preferredColorScheme(.dark)
-    }
-
-    private func dayString(from date: Date) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "id_ID")
-        f.dateFormat = "EEE, dd MMM yyyy"
-        return f.string(from: date)
     }
 }

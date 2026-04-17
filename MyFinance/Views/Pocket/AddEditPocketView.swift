@@ -8,7 +8,7 @@ struct AddEditPocketView: View {
 
     var existingPocket: Pocket? = nil
 
-    @Query private var allKategoriPocket: [KategoriPocket]
+    @Query(sort: \KategoriPocket.urutan) private var allKategoriPocket: [KategoriPocket]
 
     // Form state
     @State private var nama: String = ""
@@ -73,7 +73,7 @@ struct AddEditPocketView: View {
                                     .padding(12)
                             } else {
                                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                                    ForEach(allKategoriPocket.sorted { $0.nama < $1.nama }) { k in
+                                    ForEach(allKategoriPocket) { k in
                                         KategoriPocketChip(
                                             nama: k.nama,
                                             isSelected: selectedKategori?.id == k.id
@@ -104,7 +104,7 @@ struct AddEditPocketView: View {
                         } else {
                             formSection("Saldo Awal") {
                                 VStack(spacing: 4) {
-                                    Text(saldoAwal > 0 ? saldoAwal.idrFormatted : "Rp 0")
+                                    Text(saldoAwal > 0 ? saldoAwal.idrDecimalFormatted : "Rp 0,00")
                                         .font(.title3.weight(.semibold))
                                         .foregroundStyle(.white)
                                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -117,7 +117,7 @@ struct AddEditPocketView: View {
                         if showLimitField {
                             formSection("Limit Kredit") {
                                 VStack(spacing: 4) {
-                                    Text(limit > 0 ? limit.idrFormatted : "Rp 0")
+                                    Text(limit > 0 ? limit.idrDecimalFormatted : "Rp 0,00")
                                         .font(.title3.weight(.semibold))
                                         .foregroundStyle(.white)
                                         .frame(maxWidth: .infinity, alignment: .leading)

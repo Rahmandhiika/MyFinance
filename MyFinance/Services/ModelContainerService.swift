@@ -17,12 +17,13 @@ class ModelContainerService {
             SimpanKeTarget.self,
             Aset.self,
             Anggaran.self,
-            TransaksiOtomatis.self,
+            Langganan.self,
+            PembayaranLangganan.self,
             UserProfile.self
         ])
 
         let storeURL = URL.applicationSupportDirectory
-            .appendingPathComponent("myfinance-v6.store")
+            .appendingPathComponent("myfinance.store")
 
         let config = ModelConfiguration(schema: schema, url: storeURL)
 
@@ -33,16 +34,33 @@ class ModelContainerService {
         }
     }
 
+    /// Dipanggil saat app pertama buka — hanya seed jika belum ada data
     func ensureUserProfile() {
         let context = container.mainContext
-        let descriptor = FetchDescriptor<UserProfile>()
-        let count = (try? context.fetchCount(descriptor)) ?? 0
+        let count = (try? context.fetchCount(FetchDescriptor<UserProfile>())) ?? 0
         if count == 0 {
-            let profile = UserProfile(nama: "Dika", greetingText: "Halo")
-            context.insert(profile)
+            context.insert(UserProfile(nama: "Dika", greetingText: "Halo"))
             try? context.save()
         }
         ensureKategoriPocket()
+    }
+
+    /// Dipanggil setelah reset — selalu seed ulang dari nol
+    func seedAll() {
+        let context = container.mainContext
+        context.insert(UserProfile(nama: "Dika", greetingText: "Halo"))
+        let defaults = [
+            "Rekening Bank",
+            "Bank Digital",
+            "E-Wallet",
+            "Dompet",
+            "Kartu Kredit/PayLater",
+            "Lainnya"
+        ]
+        for (index, nama) in defaults.enumerated() {
+            context.insert(KategoriPocket(nama: nama, urutan: index))
+        }
+        try? context.save()
     }
 
     private func ensureKategoriPocket() {
@@ -50,9 +68,16 @@ class ModelContainerService {
         let descriptor = FetchDescriptor<KategoriPocket>()
         let count = (try? context.fetchCount(descriptor)) ?? 0
         if count == 0 {
-            let defaults = ["Rekening Bank", "E-Wallet", "E-Money", "Dompet", "Kartu Kredit/PayLater", "Akun Brand", "Lainnya"]
-            for nama in defaults {
-                context.insert(KategoriPocket(nama: nama))
+            let defaults = [
+                "Rekening Bank",
+                "Bank Digital",
+                "E-Wallet",
+                "Dompet",
+                "Kartu Kredit/PayLater",
+                "Lainnya"
+            ]
+            for (index, nama) in defaults.enumerated() {
+                context.insert(KategoriPocket(nama: nama, urutan: index))
             }
             try? context.save()
         }

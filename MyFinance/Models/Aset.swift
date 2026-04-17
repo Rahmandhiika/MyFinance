@@ -46,10 +46,15 @@ import Foundation
 
     // MARK: - Common
     var nilaiSaatIni: Decimal        // stored, diupdate oleh price service
-    var urutan: Int                  // urutan tampil di list (drag reorder)
+    var urutan: Int = 0              // urutan tampil di list (drag reorder)
     var catatSbgPengeluaran: Bool
     var pocketSumber: Pocket?        // pocket sumber (pembelian / deposito)
     var createdAt: Date
+
+    /// Target investasi yang menggunakan aset ini sebagai wadah dana.
+    /// Cascade: Aset dihapus → Target ikut dihapus otomatis.
+    @Relationship(deleteRule: .cascade, inverse: \Target.linkedAset)
+    var linkedTarget: Target?
 
     // MARK: - Computed: Modal (biaya yang dikeluarkan)
 

@@ -5,7 +5,7 @@ struct AddEditAsetView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    @Query var allPockets: [Pocket]
+    @Query(sort: \Pocket.urutan) var allPockets: [Pocket]
 
     var existingAset: Aset? = nil
     var mode: AsetEditMode = .edit
@@ -731,11 +731,11 @@ struct AddEditAsetView: View {
                 .padding(16)
             }
 
-            // Catat sbg Pengeluaran untuk deposito
+            // Catat Sebagai Pengeluaran untuk deposito
             FormCard {
                 Toggle(isOn: $catatSbgPengeluaran) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Catat sbg Pengeluaran")
+                        Text("Catat Sebagai Pengeluaran")
                             .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
                         Text("Otomatis memotong saldo pocket sumber")
                             .font(.caption).foregroundStyle(.white.opacity(0.5))
@@ -754,7 +754,7 @@ struct AddEditAsetView: View {
             VStack(alignment: .leading, spacing: 14) {
                 Toggle(isOn: $catatSbgPengeluaran) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Catat sbg Pengeluaran")
+                        Text("Catat Sebagai Pengeluaran")
                             .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
                         Text("Otomatis memotong saldo kas kamu")
                             .font(.caption).foregroundStyle(.white.opacity(0.5))

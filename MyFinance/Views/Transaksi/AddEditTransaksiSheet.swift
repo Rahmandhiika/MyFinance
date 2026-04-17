@@ -5,9 +5,13 @@ struct AddEditTransaksiSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    @Query private var allPockets: [Pocket]
-    @Query private var allKategoris: [Kategori]
+    @Query(sort: \Pocket.urutan) private var allPockets: [Pocket]
+    @Query(sort: \Kategori.urutan) private var allKategoris: [Kategori]
     @Query private var allTargets: [Target]
+
+    private var adminKategori: Kategori? {
+        allKategoris.first { $0.isAdmin && $0.tipe == .pengeluaran }
+    }
 
     // Edit mode
     private let editingTransaksi: Transaksi?
@@ -25,6 +29,7 @@ struct AddEditTransaksiSheet: View {
     @State private var selectedTarget: Target? = nil
     @State private var catatan: String = ""
     @State private var tanggal: Date = Date()
+    @State private var biayaAdmin: Decimal = 0
 
     init(transaksi: Transaksi? = nil,
          prefilledSubTipe: SubTipeTransaksi? = nil,
@@ -42,7 +47,6 @@ struct AddEditTransaksiSheet: View {
 
     private var filteredKategoris: [Kategori] {
         allKategoris.filter { $0.tipe == tipe }
-            .sorted { $0.urutan < $1.urutan }
     }
 
     private var canSave: Bool {
@@ -72,6 +76,13 @@ struct AddEditTransaksiSheet: View {
 
                             CurrencyInputField(value: $nominal)
                                 .padding(.horizontal, 16)
+
+                            // Quick amount buttons — only in ADD mode
+                            if editingTransaksi == nil {
+                                QuickAmountButtons(nominal: $nominal)
+                                    .padding(.horizontal, 16)
+                                    .padding(.top, 4)
+                            }
                         }
                         .padding(.top, 8)
 
@@ -88,6 +99,7 @@ struct AddEditTransaksiSheet: View {
                                 selectedKategori = nil
                                 subTipe = .normal
                                 selectedTarget = nil
+                                biayaAdmin = 0
                             }
                         }
                         .padding(.horizontal, 16)
@@ -150,6 +162,39 @@ struct AddEditTransaksiSheet: View {
                             PocketChipPicker(pockets: activePockets, selected: $selectedPocket)
                         }
                         .padding(.horizontal, 16)
+
+                        // Biaya Admin (hanya add mode, hanya pengeluaran)
+                        if editingTransaksi == nil && tipe == .pengeluaran {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "building.columns.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(Color(hex: "#F59E0B"))
+                                    sectionLabel("Biaya Admin (opsional)")
+                                }
+                                HStack(spacing: 8) {
+                                    Text("Rp")
+                                        .foregroundStyle(.white.opacity(0.5))
+                                        .font(.subheadline)
+                                        .padding(.leading, 12)
+                                    CurrencyInputField(value: $biayaAdmin)
+                                }
+                                .background(Color.white.opacity(0.07))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                                if biayaAdmin > 0 {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "info.circle")
+                                            .font(.caption2)
+                                            .foregroundStyle(.gray)
+                                        Text("Dicatat sebagai transaksi terpisah\(adminKategori != nil ? " kategori \"\(adminKategori!.nama)\"" : "") dari pocket yang sama")
+                                            .font(.caption2)
+                                            .foregroundStyle(.gray)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                        }
 
                         // Catatan
                         VStack(alignment: .leading, spacing: 8) {
@@ -284,6 +329,21 @@ struct AddEditTransaksiSheet: View {
             pocket.saldo -= nominal
         } else {
             pocket.saldo += nominal
+        }
+
+        // Catat biaya admin sebagai transaksi terpisah (hanya add mode)
+        if editingTransaksi == nil && tipe == .pengeluaran && biayaAdmin > 0 {
+            let adminTransaksi = Transaksi(
+                tanggal: tanggal,
+                nominal: biayaAdmin,
+                tipe: .pengeluaran,
+                subTipe: .normal,
+                pocket: pocket,
+                catatan: "Biaya admin"
+            )
+            adminTransaksi.kategori = adminKategori
+            pocket.saldo -= biayaAdmin
+            modelContext.insert(adminTransaksi)
         }
 
         try? modelContext.save()

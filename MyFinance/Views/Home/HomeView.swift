@@ -8,11 +8,13 @@ struct HomeView: View {
     @Query private var allAset: [Aset]
     @Query(sort: \SimpanKeTarget.tanggal, order: .reverse) private var allSimpan: [SimpanKeTarget]
     @Query private var allTargets: [Target]
+    @Query private var allAnggaran: [Anggaran]
     @Query private var profiles: [UserProfile]
 
     // MARK: - State
     @State private var selectedMonth: Date = Date()
     @State private var showAddTransaksi = false
+    @AppStorage("hideBalance") private var hideBalance: Bool = false
 
     // MARK: - Colors
     private let bgColor = Color(hex: "#0D0D0D")
@@ -38,10 +40,18 @@ struct HomeView: View {
         transaksiMonth.filter { $0.tipe == .pengeluaran }.reduce(0) { $0 + $1.nominal }
     }
     private var nabungBulanIni: Decimal {
-        allSimpan.filter { $0.tanggal.isSameMonth(as: selectedMonth) }.reduce(0) { $0 + $1.nominal }
+        // Setoran ke target (biasa)
+        let dariTarget = allSimpan
+            .filter { $0.tanggal.isSameMonth(as: selectedMonth) }
+            .reduce(Decimal(0)) { $0 + $1.nominal }
+        // Transaksi pengeluaran berkategori "nabung" (termasuk beli saham/reksadana)
+        let dariKategoriNabung = transaksiMonth
+            .filter { $0.tipe == .pengeluaran && $0.kategori?.isNabung == true }
+            .reduce(Decimal(0)) { $0 + $1.nominal }
+        return dariTarget + dariKategoriNabung
     }
     private var danaTersimpan: Decimal {
-        allSimpan.reduce(0) { $0 + $1.nominal }
+        allTargets.reduce(0) { $0 + $1.tersimpan }
     }
     private var amanDibelanjakan: Decimal {
         pemasukan - pengeluaran - nabungBulanIni
@@ -55,7 +65,7 @@ struct HomeView: View {
         allPockets.filter { $0.kelompokPocket == .utang }.reduce(0) { $0 + $1.saldo }
     }
     private var totalAset: Decimal {
-        allAset.reduce(0) { $0 + $1.nilaiEfektif }
+        allAset.filter { $0.linkedTarget == nil }.reduce(0) { $0 + $1.nilaiEfektif }
     }
     private var totalKekayaan: Decimal {
         cash + danaTersimpan + totalAset - hutang
@@ -105,6 +115,28 @@ struct HomeView: View {
         allTargets.filter { !$0.isSelesai && $0.tersimpan < $0.targetNominal }
     }
 
+    // MARK: - Anggaran Bulan Ini
+    private var anggaranBulanIni: [Anggaran] {
+        let m = Calendar.current.component(.month, from: selectedMonth)
+        let y = Calendar.current.component(.year, from: selectedMonth)
+        return allAnggaran.filter { a in
+            guard a.tipeAnggaran == .bulanan else { return false }
+            return (a.bulan == m && a.tahun == y) || a.berulang
+        }
+    }
+
+    private func terpakai(for anggaran: Anggaran) -> Decimal {
+        transaksiMonth
+            .filter { t in
+                t.tipe == .pengeluaran &&
+                (anggaran.kategori == nil || t.kategori?.id == anggaran.kategori?.id)
+            }
+            .reduce(0) { $0 + $1.nominal }
+    }
+
+    private var totalAnggaran: Decimal { anggaranBulanIni.reduce(0) { $0 + $1.nominal } }
+    private var totalTerpakai: Decimal { anggaranBulanIni.reduce(0) { $0 + terpakai(for: $1) } }
+
     // MARK: - Terbaru
     private var terbaru: [Transaksi] {
         Array(transaksiMonth.prefix(5))
@@ -125,9 +157,14 @@ struct HomeView: View {
                         shortcutRow
                         totalKekayaanCard
                         rincianBiayaCard
+                        if !anggaranBulanIni.isEmpty {
+                            anggaranSection
+                        }
                         if !activeTargets.isEmpty {
                             goalsSection
                         }
+                        LanggananBulanIniCard()
+                            .padding(.horizontal)
                         if !kategoriTeratas.isEmpty {
                             kategoriTeratSection
                         }
@@ -161,6 +198,12 @@ struct HomeView: View {
         }
     }
 
+    // MARK: - Balance Mask Helper
+
+    private func masked(_ value: String) -> String {
+        hideBalance ? "••••••" : value
+    }
+
     // MARK: - Top Bar
     private var topBar: some View {
         HStack {
@@ -192,7 +235,22 @@ struct HomeView: View {
                     .font(.headline)
                     .foregroundStyle(.white)
             }
+
             Spacer()
+
+            // Hide balance toggle
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    hideBalance.toggle()
+                }
+            } label: {
+                Image(systemName: hideBalance ? "eye.slash.fill" : "eye.fill")
+                    .font(.system(size: 16))
+                    .foregroundStyle(hideBalance ? .gray : .white.opacity(0.6))
+                    .frame(width: 36, height: 36)
+                    .background(Color.white.opacity(0.07))
+                    .clipShape(Circle())
+            }
         }
         .padding(.horizontal)
     }
@@ -208,11 +266,11 @@ struct HomeView: View {
                 .foregroundStyle(isAman ? accentGreen : accentRed)
 
             // Large Nominal
-            Text((amanDibelanjakan < 0 ? "-" : "+") + abs(amanDibelanjakan).idrFormatted)
+            Text(masked((amanDibelanjakan < 0 ? "-" : "+") + abs(amanDibelanjakan).idrFormatted))
                 .font(.system(size: 30, weight: .bold))
                 .foregroundStyle(isAman ? accentGreen : accentRed)
 
-            Text("Tersisa: \(amanDibelanjakan.shortFormatted)")
+            Text(masked("Tersisa: \(amanDibelanjakan.shortFormatted)"))
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.6))
 
@@ -247,7 +305,7 @@ struct HomeView: View {
                 Text(label)
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.gray)
-                Text(amount.idrFormatted)
+                Text(masked(amount.idrFormatted))
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(amountColor)
                     .lineLimit(1)
@@ -307,7 +365,7 @@ struct HomeView: View {
                     .foregroundStyle(.gray)
             }
 
-            Text(totalKekayaan.idrFormatted)
+            Text(masked(totalKekayaan.idrFormatted))
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(.white)
 
@@ -337,7 +395,7 @@ struct HomeView: View {
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(.gray)
                 .multilineTextAlignment(.center)
-            Text(value.shortFormatted)
+            Text(masked(value.shortFormatted))
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(color)
         }
@@ -383,6 +441,126 @@ struct HomeView: View {
         }
     }
 
+    // MARK: - Anggaran Section
+
+    private var anggaranSection: some View {
+        let sisa = totalAnggaran - totalTerpakai
+        let overBudget = sisa < 0
+        let progress = totalAnggaran > 0
+            ? min(Double(truncating: (totalTerpakai / totalAnggaran) as NSDecimalNumber), 1.0)
+            : 0.0
+        let barColor = overBudget ? accentRed : (progress > 0.8 ? Color(hex: "#F59E0B") : Color(hex: "#FBBF24"))
+
+        return VStack(alignment: .leading, spacing: 10) {
+            sectionHeader(label: "ANGGARAN BULAN INI", icon: "chart.bar.doc.horizontal.fill")
+
+            VStack(spacing: 12) {
+                // Summary row
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("TERPAKAI")
+                            .font(.caption2).foregroundStyle(.gray).tracking(0.5)
+                        Text(masked(totalTerpakai.idrFormatted))
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(overBudget ? accentRed : .white)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("TOTAL")
+                            .font(.caption2).foregroundStyle(.gray).tracking(0.5)
+                        Text(masked(totalAnggaran.idrFormatted))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                }
+
+                // Progress bar
+                VStack(spacing: 4) {
+                    ProgressBarView(progress: progress, color: barColor, height: 8)
+                    HStack {
+                        Text(masked(overBudget ? "Over \(abs(sisa).idrFormatted)" : "Sisa \(sisa.idrFormatted)"))
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(overBudget ? accentRed : Color(hex: "#22C55E"))
+                        Spacer()
+                        Text(String(format: "%.0f%% terpakai", progress * 100))
+                            .font(.caption2)
+                            .foregroundStyle(.gray)
+                    }
+                }
+
+                // Per-kategori rows (max 4, sisanya lipat)
+                if anggaranBulanIni.count > 1 {
+                    Divider().background(Color.white.opacity(0.06))
+                    VStack(spacing: 8) {
+                        ForEach(Array(anggaranBulanIni.prefix(4))) { anggaran in
+                            anggaranRow(anggaran)
+                        }
+                        if anggaranBulanIni.count > 4 {
+                            Text("+\(anggaranBulanIni.count - 4) anggaran lainnya")
+                                .font(.caption2)
+                                .foregroundStyle(.gray)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                    }
+                }
+            }
+            .padding(14)
+            .background(Color.white.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(overBudget ? accentRed.opacity(0.3) : Color.clear, lineWidth: 1)
+            )
+        }
+        .padding(.horizontal)
+    }
+
+    private func anggaranRow(_ anggaran: Anggaran) -> some View {
+        let pakai = terpakai(for: anggaran)
+        let prog = anggaran.nominal > 0
+            ? min(Double(truncating: (pakai / anggaran.nominal) as NSDecimalNumber), 1.0)
+            : 0.0
+        let over = pakai > anggaran.nominal
+        let rowColor = over ? accentRed : (prog > 0.8 ? Color(hex: "#F59E0B") : Color(hex: "#FBBF24"))
+
+        return VStack(spacing: 4) {
+            HStack {
+                // Ikon kategori atau global
+                ZStack {
+                    Circle()
+                        .fill(rowColor.opacity(0.15))
+                        .frame(width: 26, height: 26)
+                    if let kat = anggaran.kategori {
+                        if let emoji = kat.ikonCustom, !emoji.isEmpty {
+                            Text(emoji).font(.system(size: 12))
+                        } else {
+                            Image(systemName: kat.ikon)
+                                .font(.system(size: 11))
+                                .foregroundStyle(rowColor)
+                        }
+                    } else {
+                        Image(systemName: "square.grid.2x2.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(rowColor)
+                    }
+                }
+
+                Text(anggaran.kategori?.nama ?? "Semua Kategori")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+
+                Spacer()
+
+                Text(masked("\(pakai.shortFormatted) / \(anggaran.nominal.shortFormatted)"))
+                    .font(.caption2)
+                    .foregroundStyle(over ? accentRed : .gray)
+            }
+
+            ProgressBarView(progress: prog, color: rowColor, height: 4)
+        }
+    }
+
     // MARK: - Goals Section
     private var goalsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -396,79 +574,111 @@ struct HomeView: View {
     }
 
     private func goalCard(target: Target) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                ZStack {
-                    Circle()
-                        .fill(Color(hex: target.warna).opacity(0.2))
-                        .frame(width: 36, height: 36)
-                    if let emoji = target.ikonCustom {
-                        Text(emoji)
-                            .font(.system(size: 16))
-                    } else {
-                        Image(systemName: target.ikon)
-                            .foregroundStyle(Color(hex: target.warna))
-                            .font(.system(size: 14))
+        let targetColor = Color(hex: target.warna)
+        let pct = target.progressPersen
+        let hasFoto = target.fotoData != nil
+
+        return ZStack(alignment: .bottom) {
+            // Background foto atau solid
+            if let data = target.fotoData, let uiImg = UIImage(data: data) {
+                Image(uiImage: uiImg)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 140)
+                    .clipped()
+            } else {
+                Color.white.opacity(0.05)
+            }
+
+            // Gradient overlay kalau ada foto
+            if hasFoto {
+                LinearGradient(
+                    colors: [Color.black.opacity(0), Color.black.opacity(0.55), Color.black.opacity(0.88)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+
+            // Konten
+            VStack(alignment: .leading, spacing: 10) {
+                // Header: ikon + nama
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(hasFoto ? Color.black.opacity(0.3) : targetColor.opacity(0.2))
+                            .frame(width: 36, height: 36)
+                        if let emoji = target.ikonCustom {
+                            Text(emoji).font(.system(size: 16))
+                        } else {
+                            Image(systemName: target.ikon)
+                                .foregroundStyle(hasFoto ? .white : targetColor)
+                                .font(.system(size: 14))
+                        }
+                    }
+                    HStack(alignment: .center, spacing: 6) {
+                        Text(target.nama)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .shadow(color: hasFoto ? .black.opacity(0.6) : .clear, radius: 3)
+                        if target.jenisTarget == .investasi {
+                            HStack(spacing: 3) {
+                                Image(systemName: "chart.line.uptrend.xyaxis")
+                                    .font(.system(size: 9, weight: .semibold))
+                                Text(target.linkedAset?.tipe.displayName ?? "Investasi")
+                                    .font(.system(size: 9, weight: .semibold))
+                            }
+                            .foregroundStyle(hasFoto ? .white : accentGreen)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(hasFoto ? Color.white.opacity(0.2) : accentGreen.opacity(0.12))
+                            .clipShape(Capsule())
+                        }
+                        Spacer()
                     }
                 }
-                Text(target.nama)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.white)
-                Spacer()
-                Button {
-                    showAddTransaksi = true
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(accentGreen)
-                }
-            }
 
-            let pct = target.progressPersen
-            HStack {
-                Text(String(format: "%.0f%%", pct))
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color(hex: target.warna))
-                Text("•")
-                    .font(.caption)
-                    .foregroundStyle(.gray)
-                Text("\(target.tersimpan.shortFormatted) / \(target.targetNominal.shortFormatted)")
-                    .font(.caption)
-                    .foregroundStyle(.gray)
-            }
-
-            ProgressBarView(progress: pct / 100, color: Color(hex: target.warna), height: 6)
-
-            if let deadline = target.deadline {
-                let daysLeft = Calendar.current.dateComponents([.day], from: Date(), to: deadline).day ?? 0
-                let deadlineStr: String = {
-                    let formatter = DateFormatter()
-                    formatter.locale = Locale(identifier: "id_ID")
-                    formatter.dateFormat = "dd MMM yyyy"
-                    return formatter.string(from: deadline)
-                }()
-
+                // Progress
                 HStack {
+                    Text(String(format: "%.0f%%", pct))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(hasFoto ? .white : targetColor)
+                    Text("•").font(.caption).foregroundStyle(.white.opacity(0.4))
+                    Text(masked("\(target.tersimpan.shortFormatted) / \(target.targetNominal.shortFormatted)"))
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(hasFoto ? 0.8 : 0.6))
+                }
+
+                ProgressBarView(
+                    progress: pct / 100,
+                    color: hasFoto ? .white : targetColor,
+                    height: 6
+                )
+                .opacity(hasFoto ? 0.85 : 1)
+
+                if let deadline = target.deadline {
+                    let daysLeft = Calendar.current.dateComponents([.day], from: Date(), to: deadline).day ?? 0
+                    let deadlineStr: String = {
+                        let f = DateFormatter()
+                        f.locale = Locale(identifier: "id_ID")
+                        f.dateFormat = "dd MMM yyyy"
+                        return f.string(from: deadline)
+                    }()
+
                     Text("Estimasi Kelar: \(deadlineStr) • \(daysLeft) hari")
                         .font(.caption)
-                        .foregroundStyle(.gray)
-                }
+                        .foregroundStyle(.white.opacity(hasFoto ? 0.7 : 0.5))
 
-                if target.tersimpan < target.targetNominal && daysLeft > 0 {
-                    let sisaNominal = target.targetNominal - target.tersimpan
-                    let bulanSisa = max(daysLeft / 30, 1)
-                    let perBulan = sisaNominal / Decimal(bulanSisa)
-                    Text("PERLU MENYISIHKAN: \(perBulan.idrFormatted) /bln")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(accentGreen)
+                    if target.tersimpan < target.targetNominal && daysLeft > 0 {
+                        let perBulan = (target.targetNominal - target.tersimpan) / Decimal(max(daysLeft / 30, 1))
+                        Text("PERLU MENYISIHKAN: \(masked(perBulan.idrFormatted)) /bln")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(hasFoto ? .white : accentGreen)
+                    }
                 }
             }
+            .padding(14)
         }
-        .padding(14)
-        .background(Color.white.opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
@@ -501,7 +711,7 @@ struct HomeView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(.white)
                             Spacer()
-                            Text(amount.idrFormatted)
+                            Text(masked(amount.idrFormatted))
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                                 .foregroundStyle(accentRed)
@@ -564,7 +774,7 @@ struct HomeView: View {
 
                     Spacer()
 
-                    Text((tx.tipe == .pemasukan ? "+" : "-") + tx.nominal.idrFormatted)
+                    Text(masked((tx.tipe == .pemasukan ? "+" : "-") + tx.nominal.idrFormatted))
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundStyle(tx.tipe == .pemasukan ? accentGreen : accentRed)

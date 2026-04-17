@@ -7,16 +7,12 @@ struct AddEditAnggaranView: View {
     @Query(sort: \Kategori.urutan) private var allKategoris: [Kategori]
 
     var anggaran: Anggaran? = nil
-    var initialTipe: TipeAnggaran = .bulanan
     var selectedMonth: Date = Date()
-    var selectedDay: Date = Date()
 
     @State private var nominal: Decimal = 0
-    @State private var tipeAnggaran: TipeAnggaran = .bulanan
     @State private var selectedKategori: Kategori? = nil
     @State private var berulang = false
     @State private var pindahan = false
-    @State private var harianBerulang = false
 
     var isEditing: Bool { anggaran != nil }
     var canSave: Bool { nominal > 0 }
@@ -42,56 +38,31 @@ struct AddEditAnggaranView: View {
                         CurrencyInputField(value: $nominal)
                     }
 
-                    // Tipe Anggaran
-                    Picker("Mode", selection: $tipeAnggaran) {
-                        Label("Bulanan", systemImage: "calendar").tag(TipeAnggaran.bulanan)
-                        Label("Harian", systemImage: "sun.max").tag(TipeAnggaran.harian)
-                    }
-                    .pickerStyle(.segmented)
+                    // Toggles
+                    VStack(spacing: 12) {
+                        Toggle(isOn: $berulang) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Berulang").foregroundStyle(.white)
+                                Text("Reset otomatis tiap bulan")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            }
+                        }
+                        .tint(Color(hex: "#FBBF24"))
+                        .padding()
+                        .background(Color.white.opacity(0.05))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
 
-                    // Bulanan toggles
-                    if tipeAnggaran == .bulanan {
-                        VStack(spacing: 12) {
-                            Toggle(isOn: $berulang) {
+                        Toggle(isOn: $pindahan) {
+                            HStack {
+                                Image(systemName: "arrow.clockwise")
+                                    .foregroundStyle(Color(hex: "#FBBF24"))
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("Berulang").foregroundStyle(.white)
-                                    Text("Reset otomatis tiap bulan")
+                                    Text("Pindahan").foregroundStyle(.white)
+                                    Text("Sisa anggaran otomatis dibawa ke bulan depan")
                                         .font(.caption)
                                         .foregroundStyle(.gray)
                                 }
-                            }
-                            .tint(Color(hex: "#FBBF24"))
-                            .padding()
-                            .background(Color.white.opacity(0.05))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                            Toggle(isOn: $pindahan) {
-                                HStack {
-                                    Image(systemName: "arrow.clockwise")
-                                        .foregroundStyle(Color(hex: "#FBBF24"))
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Pindahan").foregroundStyle(.white)
-                                        Text("Sisa anggaran otomatis dibawa ke bulan depan")
-                                            .font(.caption)
-                                            .foregroundStyle(.gray)
-                                    }
-                                }
-                            }
-                            .tint(Color(hex: "#FBBF24"))
-                            .padding()
-                            .background(Color.white.opacity(0.05))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                        }
-                    }
-
-                    // Harian toggle
-                    if tipeAnggaran == .harian {
-                        Toggle(isOn: $harianBerulang) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Harian Berulang").foregroundStyle(.white)
-                                Text("Tampil di semua hari")
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
                             }
                         }
                         .tint(Color(hex: "#FBBF24"))
@@ -158,38 +129,30 @@ struct AddEditAnggaranView: View {
     }
 
     private func loadExisting() {
-        guard let a = anggaran else {
-            tipeAnggaran = initialTipe
-            return
-        }
+        guard let a = anggaran else { return }
         nominal = a.nominal
-        tipeAnggaran = a.tipeAnggaran
         selectedKategori = a.kategori
         berulang = a.berulang
         pindahan = a.pindahan
-        harianBerulang = a.harianBerulang
     }
 
     private func save() {
         let cal = Calendar.current
         if let a = anggaran {
             a.nominal = nominal
-            a.tipeAnggaran = tipeAnggaran
+            a.tipeAnggaran = .bulanan
             a.kategori = selectedKategori
             a.berulang = berulang
             a.pindahan = pindahan
-            a.harianBerulang = harianBerulang
         } else {
             let newA = Anggaran(
                 nominal: nominal,
-                tipeAnggaran: tipeAnggaran,
+                tipeAnggaran: .bulanan,
                 kategori: selectedKategori,
                 berulang: berulang,
                 pindahan: pindahan,
-                harianBerulang: harianBerulang,
-                bulan: tipeAnggaran == .bulanan ? cal.component(.month, from: selectedMonth) : nil,
-                tahun: tipeAnggaran == .bulanan ? cal.component(.year, from: selectedMonth) : nil,
-                tanggal: tipeAnggaran == .harian && !harianBerulang ? selectedDay : nil
+                bulan: cal.component(.month, from: selectedMonth),
+                tahun: cal.component(.year, from: selectedMonth)
             )
             context.insert(newA)
         }

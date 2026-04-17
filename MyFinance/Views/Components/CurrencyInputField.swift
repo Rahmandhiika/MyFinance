@@ -4,8 +4,8 @@ import SwiftUI
 
 struct CurrencyInputField: View {
     @Binding var value: Decimal
-    /// Aktifkan untuk field yang butuh angka di belakang koma (harga aset, NAV, dll)
-    var allowsDecimal: Bool = false
+    /// Nonaktifkan untuk field yang harus bulat (tidak diperlukan lagi karena default true)
+    var allowsDecimal: Bool = true
 
     @State private var text: String = ""
     @FocusState private var focused: Bool

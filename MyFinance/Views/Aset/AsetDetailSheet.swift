@@ -13,6 +13,12 @@ struct AsetDetailSheet: View {
     @State private var showCairkan = false
     @State private var showJual = false
     @State private var showHapusAlert = false
+    @State private var showUpdateNAV = false
+    @State private var navInput = ""
+    @State private var showUpdateHargaEmas = false
+    @State private var hargaEmasInput = ""
+    @State private var showBeliSaham = false
+    @State private var showTambahReksadana = false
 
     var body: some View {
         NavigationStack {
@@ -69,6 +75,12 @@ struct AsetDetailSheet: View {
         .sheet(isPresented: $showJual) {
             JualAsetSheet(aset: aset) { dismiss() }
         }
+        .sheet(isPresented: $showBeliSaham) {
+            BeliSahamSheet(aset: aset)
+        }
+        .sheet(isPresented: $showTambahReksadana) {
+            TambahReksadanaSheet(aset: aset)
+        }
         .alert("Hapus \(aset.nama)?", isPresented: $showHapusAlert) {
             Button("Hapus", role: .destructive) {
                 modelContext.delete(aset)
@@ -77,7 +89,27 @@ struct AsetDetailSheet: View {
             }
             Button("Batal", role: .cancel) {}
         } message: {
-            Text("Data aset ini akan dihapus permanen dan tidak bisa dipulihkan.")
+            if aset.linkedTarget != nil {
+                Text("Data aset ini akan dihapus permanen. Target investasi yang terhubung (\(aset.linkedTarget?.nama ?? "")) juga akan ikut terhapus.")
+            } else {
+                Text("Data aset ini akan dihapus permanen dan tidak bisa dipulihkan.")
+            }
+        }
+        .alert("Update NAV Reksadana", isPresented: $showUpdateNAV) {
+            TextField("NAV per unit (Rp)", text: $navInput)
+                .keyboardType(.decimalPad)
+            Button("Simpan") { saveNAV() }
+            Button("Batal", role: .cancel) { navInput = "" }
+        } message: {
+            Text("NAV saat ini: \(aset.navSaatIni?.idrFormatted ?? "-")\nMasukkan NAV terbaru per unit.")
+        }
+        .alert("Update Harga Emas", isPresented: $showUpdateHargaEmas) {
+            TextField("Harga per gram (Rp)", text: $hargaEmasInput)
+                .keyboardType(.decimalPad)
+            Button("Simpan") { saveHargaEmas() }
+            Button("Batal", role: .cancel) { hargaEmasInput = "" }
+        } message: {
+            Text("Harga/gram saat ini: \(aset.hargaBeliPerGram?.idrFormatted ?? "-")\nMasukkan harga buyback terkini per gram.")
         }
     }
 
@@ -173,12 +205,51 @@ struct AsetDetailSheet: View {
         if let harga = aset.hargaPerLembar {
             DetailRow(label: "Harga Beli/Lembar", value: harga.idrDecimalFormatted)
             Divider().background(Color.white.opacity(0.08))
-            let hargaSaatIniPerLembar = aset.lot != nil && aset.lot! > 0
-                ? aset.nilaiSaatIni / ((aset.lot ?? 1) * 100)
-                : 0
-            DetailRow(label: "Harga Saat Ini/Lembar", value: hargaSaatIniPerLembar.idrDecimalFormatted)
-            Divider().background(Color.white.opacity(0.08))
         }
+        // Harga saat ini + refresh button
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Harga Saat Ini/Lembar")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.6))
+                let hargaSaatIniPerLembar = (aset.lot ?? 0) > 0
+                    ? aset.nilaiSaatIni / ((aset.lot ?? 1) * 100)
+                    : Decimal(0)
+                Text(hargaSaatIniPerLembar > 0 ? hargaSaatIniPerLembar.idrDecimalFormatted : "–")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+            }
+            Spacer()
+            Button {
+                guard let kode = aset.kode else { return }
+                isRefreshingKurs = true
+                Task {
+                    if let harga = await AsetPriceService.shared.fetchSahamPrice(kode: kode) {
+                        aset.nilaiSaatIni = (aset.lot ?? 0) * 100 * harga
+                        try? modelContext.save()
+                    }
+                    isRefreshingKurs = false
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    if isRefreshingKurs {
+                        ProgressView().tint(Color(hex: "#3B82F6")).scaleEffect(0.8)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption.weight(.semibold))
+                    }
+                    Text("Update")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(Color(hex: "#3B82F6"))
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Color(hex: "#3B82F6").opacity(0.12))
+                .clipShape(Capsule())
+            }
+            .disabled(isRefreshingKurs || aset.kode == nil)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        Divider().background(Color.white.opacity(0.08))
     }
 
     @ViewBuilder
@@ -272,10 +343,41 @@ struct AsetDetailSheet: View {
             DetailRow(label: "NAV Saat Beli/Unit", value: hargaBeli.idrDecimalFormatted)
             Divider().background(Color.white.opacity(0.08))
         }
-        if let navNow = aset.navSaatIni {
-            DetailRow(label: "NAV Saat Ini/Unit", value: navNow.idrDecimalFormatted)
-            Divider().background(Color.white.opacity(0.08))
+        // NAV saat ini + Update button
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("NAV Saat Ini/Unit")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.6))
+                if let navNow = aset.navSaatIni {
+                    Text(navNow.idrDecimalFormatted)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                } else {
+                    Text("–")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.4))
+                }
+            }
+            Spacer()
+            Button {
+                navInput = aset.navSaatIni.map { "\($0)" } ?? ""
+                showUpdateNAV = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "pencil")
+                        .font(.caption.weight(.semibold))
+                    Text("Update NAV")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(Color(hex: "#22C55E"))
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Color(hex: "#22C55E").opacity(0.12))
+                .clipShape(Capsule())
+            }
         }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        Divider().background(Color.white.opacity(0.08))
         let unitCount = aset.estimasiUnitReksadana
         if unitCount > 0 {
             DetailRow(label: "Jumlah Unit (Est.)", value: unitCount.unitFormatted(4))
@@ -460,6 +562,43 @@ struct AsetDetailSheet: View {
             DetailRow(label: "Harga Beli/Gram", value: harga.idrDecimalFormatted)
             Divider().background(Color.white.opacity(0.08))
         }
+        // Harga saat ini + Update button
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Harga Buyback Saat Ini/Gram")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.6))
+                let hargaSaatIni = aset.beratGram.map { aset.nilaiSaatIni / $0 }
+                if let h = hargaSaatIni, h > 0 {
+                    Text(h.idrDecimalFormatted)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                } else {
+                    Text("–")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.4))
+                }
+            }
+            Spacer()
+            Button {
+                let hargaSaatIni = aset.beratGram.map { aset.nilaiSaatIni / $0 }
+                hargaEmasInput = hargaSaatIni.map { "\($0)" } ?? ""
+                showUpdateHargaEmas = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "pencil")
+                        .font(.caption.weight(.semibold))
+                    Text("Update Harga")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(Color(hex: "#F59E0B"))
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Color(hex: "#F59E0B").opacity(0.12))
+                .clipShape(Capsule())
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        Divider().background(Color.white.opacity(0.08))
     }
 
     // MARK: - Action Buttons
@@ -509,8 +648,13 @@ struct AsetDetailSheet: View {
 
                 // Beli
                 Button {
-                    editMode = .beli
-                    showEdit = true
+                    switch aset.tipe {
+                    case .saham:     showBeliSaham = true
+                    case .reksadana: showTambahReksadana = true
+                    default:
+                        editMode = .beli
+                        showEdit = true
+                    }
                 } label: {
                     Label("Beli", systemImage: "arrow.down.left.circle.fill")
                         .font(.subheadline.weight(.semibold))
@@ -522,6 +666,23 @@ struct AsetDetailSheet: View {
                 }
             }
         }
+    }
+
+    // MARK: - Update Helpers
+
+    private func saveNAV() {
+        guard let nav = Decimal(string: navInput.replacingOccurrences(of: ",", with: ".")) else { return }
+        aset.navSaatIni = nav
+        aset.nilaiSaatIni = aset.estimasiUnitReksadana * nav
+        try? modelContext.save()
+        navInput = ""
+    }
+
+    private func saveHargaEmas() {
+        guard let harga = Decimal(string: hargaEmasInput.replacingOccurrences(of: ",", with: ".")) else { return }
+        aset.nilaiSaatIni = (aset.beratGram ?? 0) * harga
+        try? modelContext.save()
+        hargaEmasInput = ""
     }
 
     // MARK: - Hapus Button

@@ -5,13 +5,19 @@ struct TransferInternalSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    @Query private var allPockets: [Pocket]
+    @Query(sort: \Pocket.urutan) private var allPockets: [Pocket]
+    @Query(sort: \Kategori.urutan) private var allKategori: [Kategori]
 
     @State private var nominal: Decimal = 0
+    @State private var biayaAdmin: Decimal = 0
     @State private var pocketAsal: Pocket? = nil
     @State private var pocketTujuan: Pocket? = nil
     @State private var catatan: String = ""
     @State private var tanggal: Date = Date()
+
+    private var adminKategori: Kategori? {
+        allKategori.first { $0.isAdmin && $0.tipe == .pengeluaran }
+    }
 
     private var activePockets: [Pocket] {
         allPockets.filter { $0.isAktif }
@@ -74,6 +80,40 @@ struct TransferInternalSheet: View {
                         VStack(alignment: .leading, spacing: 10) {
                             sectionLabel("Ke Pocket")
                             PocketChipPicker(pockets: tujuanPockets, selected: $pocketTujuan)
+                        }
+                        .padding(.horizontal, 16)
+
+                        // Biaya Admin
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "building.columns.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(Color(hex: "#F59E0B"))
+                                sectionLabel("Biaya Admin (opsional)")
+                            }
+                            VStack(spacing: 0) {
+                                HStack(spacing: 8) {
+                                    Text("Rp")
+                                        .foregroundStyle(.white.opacity(0.5))
+                                        .font(.subheadline)
+                                        .padding(.leading, 14)
+                                    CurrencyInputField(value: $biayaAdmin)
+                                }
+                                .padding(.vertical, 10)
+                                .background(Color.white.opacity(0.07))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                if biayaAdmin > 0 {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "info.circle")
+                                            .font(.caption2)
+                                            .foregroundStyle(.gray)
+                                        Text("Akan dicatat sebagai transaksi pengeluaran\(adminKategori != nil ? " kategori \"\(adminKategori!.nama)\"" : "") dari pocket asal")
+                                            .font(.caption2)
+                                            .foregroundStyle(.gray)
+                                    }
+                                    .padding(.top, 6)
+                                }
+                            }
                         }
                         .padding(.horizontal, 16)
 
@@ -146,6 +186,21 @@ struct TransferInternalSheet: View {
 
         asal.saldo -= nominal
         tujuan.saldo += nominal
+
+        // Catat biaya admin jika ada
+        if biayaAdmin > 0 {
+            let adminTransaksi = Transaksi(
+                tanggal: tanggal,
+                nominal: biayaAdmin,
+                tipe: .pengeluaran,
+                subTipe: .normal,
+                pocket: asal,
+                catatan: "Biaya admin transfer ke \(tujuan.nama)"
+            )
+            adminTransaksi.kategori = adminKategori
+            asal.saldo -= biayaAdmin
+            modelContext.insert(adminTransaksi)
+        }
 
         try? modelContext.save()
         dismiss()

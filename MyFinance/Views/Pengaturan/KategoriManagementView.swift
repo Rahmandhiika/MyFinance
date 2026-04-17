@@ -94,9 +94,26 @@ struct KategoriRow: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(kategori.nama)
-                    .foregroundStyle(.white)
-                    .font(.subheadline)
+                HStack(spacing: 6) {
+                    Text(kategori.nama)
+                        .foregroundStyle(.white)
+                        .font(.subheadline)
+                    if kategori.isNabung {
+                        Image(systemName: "arrow.down.to.line.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color(hex: "#06B6D4"))
+                    }
+                    if kategori.isAdmin {
+                        Image(systemName: "building.columns.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color(hex: "#F59E0B"))
+                    }
+                    if kategori.isHasilAset {
+                        Image(systemName: "chart.bar.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color(hex: "#22C55E"))
+                    }
+                }
                 if let k = kategori.klasifikasi {
                     Text(k.displayName)
                         .font(.caption)

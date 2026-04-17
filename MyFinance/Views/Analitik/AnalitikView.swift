@@ -51,7 +51,7 @@ struct AnalitikView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button { } label: {
                     Image(systemName: "line.3.horizontal.decrease.circle")
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                 }
             }
         }
@@ -65,7 +65,7 @@ struct AnalitikView: View {
                 selectedMonth = selectedMonth.addingMonths(-1)
             } label: {
                 Image(systemName: "chevron.left")
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .frame(width: 36, height: 36)
                     .background(cardBg)
                     .clipShape(Circle())
@@ -76,7 +76,7 @@ struct AnalitikView: View {
             VStack(spacing: 2) {
                 Text(monthRangeLabel)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
             }
 
             Spacer()
@@ -85,7 +85,7 @@ struct AnalitikView: View {
                 selectedMonth = selectedMonth.addingMonths(1)
             } label: {
                 Image(systemName: "chevron.right")
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .frame(width: 36, height: 36)
                     .background(cardBg)
                     .clipShape(Circle())
@@ -153,7 +153,7 @@ struct AnalitikView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("PENGELUARAN TERBESAR")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(Color(hex: "#FF6B6B"))
+                .foregroundStyle(Color(hex: "#FF6B6B"))
                 .tracking(1)
 
             if let t = pengeluaranTerbesar {
@@ -161,7 +161,7 @@ struct AnalitikView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(t.nominal.idrFormatted)
                             .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                         HStack(spacing: 6) {
                             if let kat = t.kategori {
                                 Circle()
@@ -169,11 +169,11 @@ struct AnalitikView: View {
                                     .frame(width: 8, height: 8)
                                 Text(kat.nama)
                                     .font(.system(size: 13))
-                                    .foregroundColor(.gray)
+                                    .foregroundStyle(.gray)
                             } else {
                                 Text("Tanpa Kategori")
                                     .font(.system(size: 13))
-                                    .foregroundColor(.gray)
+                                    .foregroundStyle(.gray)
                             }
                         }
                     }
@@ -181,16 +181,16 @@ struct AnalitikView: View {
                     VStack(alignment: .trailing, spacing: 4) {
                         Text(dateLabel(t.tanggal))
                             .font(.system(size: 12))
-                            .foregroundColor(Color.white.opacity(0.5))
+                            .foregroundStyle(Color.white.opacity(0.5))
                         Text(dayName(t.tanggal))
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.white.opacity(0.7))
+                            .foregroundStyle(.white.opacity(0.7))
                     }
                 }
             } else {
                 Text("Tidak ada data bulan ini")
                     .font(.system(size: 14))
-                    .foregroundColor(.gray)
+                    .foregroundStyle(.gray)
             }
         }
         .padding(16)
@@ -202,7 +202,7 @@ struct AnalitikView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("HARI PALING BOROS")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(Color(hex: "#FBBF24"))
+                .foregroundStyle(Color(hex: "#FBBF24"))
                 .tracking(1)
 
             if let hb = hariBoros {
@@ -210,20 +210,20 @@ struct AnalitikView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(hb.total.idrFormatted)
                             .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                         Text(dateLabel(hb.date))
                             .font(.system(size: 13))
-                            .foregroundColor(.gray)
+                            .foregroundStyle(.gray)
                     }
                     Spacer()
                     Text(dayName(hb.date))
                         .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(Color(hex: "#FBBF24"))
+                        .foregroundStyle(Color(hex: "#FBBF24"))
                 }
             } else {
                 Text("Tidak ada data bulan ini")
                     .font(.system(size: 14))
-                    .foregroundColor(.gray)
+                    .foregroundStyle(.gray)
             }
         }
         .padding(16)
@@ -238,7 +238,7 @@ struct AnalitikView: View {
             HStack {
                 Text("TREN")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundStyle(.white.opacity(0.6))
                     .tracking(1)
                 Spacer()
                 // Toggle buttons
@@ -251,7 +251,7 @@ struct AnalitikView: View {
                     } label: {
                         Image(systemName: useBarchart ? "chart.bar.fill" : "chart.line.uptrend.xyaxis")
                             .font(.system(size: 13))
-                            .foregroundColor(.white.opacity(0.8))
+                            .foregroundStyle(.white.opacity(0.8))
                             .padding(6)
                             .background(Color.white.opacity(0.08))
                             .clipShape(RoundedRectangle(cornerRadius: 6))
@@ -342,7 +342,7 @@ struct AnalitikView: View {
                     AxisValueLabel {
                         Text(shortDayLabel(date))
                             .font(.system(size: 10))
-                            .foregroundColor(.gray)
+                            .foregroundStyle(.gray)
                     }
                 }
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
@@ -355,7 +355,7 @@ struct AnalitikView: View {
                     AxisValueLabel {
                         Text(v.shortFormatted)
                             .font(.system(size: 10))
-                            .foregroundColor(.gray)
+                            .foregroundStyle(.gray)
                     }
                 }
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
@@ -384,7 +384,7 @@ struct AnalitikView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("PER KATEGORI")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundStyle(.white.opacity(0.6))
                 .tracking(1)
 
             if kategoriData.isEmpty {
@@ -427,7 +427,7 @@ struct AnalitikView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("PER HARI")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundStyle(.white.opacity(0.6))
                 .tracking(1)
 
             if weekdayData.allSatisfy({ $0.total == 0 }) {
@@ -453,7 +453,7 @@ struct AnalitikView: View {
                             AxisValueLabel {
                                 Text(v.shortFormatted)
                                     .font(.system(size: 10))
-                                    .foregroundColor(.gray)
+                                    .foregroundStyle(.gray)
                             }
                         }
                         AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
@@ -466,7 +466,7 @@ struct AnalitikView: View {
                             AxisValueLabel {
                                 Text(label)
                                     .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.8))
+                                    .foregroundStyle(.white.opacity(0.8))
                             }
                         }
                     }
@@ -488,10 +488,10 @@ struct AnalitikView: View {
             VStack(spacing: 8) {
                 Image(systemName: "chart.bar.xaxis")
                     .font(.system(size: 28))
-                    .foregroundColor(.white.opacity(0.2))
+                    .foregroundStyle(.white.opacity(0.2))
                 Text("Tidak ada data bulan ini")
                     .font(.system(size: 13))
-                    .foregroundColor(.gray)
+                    .foregroundStyle(.gray)
             }
             .padding(.vertical, 24)
             Spacer()
@@ -656,17 +656,17 @@ private struct SummaryCard: View {
             HStack {
                 Image(systemName: icon)
                     .font(.system(size: 14))
-                    .foregroundColor(iconColor)
+                    .foregroundStyle(iconColor)
                 Spacer()
             }
             Text(value)
                 .font(.system(size: 18, weight: .bold))
-                .foregroundColor(valueColor)
+                .foregroundStyle(valueColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             Text(title)
                 .font(.system(size: 11))
-                .foregroundColor(.gray)
+                .foregroundStyle(.gray)
                 .lineLimit(1)
         }
         .padding(14)
@@ -687,14 +687,14 @@ private struct KategoriAnalitikRow: View {
                     .frame(width: 10, height: 10)
                 Text(item.kategori?.nama ?? "Lainnya")
                     .font(.system(size: 13))
-                    .foregroundColor(.white.opacity(0.85))
+                    .foregroundStyle(.white.opacity(0.85))
                 Spacer()
                 Text(String(format: "%.1f%%", item.pct))
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundStyle(.white.opacity(0.6))
                 Text(item.total.shortFormatted)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .frame(width: 60, alignment: .trailing)
             }
             GeometryReader { geo in
@@ -723,7 +723,7 @@ private struct LegendDot: View {
                 .frame(width: 8, height: 8)
             Text(label)
                 .font(.system(size: 11))
-                .foregroundColor(.gray)
+                .foregroundStyle(.gray)
         }
     }
 }
@@ -739,7 +739,7 @@ private struct ChartToggleButton: View {
         } label: {
             Text(label)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(isOn ? color : .gray)
+                .foregroundStyle(isOn ? color : .gray)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(isOn ? color.opacity(0.15) : Color.white.opacity(0.05))
