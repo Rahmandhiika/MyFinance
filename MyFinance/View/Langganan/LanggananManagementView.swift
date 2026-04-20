@@ -67,7 +67,7 @@ struct LanggananManagementView: View {
                     }
                 }
             }
-            .navigationTitle("Langganan")
+            .navigationTitle("Bills")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
@@ -177,15 +177,15 @@ struct LanggananManagementView: View {
             Image(systemName: "creditcard.circle")
                 .font(.system(size: 48))
                 .foregroundStyle(.gray)
-            Text("Belum ada langganan")
+            Text("Belum ada bills")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.white)
-            Text("Tambah Netflix, Spotify, iCloud, dan\nlangganan bulanan lainnya.")
+            Text("Tambah Netflix, Spotify, iCloud, dan\nbills bulanan lainnya.")
                 .font(.subheadline)
                 .foregroundStyle(.gray)
                 .multilineTextAlignment(.center)
             Button { showAdd = true } label: {
-                Text("+ Tambah Langganan")
+                Text("+ Tambah Bill")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.black)
                     .padding(.horizontal, 24)

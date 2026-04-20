@@ -84,7 +84,7 @@ struct BackupRestoreView: View {
                         Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
                         scopeRow(icon: "chart.pie.fill", label: "Aset Bebas (bukan target investasi)", color: "#F59E0B")
                         Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
-                        scopeRow(icon: "creditcard.circle.fill", label: "Daftar Langganan", color: "#22C55E")
+                        scopeRow(icon: "creditcard.circle.fill", label: "Daftar Bills", color: "#22C55E")
                         Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
                         scopeRow(icon: "photo.fill", label: "Logo pocket & warna kategori", color: "#EC4899")
                     }
@@ -254,7 +254,7 @@ struct BackupRestoreView: View {
                         "• \(summary.transaksi) transaksi\n" +
                         "• \(summary.transfer) transfer\n" +
                         "• \(summary.aset) aset\n" +
-                        "• \(summary.langganan) langganan"
+                        "• \(summary.langganan) bills"
                     )
                 }
             } catch {

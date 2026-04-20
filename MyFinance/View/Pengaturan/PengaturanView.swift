@@ -77,7 +77,7 @@ struct PengaturanView: View {
 
                     Button { showLangganan = true } label: {
                         HStack {
-                            Label("Langganan", systemImage: "creditcard.circle.fill")
+                            Label("Bills", systemImage: "creditcard.circle.fill")
                                 .foregroundStyle(.white)
                             Spacer()
                             Image(systemName: "chevron.right").foregroundStyle(.gray)

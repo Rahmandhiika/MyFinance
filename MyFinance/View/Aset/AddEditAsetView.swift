@@ -68,7 +68,7 @@ struct AddEditAsetView: View {
     @State private var catatSbgPengeluaran: Bool = false
     @State private var selectedPocket: Pocket? = nil
 
-    private let rdJenisList = ["Pasar Uang", "Obligasi", "Saham"]
+    private let rdJenisList = ["Pasar Uang", "Obligasi", "Saham", "Campuran"]
     private let tenorOptions = [1, 3, 6, 12, 24, 36]
 
     // MARK: - Body
@@ -309,27 +309,29 @@ struct AddEditAsetView: View {
     // MARK: - Reksadana Form
 
     private var reksadanaFormSection: some View {
-        FormCard {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("DETAIL REKSADANA").formSectionLabel()
+        VStack(alignment: .leading, spacing: 12) {
+            // --- Search card (jenis chips + search input) ---
+            FormCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("DETAIL REKSADANA").formSectionLabel()
 
-                // Jenis filter chips
-                FormField(label: "JENIS") {
-                    HStack(spacing: 8) {
-                        ForEach(rdJenisList, id: \.self) { jenis in
-                            ChipButton(label: jenis, isSelected: rdJenis == jenis, color: Color(hex: "#3B82F6")) {
-                                rdJenis = rdJenis == jenis ? "" : jenis
-                                // Re-run search with updated jenis filter
-                                rdSearchResults = ReksadanaSearchService.shared.search(rdSearchQuery, jenis: rdJenis.isEmpty ? nil : rdJenis)
-                                rdShowResults = !rdSearchResults.isEmpty
+                    // Jenis filter chips
+                    FormField(label: "JENIS") {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(rdJenisList, id: \.self) { jenis in
+                                    ChipButton(label: jenis, isSelected: rdJenis == jenis, color: Color(hex: "#3B82F6")) {
+                                        rdJenis = rdJenis == jenis ? "" : jenis
+                                        rdSearchResults = ReksadanaSearchService.shared.search(rdSearchQuery, jenis: rdJenis.isEmpty ? nil : rdJenis)
+                                        rdShowResults = !rdSearchResults.isEmpty && !rdSearchQuery.isEmpty
+                                    }
+                                }
                             }
                         }
                     }
-                }
 
-                // Search field
-                FormField(label: "CARI PRODUK") {
-                    VStack(alignment: .leading, spacing: 0) {
+                    // Search field
+                    FormField(label: "CARI PRODUK") {
                         HStack(spacing: 8) {
                             Image(systemName: "magnifyingglass")
                                 .foregroundStyle(.white.opacity(0.4))
@@ -357,170 +359,172 @@ struct AddEditAsetView: View {
                             rdSearchResults = ReksadanaSearchService.shared.search(query, jenis: rdJenis.isEmpty ? nil : rdJenis)
                             rdShowResults = !rdSearchResults.isEmpty && !query.isEmpty
                         }
+                    }
 
-                        // Featured suggestions (shown when query is empty and no fund selected yet)
-                        if rdSearchQuery.isEmpty && rdNama.isEmpty {
-                            let featured = ReksadanaSearchService.shared.featuredFunds
-                            if !featured.isEmpty {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("POPULER")
-                                        .font(.caption2.weight(.bold))
-                                        .foregroundStyle(.white.opacity(0.35))
-                                        .tracking(1)
-                                        .padding(.top, 6)
-                                    VStack(spacing: 0) {
-                                        ForEach(featured) { item in
-                                            Button {
-                                                rdJenis = item.jenis
-                                                rdSearchQuery = item.nama
-                                                // Task ensures this runs after onChange fires, so dropdown stays hidden
-                                                Task { @MainActor in rdShowResults = false }
-                                            } label: {
-                                                HStack(spacing: 10) {
-                                                    VStack(alignment: .leading, spacing: 2) {
-                                                        Text(item.nama)
-                                                            .font(.subheadline.weight(.medium))
-                                                            .foregroundStyle(.white)
-                                                            .multilineTextAlignment(.leading)
-                                                        Text(item.manajer)
-                                                            .font(.caption)
-                                                            .foregroundStyle(.white.opacity(0.5))
-                                                    }
-                                                    Spacer()
-                                                    Text(item.jenis)
-                                                        .font(.caption2.weight(.bold))
-                                                        .foregroundStyle(jenisColor(item.jenis))
-                                                        .padding(.horizontal, 8).padding(.vertical, 3)
-                                                        .background(jenisColor(item.jenis).opacity(0.15))
-                                                        .clipShape(Capsule())
-                                                }
-                                                .padding(.horizontal, 12).padding(.vertical, 10)
-                                                .contentShape(Rectangle())
-                                            }
-                                            if item.id != featured.last?.id {
-                                                Divider().background(Color.white.opacity(0.06))
-                                            }
-                                        }
-                                    }
-                                    .background(Color(hex: "#1A1A1A"))
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
-                                }
+                    // Selected fund display (when nama filled but not searching)
+                    if !rdNama.isEmpty && !rdShowResults {
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(Color(hex: "#3B82F6"))
+                                .font(.caption)
+                            Text(rdNama)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.white.opacity(0.8))
+                                .lineLimit(1)
+                            Spacer()
+                            if !rdJenis.isEmpty {
+                                Text(rdJenis)
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(jenisColor(rdJenis))
+                                    .padding(.horizontal, 8).padding(.vertical, 3)
+                                    .background(jenisColor(rdJenis).opacity(0.15))
+                                    .clipShape(Capsule())
                             }
                         }
-
-                        // Dropdown results
-                        if rdShowResults {
-                            VStack(spacing: 0) {
-                                ForEach(rdSearchResults) { item in
-                                    Button {
-                                        rdNama = item.nama
-                                        rdJenis = item.jenis
-                                        rdSearchQuery = item.nama
-                                        rdShowResults = false
-                                    } label: {
-                                        HStack(spacing: 10) {
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text(item.nama)
-                                                    .font(.subheadline.weight(.medium))
-                                                    .foregroundStyle(.white)
-                                                    .multilineTextAlignment(.leading)
-                                                Text(item.manajer)
-                                                    .font(.caption)
-                                                    .foregroundStyle(.white.opacity(0.5))
-                                            }
-                                            Spacer()
-                                            Text(item.jenis)
-                                                .font(.caption2.weight(.bold))
-                                                .foregroundStyle(jenisColor(item.jenis))
-                                                .padding(.horizontal, 8)
-                                                .padding(.vertical, 3)
-                                                .background(jenisColor(item.jenis).opacity(0.15))
-                                                .clipShape(Capsule())
-                                        }
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 10)
-                                        .contentShape(Rectangle())
-                                    }
-                                    if item.id != rdSearchResults.last?.id {
-                                        Divider().background(Color.white.opacity(0.06))
-                                    }
-                                }
-                            }
-                            .background(Color(hex: "#1A1A1A"))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                            )
-                        }
+                        .padding(10)
+                        .background(Color(hex: "#3B82F6").opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
                 }
+                .padding(16)
+            }
 
-                // Selected fund display (when nama filled but not searching)
-                if !rdNama.isEmpty && !rdShowResults {
-                    HStack(spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(Color(hex: "#3B82F6"))
-                            .font(.caption)
-                        Text(rdNama)
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.white.opacity(0.8))
-                            .lineLimit(1)
-                        Spacer()
-                        if !rdJenis.isEmpty {
-                            Text(rdJenis)
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(jenisColor(rdJenis))
-                                .padding(.horizontal, 8).padding(.vertical, 3)
-                                .background(jenisColor(rdJenis).opacity(0.15))
-                                .clipShape(Capsule())
-                        }
-                    }
-                    .padding(10)
-                    .background(Color(hex: "#3B82F6").opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-
-                FormField(label: "TOTAL INVESTASI") {
-                    HStack(spacing: 8) {
-                        Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
-                        CurrencyInputField(value: $rdTotalInvestasi, allowsDecimal: true)
-                    }
-                }
-
-                FormField(label: "NAV SAAT BELI/UNIT") {
-                    HStack(spacing: 8) {
-                        Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
-                        CurrencyInputField(value: $rdHargaBeliPerUnit, allowsDecimal: true)
-                    }
-                }
-
-                FormField(label: "NAV SAAT INI/UNIT") {
-                    HStack(spacing: 8) {
-                        Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
-                        CurrencyInputField(value: $rdNavSaatIni, allowsDecimal: true)
-                    }
-                }
-
-                // Estimated units
-                if rdTotalInvestasi > 0 && rdHargaBeliPerUnit > 0 {
-                    let units = rdTotalInvestasi / rdHargaBeliPerUnit
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("ESTIMASI UNIT").font(.caption).foregroundStyle(.white.opacity(0.4)).tracking(0.8)
-                        Text("\(units.unitFormatted(4)) unit")
-                            .font(.title3.weight(.bold)).foregroundStyle(.white)
-                        Text("Total investasi / NAV beli per unit")
-                            .font(.caption).foregroundStyle(.white.opacity(0.4))
-                    }
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(hex: "#3B82F6").opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+            // --- Featured / Search results (OUTSIDE FormCard agar tidak ter-clip) ---
+            if rdShowResults {
+                // Search results
+                rdSearchResultsList
+            } else if rdSearchQuery.isEmpty && rdNama.isEmpty {
+                // Featured suggestions
+                let featured = ReksadanaSearchService.shared.featuredFunds
+                if !featured.isEmpty {
+                    rdFeaturedList(featured)
                 }
             }
-            .padding(16)
+
+            // --- Investasi detail card ---
+            FormCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    FormField(label: "TOTAL INVESTASI") {
+                        HStack(spacing: 8) {
+                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
+                            CurrencyInputField(value: $rdTotalInvestasi, allowsDecimal: true)
+                        }
+                    }
+
+                    FormField(label: "NAV SAAT BELI/UNIT") {
+                        HStack(spacing: 8) {
+                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
+                            CurrencyInputField(value: $rdHargaBeliPerUnit, allowsDecimal: true)
+                        }
+                    }
+
+                    FormField(label: "NAV SAAT INI/UNIT") {
+                        HStack(spacing: 8) {
+                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
+                            CurrencyInputField(value: $rdNavSaatIni, allowsDecimal: true)
+                        }
+                    }
+
+                    // Estimated units
+                    if rdTotalInvestasi > 0 && rdHargaBeliPerUnit > 0 {
+                        let units = rdTotalInvestasi / rdHargaBeliPerUnit
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("ESTIMASI UNIT").font(.caption).foregroundStyle(.white.opacity(0.4)).tracking(0.8)
+                            Text("\(units.unitFormatted(4)) unit")
+                                .font(.title3.weight(.bold)).foregroundStyle(.white)
+                            Text("Total investasi / NAV beli per unit")
+                                .font(.caption).foregroundStyle(.white.opacity(0.4))
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(hex: "#3B82F6").opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+                .padding(16)
+            }
         }
+    }
+
+    // MARK: - Reksadana Search Results List
+
+    @ViewBuilder
+    private var rdSearchResultsList: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("HASIL PENCARIAN (\(rdSearchResults.count))")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white.opacity(0.35))
+                .tracking(1)
+            VStack(spacing: 0) {
+                ForEach(rdSearchResults) { item in
+                    Button {
+                        rdNama = item.nama
+                        rdJenis = item.jenis
+                        rdSearchQuery = item.nama
+                        rdShowResults = false
+                    } label: {
+                        rdFundRow(item)
+                    }
+                    if item.id != rdSearchResults.last?.id {
+                        Divider().background(Color.white.opacity(0.06))
+                    }
+                }
+            }
+            .background(Color(hex: "#1A1A1A"))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
+        }
+    }
+
+    @ViewBuilder
+    private func rdFeaturedList(_ featured: [ReksadanaItem]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("POPULER")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white.opacity(0.35))
+                .tracking(1)
+            VStack(spacing: 0) {
+                ForEach(featured) { item in
+                    Button {
+                        rdJenis = item.jenis
+                        rdSearchQuery = item.nama
+                        Task { @MainActor in rdShowResults = false }
+                    } label: {
+                        rdFundRow(item)
+                    }
+                    if item.id != featured.last?.id {
+                        Divider().background(Color.white.opacity(0.06))
+                    }
+                }
+            }
+            .background(Color(hex: "#1A1A1A"))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
+        }
+    }
+
+    @ViewBuilder
+    private func rdFundRow(_ item: ReksadanaItem) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.nama)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.leading)
+                Text(item.manajer)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+            Spacer()
+            Text(item.jenis)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(jenisColor(item.jenis))
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(jenisColor(item.jenis).opacity(0.15))
+                .clipShape(Capsule())
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .contentShape(Rectangle())
     }
 
     private func jenisColor(_ jenis: String) -> Color {
@@ -528,6 +532,7 @@ struct AddEditAsetView: View {
         case "Pasar Uang": return Color(hex: "#22C55E")
         case "Obligasi":   return Color(hex: "#F59E0B")
         case "Saham":      return Color(hex: "#3B82F6")
+        case "Campuran":   return Color(hex: "#A78BFA")
         default:           return Color.white.opacity(0.5)
         }
     }

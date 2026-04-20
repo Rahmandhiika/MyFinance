@@ -43,7 +43,7 @@ struct TransferInternalSheet: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         // Large nominal display
-                        VStack(spacing: 6) {
+                        VStack(spacing: 10) {
                             Text(nominalDisplay)
                                 .font(.system(size: 36, weight: .bold))
                                 .foregroundStyle(.white)
@@ -51,6 +51,9 @@ struct TransferInternalSheet: View {
                                 .minimumScaleFactor(0.5)
 
                             CurrencyInputField(value: $nominal)
+                                .padding(.horizontal, 16)
+
+                            QuickAmountButtons(nominal: $nominal)
                                 .padding(.horizontal, 16)
                         }
                         .padding(.top, 8)

@@ -60,7 +60,7 @@ struct AddEditLanggananView: View {
                         // Form fields
                         VStack(spacing: 1) {
                             formRow {
-                                TextField("Nama langganan", text: $nama)
+                                TextField("Nama bill", text: $nama)
                                     .foregroundStyle(.white)
                             }
                             Divider().background(Color.white.opacity(0.06))
@@ -134,7 +134,7 @@ struct AddEditLanggananView: View {
                     .padding(.vertical, 16)
                 }
             }
-            .navigationTitle(isEditing ? "Edit Langganan" : "Tambah Langganan")
+            .navigationTitle(isEditing ? "Edit Bill" : "Tambah Bill")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)

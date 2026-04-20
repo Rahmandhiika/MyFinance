@@ -118,10 +118,7 @@ struct BeliSahamSheet: View {
                                             .padding(.leading, 14)
                                         CurrencyInputField(value: $hargaBeli, allowsDecimal: true)
                                     }
-                                    .padding(.bottom, 6)
-                                    QuickAmountButtons(nominal: $hargaBeli)
-                                        .padding(.horizontal, 14)
-                                        .padding(.bottom, 14)
+                                    .padding(.bottom, 14)
                                 }
                             }
                             .background(Color.white.opacity(0.05))

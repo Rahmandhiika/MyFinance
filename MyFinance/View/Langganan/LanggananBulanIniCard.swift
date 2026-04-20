@@ -56,7 +56,7 @@ struct LanggananBulanIniCard: View {
                 // Header
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("LANGGANAN BULAN INI")
+                        Text("BILLS BULAN INI")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.gray)
                             .tracking(0.5)
@@ -315,7 +315,7 @@ struct LanggananBulanIniCard: View {
                     .padding(.vertical, 16)
                 }
             }
-            .navigationTitle("Bayar Langganan")
+            .navigationTitle("Bayar Bill")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
@@ -343,7 +343,7 @@ struct LanggananBulanIniCard: View {
             tipe: .pengeluaran,
             subTipe: .normal,
             pocket: pocket,
-            catatan: "Langganan: \(l.nama)"
+            catatan: "Bill: \(l.nama)"
         )
         transaksi.kategori = l.kategori
         pocket.saldo -= l.nominal

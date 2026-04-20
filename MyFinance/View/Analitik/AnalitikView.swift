@@ -14,6 +14,9 @@ struct AnalitikView: View {
     @State private var showBersih: Bool = true
     @State private var useBarchart: Bool = false
 
+    // Per Kategori tab
+    @State private var kategoriTab: TipeTransaksi = .pengeluaran
+
     private let bg = Color(hex: "#0D0D0D")
     private let cardBg = Color.white.opacity(0.05)
 
@@ -382,23 +385,53 @@ struct AnalitikView: View {
 
     private var perKategoriSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("PER KATEGORI")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.6))
-                .tracking(1)
+            HStack {
+                Text("PER KATEGORI")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .tracking(1)
+                Spacer()
+            }
 
-            if kategoriData.isEmpty {
+            // Tab selector
+            HStack(spacing: 0) {
+                ForEach([TipeTransaksi.pengeluaran, .pemasukan], id: \.self) { tipe in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { kategoriTab = tipe }
+                    } label: {
+                        Text(tipe == .pengeluaran ? "Pengeluaran" : "Pemasukan")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(kategoriTab == tipe ? .black : .white.opacity(0.5))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(
+                                kategoriTab == tipe
+                                    ? (tipe == .pengeluaran ? Color(hex: "#FF6B6B") : Color(hex: "#4ADE80"))
+                                    : Color.clear
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+            }
+            .padding(4)
+            .background(Color.white.opacity(0.07))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+
+            let activeData = kategoriTab == .pengeluaran ? kategoriDataPengeluaran : kategoriDataPemasukan
+            let activeTotal = kategoriTab == .pengeluaran ? totalPengeluaran : totalPemasukan
+
+            if activeData.isEmpty {
                 emptyChartPlaceholder
             } else {
                 HStack(alignment: .center, spacing: 20) {
-                    donutChart
+                    donutChart(data: activeData)
                         .frame(width: 130, height: 130)
                     Spacer()
                 }
 
                 VStack(spacing: 8) {
-                    ForEach(Array(kategoriData.enumerated()), id: \.offset) { _, item in
-                        KategoriAnalitikRow(item: item, total: totalPengeluaran)
+                    ForEach(Array(activeData.enumerated()), id: \.offset) { _, item in
+                        KategoriAnalitikRow(item: item, total: activeTotal)
                     }
                 }
             }
@@ -408,8 +441,8 @@ struct AnalitikView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
-    private var donutChart: some View {
-        Chart(Array(kategoriData.enumerated()), id: \.offset) { _, item in
+    private func donutChart(data: [(kategori: Kategori?, total: Decimal, pct: Double)]) -> some View {
+        Chart(Array(data.enumerated()), id: \.offset) { _, item in
             SectorMark(
                 angle: .value("Total", Double(truncating: item.total as NSDecimalNumber)),
                 innerRadius: .ratio(0.6),
@@ -578,16 +611,24 @@ struct AnalitikView: View {
         return result
     }
 
-    private var kategoriData: [(kategori: Kategori?, total: Decimal, pct: Double)] {
-        let pengeluaran = monthTransaksi.filter { $0.tipe == .pengeluaran }
+    private var kategoriDataPengeluaran: [(kategori: Kategori?, total: Decimal, pct: Double)] {
+        buildKategoriData(tipe: .pengeluaran, totalRef: totalPengeluaran)
+    }
+
+    private var kategoriDataPemasukan: [(kategori: Kategori?, total: Decimal, pct: Double)] {
+        buildKategoriData(tipe: .pemasukan, totalRef: totalPemasukan)
+    }
+
+    private func buildKategoriData(tipe: TipeTransaksi, totalRef: Decimal) -> [(kategori: Kategori?, total: Decimal, pct: Double)] {
+        let filtered = monthTransaksi.filter { $0.tipe == tipe }
         var grouped: [UUID?: Decimal] = [:]
         var katMap: [UUID?: Kategori?] = [:]
-        for t in pengeluaran {
+        for t in filtered {
             let key = t.kategori?.id
             grouped[key, default: 0] += t.nominal
             katMap[key] = t.kategori
         }
-        let total = Double(truncating: totalPengeluaran as NSDecimalNumber)
+        let total = Double(truncating: totalRef as NSDecimalNumber)
         return grouped
             .map { key, sum in
                 let pct = total > 0 ? Double(truncating: sum as NSDecimalNumber) / total * 100 : 0

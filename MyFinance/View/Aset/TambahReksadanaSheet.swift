@@ -101,10 +101,7 @@ struct TambahReksadanaSheet: View {
                                             .padding(.leading, 14)
                                         CurrencyInputField(value: $tambahInvestasi)
                                     }
-                                    .padding(.bottom, 6)
-                                    QuickAmountButtons(nominal: $tambahInvestasi)
-                                        .padding(.horizontal, 14)
-                                        .padding(.bottom, 14)
+                                    .padding(.bottom, 14)
                                 }
 
                                 Divider().background(Color.white.opacity(0.06))
