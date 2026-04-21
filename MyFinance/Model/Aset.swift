@@ -16,6 +16,7 @@ import Foundation
     var totalInvestasiReksadana: Decimal?
     var hargaBeliPerUnit: Decimal?   // NAV waktu beli
     var navSaatIni: Decimal?         // NAV terkini (user update manual)
+    var jumlahUnitReksadana: Decimal? = nil  // unit aktual (override kalkulasi otomatis)
 
     // MARK: - Saham AS (US Stocks / ETF — Pluang)
     var totalInvestasiUSD: Decimal?   // total USD yang diinvest (misal $60)
@@ -135,8 +136,9 @@ import Foundation
 
     // MARK: - Computed: Reksadana helpers
 
-    /// Estimasi jumlah unit = total investasi / harga beli per unit
+    /// Jumlah unit reksadana — pakai nilai manual jika ada, fallback ke kalkulasi
     var estimasiUnitReksadana: Decimal {
+        if let manual = jumlahUnitReksadana, manual > 0 { return manual }
         guard tipe == .reksadana,
               let total = totalInvestasiReksadana,
               let hargaBeli = hargaBeliPerUnit,

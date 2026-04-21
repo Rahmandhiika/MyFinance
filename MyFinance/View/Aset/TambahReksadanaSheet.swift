@@ -251,6 +251,7 @@ struct TambahReksadanaSheet: View {
         aset.totalInvestasiReksadana = totalInvestasiBar
         aset.hargaBeliPerUnit = avgNavBaru
         aset.navSaatIni = navBaru
+        aset.jumlahUnitReksadana = totalUnit  // simpan total unit aktual
         aset.nilaiSaatIni = estimasiNilaiBaru
 
         // Catat transaksi pengeluaran

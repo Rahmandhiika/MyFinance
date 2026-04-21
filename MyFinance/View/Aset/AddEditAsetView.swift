@@ -28,6 +28,7 @@ struct AddEditAsetView: View {
     @State private var rdTotalInvestasi: Decimal = 0
     @State private var rdHargaBeliPerUnit: Decimal = 0
     @State private var rdNavSaatIni: Decimal = 0
+    @State private var rdJumlahUnit: Decimal = 0   // 0 = hitung otomatis
     @State private var rdSearchQuery: String = ""
     @State private var rdSearchResults: [ReksadanaItem] = []
     @State private var rdShowResults: Bool = false
@@ -449,19 +450,32 @@ struct AddEditAsetView: View {
                         }
                     }
 
-                    // Estimated units
-                    if rdTotalInvestasi > 0 && rdHargaBeliPerUnit > 0 {
-                        let units = rdTotalInvestasi / rdHargaBeliPerUnit
+                    // Unit aktual — bisa di-override manual
+                    FormField(label: "JUMLAH UNIT AKTUAL (OPSIONAL)") {
+                        CurrencyInputField(value: $rdJumlahUnit, allowsDecimal: true)
+                    }
+                    Text(rdJumlahUnit > 0
+                        ? "Unit ini dipakai langsung untuk hitung nilai aset."
+                        : "Biarkan 0 agar dihitung otomatis dari modal ÷ NAV beli.")
+                        .font(.caption2)
+                        .foregroundStyle(rdJumlahUnit > 0
+                            ? Color(hex: "#3B82F6").opacity(0.8)
+                            : .white.opacity(0.35))
+
+                    let calcUnits: Decimal = rdHargaBeliPerUnit > 0 ? rdTotalInvestasi / rdHargaBeliPerUnit : 0
+                    let effectiveUnits: Decimal = rdJumlahUnit > 0 ? rdJumlahUnit : calcUnits
+                    if effectiveUnits > 0 {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("ESTIMASI UNIT").font(.caption).foregroundStyle(.white.opacity(0.4)).tracking(0.8)
-                            Text("\(units.unitFormatted(4)) unit")
+                            Text(rdJumlahUnit > 0 ? "UNIT AKTUAL" : "ESTIMASI UNIT")
+                                .font(.caption).foregroundStyle(.white.opacity(0.4)).tracking(0.8)
+                            Text("\(effectiveUnits.unitFormatted(4)) unit")
                                 .font(.title3.weight(.bold)).foregroundStyle(.white)
-                            Text("Total investasi / NAV beli per unit")
+                            Text(rdJumlahUnit > 0 ? "Input manual" : "Modal ÷ NAV beli per unit")
                                 .font(.caption).foregroundStyle(.white.opacity(0.4))
                         }
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(hex: "#3B82F6").opacity(0.1))
+                        .background(Color(hex: "#3B82F6").opacity(rdJumlahUnit > 0 ? 0.15 : 0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                 }
@@ -946,7 +960,10 @@ struct AddEditAsetView: View {
             aset.totalInvestasiReksadana = rdTotalInvestasi
             aset.hargaBeliPerUnit = rdHargaBeliPerUnit > 0 ? rdHargaBeliPerUnit : nil
             aset.navSaatIni = rdNavSaatIni > 0 ? rdNavSaatIni : nil
-            let units = rdHargaBeliPerUnit > 0 ? rdTotalInvestasi / rdHargaBeliPerUnit : 0
+            aset.jumlahUnitReksadana = rdJumlahUnit > 0 ? rdJumlahUnit : nil
+            let units: Decimal = rdJumlahUnit > 0
+                ? rdJumlahUnit
+                : (rdHargaBeliPerUnit > 0 ? rdTotalInvestasi / rdHargaBeliPerUnit : 0)
             aset.nilaiSaatIni = rdNavSaatIni > 0 ? units * rdNavSaatIni : rdTotalInvestasi
 
         case .valas:
@@ -1041,6 +1058,7 @@ struct AddEditAsetView: View {
             rdTotalInvestasi = a.totalInvestasiReksadana ?? 0
             rdHargaBeliPerUnit = a.hargaBeliPerUnit ?? 0
             rdNavSaatIni = a.navSaatIni ?? 0
+            rdJumlahUnit = a.jumlahUnitReksadana ?? 0
             rdSearchQuery = a.nama
 
         case .valas:
