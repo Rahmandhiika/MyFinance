@@ -23,14 +23,31 @@ struct AsetListView: View {
         return Double(truncating: (keuntungan / totalModal * 100) as NSDecimalNumber)
     }
 
-    // MARK: - Grouped (hanya aset bebas)
+    // MARK: - Grouped by Portfolio
 
-    private var asetBySaham:     [Aset] { freeAset.filter { $0.tipe == .saham } }
-    private var asetBySahamAS:   [Aset] { freeAset.filter { $0.tipe == .sahamAS } }
-    private var asetByReksadana: [Aset] { freeAset.filter { $0.tipe == .reksadana } }
-    private var asetByValas:     [Aset] { freeAset.filter { $0.tipe == .valas } }
-    private var asetByEmas:      [Aset] { freeAset.filter { $0.tipe == .emas } }
-    private var asetByDeposito:  [Aset] { freeAset.filter { $0.tipe == .deposito } }
+    /// Aset bebas yang memiliki nama portofolio, dikelompokkan per nama
+    private var portofolioGroups: [(nama: String, items: [Aset])] {
+        let withPorto = freeAset.filter { $0.portofolio != nil && !($0.portofolio!.isEmpty) }
+        var grouped: [String: [Aset]] = [:]
+        for aset in withPorto {
+            let key = aset.portofolio!
+            grouped[key, default: []].append(aset)
+        }
+        return grouped.map { (nama: $0.key, items: $0.value) }
+            .sorted { $0.nama < $1.nama }
+    }
+
+    /// Aset bebas tanpa portofolio, digroup per tipe
+    private var noPortofolioAset: [Aset] {
+        freeAset.filter { $0.portofolio == nil || $0.portofolio!.isEmpty }
+    }
+
+    private var asetBySaham:     [Aset] { noPortofolioAset.filter { $0.tipe == .saham } }
+    private var asetBySahamAS:   [Aset] { noPortofolioAset.filter { $0.tipe == .sahamAS } }
+    private var asetByReksadana: [Aset] { noPortofolioAset.filter { $0.tipe == .reksadana } }
+    private var asetByValas:     [Aset] { noPortofolioAset.filter { $0.tipe == .valas } }
+    private var asetByEmas:      [Aset] { noPortofolioAset.filter { $0.tipe == .emas } }
+    private var asetByDeposito:  [Aset] { noPortofolioAset.filter { $0.tipe == .deposito } }
 
     // MARK: - Body
 
@@ -231,6 +248,12 @@ struct AsetListView: View {
 
     private var asetSections: some View {
         VStack(spacing: 16) {
+            // Portfolio groups (aset dengan nama portofolio)
+            ForEach(portofolioGroups, id: \.nama) { group in
+                PortofolioSection(nama: group.nama, items: group.items, onTap: { selectedAset = $0 })
+            }
+
+            // Aset tanpa portofolio, digroup per tipe
             if !asetBySaham.isEmpty {
                 AsetSection(tipe: .saham, items: asetBySaham, onTap: { selectedAset = $0 })
             }
@@ -330,6 +353,130 @@ private struct PortfolioStat: View {
                 .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Portofolio Section
+
+private struct PortofolioSection: View {
+    let nama: String
+    let items: [Aset]
+    let onTap: (Aset) -> Void
+
+    private var totalNilai: Decimal { items.reduce(0) { $0 + $1.nilaiEfektif } }
+    private var totalModal: Decimal { items.reduce(0) { $0 + $1.modal } }
+    private var pnl: Decimal { totalNilai - totalModal }
+    private var returnPct: Double {
+        guard totalModal > 0 else { return 0 }
+        return Double(truncating: (pnl / totalModal * 100) as NSDecimalNumber)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "folder.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color(hex: "#A78BFA"))
+                    Text(nama.uppercased())
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .tracking(0.6)
+                    Text("\(items.count)")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Color(hex: "#A78BFA"))
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(Color(hex: "#A78BFA").opacity(0.15))
+                        .clipShape(Capsule())
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(totalNilai.shortFormatted)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white)
+                    HStack(spacing: 3) {
+                        Image(systemName: pnl >= 0 ? "arrow.up.right" : "arrow.down.right")
+                            .font(.system(size: 8, weight: .bold))
+                        Text("\(pnl >= 0 ? "+" : "")\(returnPct.percentFormatted)")
+                            .font(.caption2.weight(.semibold))
+                    }
+                    .foregroundStyle(pnl >= 0 ? Color(hex: "#22C55E") : Color(hex: "#EF4444"))
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            .background(Color(hex: "#A78BFA").opacity(0.05))
+
+            // Rows (dengan tipe indicator)
+            ForEach(Array(items.enumerated()), id: \.element.id) { idx, aset in
+                if idx > 0 {
+                    Divider().background(Color.white.opacity(0.06)).padding(.leading, 56)
+                }
+                PortofolioAsetRow(aset: aset)
+                    .onTapGesture { onTap(aset) }
+            }
+        }
+        .background(Color.white.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(hex: "#A78BFA").opacity(0.2), lineWidth: 1)
+        )
+    }
+}
+
+private struct PortofolioAsetRow: View {
+    let aset: Aset
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(aset.tipe.color.opacity(0.15))
+                    .frame(width: 40, height: 40)
+                Image(systemName: aset.tipe.iconName)
+                    .font(.system(size: 16))
+                    .foregroundStyle(aset.tipe.color)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(aset.nama)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white).lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(aset.tipe.displayName)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(aset.tipe.color)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(aset.tipe.color.opacity(0.12))
+                        .clipShape(Capsule())
+                    if let jenis = aset.jenisReksadana, !jenis.isEmpty {
+                        Text(jenis)
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.4))
+                    } else if let kode = aset.kode, !kode.isEmpty {
+                        Text(kode.uppercased())
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.4))
+                    }
+                }
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(aset.nilaiEfektif.idrDecimalFormatted)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white).lineLimit(1)
+                HStack(spacing: 3) {
+                    Image(systemName: aset.pnl >= 0 ? "arrow.up.right" : "arrow.down.right")
+                        .font(.system(size: 9, weight: .bold))
+                    Text("\(aset.pnl >= 0 ? "+" : "")\(aset.pnl.shortFormatted) (\(aset.returnPersen.percentFormatted))")
+                        .font(.caption2.weight(.semibold))
+                }
+                .foregroundStyle(aset.pnl >= 0 ? Color(hex: "#22C55E") : Color(hex: "#EF4444"))
+            }
+            Image(systemName: "chevron.right")
+                .font(.caption).foregroundStyle(.white.opacity(0.2))
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .contentShape(Rectangle())
     }
 }
 

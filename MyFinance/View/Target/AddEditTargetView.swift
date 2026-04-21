@@ -80,7 +80,7 @@ struct AddEditTargetView: View {
     @State private var emasBerat: String = ""
     @State private var emasHarga: Decimal = 0
 
-    private let rdJenisList = ["Pasar Uang", "Obligasi", "Saham"]
+    private let rdJenisList = ["Pasar Uang", "Obligasi", "Saham", "Campuran"]
     private let tenorOptions = [1, 3, 6, 12, 24, 36]
 
     init(target: Target? = nil) {
@@ -403,24 +403,27 @@ struct AddEditTargetView: View {
     // MARK: - Reksadana Form
 
     private var reksadanaForm: some View {
-        investasiCard {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("DETAIL REKSADANA").invLabel()
+        VStack(alignment: .leading, spacing: 12) {
+            // --- Card 1: jenis chips + search field ---
+            investasiCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("DETAIL REKSADANA").invLabel()
 
-                FormField(label: "JENIS") {
-                    HStack(spacing: 8) {
-                        ForEach(rdJenisList, id: \.self) { jenis in
-                            ChipButton(label: jenis, isSelected: rdJenis == jenis, color: Color(hex: "#3B82F6")) {
-                                rdJenis = rdJenis == jenis ? "" : jenis
-                                rdSearchResults = ReksadanaSearchService.shared.search(rdSearchQuery, jenis: rdJenis.isEmpty ? nil : rdJenis)
-                                rdShowResults = !rdSearchResults.isEmpty
+                    FormField(label: "JENIS") {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(rdJenisList, id: \.self) { jenis in
+                                    ChipButton(label: jenis, isSelected: rdJenis == jenis, color: Color(hex: "#3B82F6")) {
+                                        rdJenis = rdJenis == jenis ? "" : jenis
+                                        rdSearchResults = ReksadanaSearchService.shared.search(rdSearchQuery, jenis: rdJenis.isEmpty ? nil : rdJenis)
+                                        rdShowResults = !rdSearchResults.isEmpty
+                                    }
+                                }
                             }
                         }
                     }
-                }
 
-                FormField(label: "CARI PRODUK") {
-                    VStack(alignment: .leading, spacing: 0) {
+                    FormField(label: "CARI PRODUK") {
                         HStack(spacing: 8) {
                             Image(systemName: "magnifyingglass").foregroundStyle(.white.opacity(0.4)).font(.subheadline)
                             TextField("Ketik nama atau manajer investasi...", text: $rdSearchQuery)
@@ -442,44 +445,50 @@ struct AddEditTargetView: View {
                             rdSearchResults = ReksadanaSearchService.shared.search(query, jenis: rdJenis.isEmpty ? nil : rdJenis)
                             rdShowResults = !rdSearchResults.isEmpty && !query.isEmpty
                         }
+                    }
 
-                        if rdSearchQuery.isEmpty && rdNama.isEmpty {
-                            rdFeaturedList
-                        }
-                        if rdShowResults {
-                            rdDropdown
-                        }
+                    if !rdNama.isEmpty && !rdShowResults {
+                        rdSelectedBadge
                     }
                 }
-
-                if !rdNama.isEmpty && !rdShowResults {
-                    rdSelectedBadge
-                }
-
-                FormField(label: "TOTAL INVESTASI") {
-                    HStack(spacing: 8) {
-                        Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
-                        CurrencyInputField(value: $rdTotalInvestasi)
-                    }
-                }
-                FormField(label: "NAV SAAT BELI/UNIT") {
-                    HStack(spacing: 8) {
-                        Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
-                        CurrencyInputField(value: $rdHargaBeliPerUnit)
-                    }
-                }
-                FormField(label: "NAV SAAT INI/UNIT") {
-                    HStack(spacing: 8) {
-                        Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
-                        CurrencyInputField(value: $rdNavSaatIni)
-                    }
-                }
-                if rdTotalInvestasi > 0 && rdHargaBeliPerUnit > 0 {
-                    let units = rdTotalInvestasi / rdHargaBeliPerUnit
-                    estimasiBox(label: "ESTIMASI UNIT", value: "\(units.unitFormatted(4)) unit", note: "Total / NAV beli")
-                }
+                .padding(16)
             }
-            .padding(16)
+
+            // --- Featured / Search results OUTSIDE investasiCard (no clipShape clipping) ---
+            if rdShowResults {
+                rdDropdown
+            } else if rdSearchQuery.isEmpty && rdNama.isEmpty {
+                rdFeaturedList
+            }
+
+            // --- Card 2: investasi detail fields ---
+            investasiCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    FormField(label: "TOTAL INVESTASI") {
+                        HStack(spacing: 8) {
+                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
+                            CurrencyInputField(value: $rdTotalInvestasi)
+                        }
+                    }
+                    FormField(label: "NAV SAAT BELI/UNIT") {
+                        HStack(spacing: 8) {
+                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
+                            CurrencyInputField(value: $rdHargaBeliPerUnit)
+                        }
+                    }
+                    FormField(label: "NAV SAAT INI/UNIT") {
+                        HStack(spacing: 8) {
+                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
+                            CurrencyInputField(value: $rdNavSaatIni)
+                        }
+                    }
+                    if rdTotalInvestasi > 0 && rdHargaBeliPerUnit > 0 {
+                        let units = rdTotalInvestasi / rdHargaBeliPerUnit
+                        estimasiBox(label: "ESTIMASI UNIT", value: "\(units.unitFormatted(4)) unit", note: "Total / NAV beli")
+                    }
+                }
+                .padding(16)
+            }
         }
     }
 
@@ -555,6 +564,7 @@ struct AddEditTargetView: View {
         case "Pasar Uang": return Color(hex: "#22C55E")
         case "Obligasi":   return Color(hex: "#F59E0B")
         case "Saham":      return Color(hex: "#3B82F6")
+        case "Campuran":   return Color(hex: "#A78BFA")
         default:           return .white.opacity(0.5)
         }
     }

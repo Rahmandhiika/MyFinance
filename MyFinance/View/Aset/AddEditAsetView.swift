@@ -67,6 +67,22 @@ struct AddEditAsetView: View {
     // Common
     @State private var catatSbgPengeluaran: Bool = false
     @State private var selectedPocket: Pocket? = nil
+    @State private var portofolio: String = ""
+    @State private var showPortofolioSuggestions: Bool = false
+
+    @Query private var allAset: [Aset]
+
+    /// Nama portofolio unik dari aset yang sudah ada
+    private var existingPortofolioNames: [String] {
+        let names = allAset.compactMap { $0.portofolio }.filter { !$0.isEmpty }
+        return Array(Set(names)).sorted()
+    }
+
+    /// Suggestions filtered by current input
+    private var portofolioSuggestions: [String] {
+        guard !portofolio.isEmpty else { return existingPortofolioNames }
+        return existingPortofolioNames.filter { $0.localizedCaseInsensitiveContains(portofolio) }
+    }
 
     private let rdJenisList = ["Pasar Uang", "Obligasi", "Saham", "Campuran"]
     private let tenorOptions = [1, 3, 6, 12, 24, 36]
@@ -96,6 +112,8 @@ struct AddEditAsetView: View {
                         if selectedTipe != .deposito {
                             catatPengeluaranSection
                         }
+
+                        portofolioSection
 
                         ctaButton
                     }
@@ -782,6 +800,79 @@ struct AddEditAsetView: View {
         }
     }
 
+    // MARK: - Portfolio / Bucket Section
+
+    private var portofolioSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            FormCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    FormField(label: "PORTOFOLIO / BUCKET (OPSIONAL)") {
+                        HStack(spacing: 8) {
+                            Image(systemName: "folder.fill")
+                                .foregroundStyle(Color(hex: "#A78BFA").opacity(0.7))
+                                .font(.subheadline)
+                            TextField("Contoh: Dana Pensiun, Nabung Nikah...", text: $portofolio)
+                                .foregroundStyle(.white)
+                                .autocorrectionDisabled()
+                                .onChange(of: portofolio) { _, _ in
+                                    showPortofolioSuggestions = true
+                                }
+                            if !portofolio.isEmpty {
+                                Button {
+                                    portofolio = ""
+                                    showPortofolioSuggestions = false
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.white.opacity(0.4))
+                                }
+                            }
+                        }
+                        .padding(12)
+                        .background(Color.white.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    Text("Kelompokkan beberapa aset ke dalam satu tujuan investasi (mis. Dana Pensiun).")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.35))
+                }
+                .padding(16)
+            }
+
+            // Suggestions — outside FormCard so they aren't clipped
+            if showPortofolioSuggestions && !portofolioSuggestions.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(portofolioSuggestions, id: \.self) { name in
+                        Button {
+                            portofolio = name
+                            showPortofolioSuggestions = false
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "folder.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(Color(hex: "#A78BFA"))
+                                Text(name)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                Image(systemName: "arrow.up.left")
+                                    .font(.caption2)
+                                    .foregroundStyle(.white.opacity(0.3))
+                            }
+                            .padding(.horizontal, 12).padding(.vertical, 10)
+                            .contentShape(Rectangle())
+                        }
+                        if name != portofolioSuggestions.last {
+                            Divider().background(Color.white.opacity(0.06))
+                        }
+                    }
+                }
+                .background(Color(hex: "#1A1A1A"))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
+            }
+        }
+    }
+
     // MARK: - CTA
 
     private var ctaButton: some View {
@@ -882,6 +973,10 @@ struct AddEditAsetView: View {
             aset.pocketSumber = depoPocketSumber
         }
 
+        // Portofolio / bucket
+        let portofolioTrimmed = portofolio.trimmingCharacters(in: .whitespaces)
+        aset.portofolio = portofolioTrimmed.isEmpty ? nil : portofolioTrimmed
+
         // Catat pengeluaran untuk non-deposito
         if selectedTipe != .deposito {
             aset.catatSbgPengeluaran = catatSbgPengeluaran
@@ -965,6 +1060,7 @@ struct AddEditAsetView: View {
 
         catatSbgPengeluaran = a.catatSbgPengeluaran
         selectedPocket = a.pocketSumber
+        portofolio = a.portofolio ?? ""
     }
 
     // MARK: - Helpers

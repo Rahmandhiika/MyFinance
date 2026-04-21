@@ -47,6 +47,7 @@ import Foundation
     // MARK: - Common
     var nilaiSaatIni: Decimal        // stored, diupdate oleh price service
     var urutan: Int = 0              // urutan tampil di list (drag reorder)
+    var portofolio: String? = nil    // nama portofolio/bucket opsional (mis. "Dana Pensiun")
     var catatSbgPengeluaran: Bool
     var pocketSumber: Pocket?        // pocket sumber (pembelian / deposito)
     var createdAt: Date
