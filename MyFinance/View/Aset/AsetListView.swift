@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct AsetListView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: [SortDescriptor(\Aset.urutan), SortDescriptor(\Aset.createdAt)]) var allAset: [Aset]
 
     private let priceService = AsetPriceService.shared
@@ -57,6 +58,8 @@ struct AsetListView: View {
 
             if allAset.isEmpty {
                 emptyState
+            } else if showReorder {
+                reorderList
             } else {
                 ScrollView {
                     VStack(spacing: 20) {
@@ -73,7 +76,7 @@ struct AsetListView: View {
             }
 
             // Loading overlay
-            if priceService.isLoading {
+            if priceService.isLoading && !showReorder {
                 loadingOverlay
             }
         }
@@ -81,38 +84,50 @@ struct AsetListView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                refreshButton
+                if showReorder {
+                    EmptyView()
+                } else {
+                    refreshButton
+                }
             }
             ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 8) {
-                    if !asetBySaham.isEmpty {
-                        Button {
-                            showAnalisa = true
-                        } label: {
-                            Image(systemName: "chart.xyaxis.line")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white.opacity(0.7))
-                        }
+                if showReorder {
+                    Button("Selesai") {
+                        withAnimation(.easeInOut(duration: 0.2)) { showReorder = false }
                     }
-                    if allAset.count > 1 {
-                        Button {
-                            showReorder = true
-                        } label: {
-                            Image(systemName: "arrow.up.arrow.down")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white.opacity(0.7))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                } else {
+                    HStack(spacing: 8) {
+                        if !asetBySaham.isEmpty {
+                            Button {
+                                showAnalisa = true
+                            } label: {
+                                Image(systemName: "chart.xyaxis.line")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.white.opacity(0.7))
+                            }
                         }
-                    }
-                    Button {
-                        showAdd = true
-                    } label: {
-                        Label("Tambah", systemImage: "plus")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.black)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(.white)
-                            .clipShape(Capsule())
+                        if allAset.count > 1 {
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) { showReorder = true }
+                            } label: {
+                                Image(systemName: "arrow.up.arrow.down")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.white.opacity(0.7))
+                            }
+                        }
+                        Button {
+                            showAdd = true
+                        } label: {
+                            Label("Tambah", systemImage: "plus")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.black)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(.white)
+                                .clipShape(Capsule())
+                        }
                     }
                 }
             }
@@ -129,11 +144,6 @@ struct AsetListView: View {
         }
         .sheet(isPresented: $showAdd) {
             AddEditAsetView()
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $showReorder) {
-            AsetReorderSheet()
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
@@ -333,6 +343,114 @@ struct AsetListView: View {
     }
 }
 
+// MARK: - Reorder List (inline)
+
+extension AsetListView {
+    var reorderList: some View {
+        List {
+            // Portfolio groups
+            ForEach(portofolioGroups, id: \.nama) { group in
+                let groupItems = group.items
+                Section {
+                    ForEach(groupItems) { aset in
+                        reorderRow(aset: aset)
+                            .listRowBackground(Color(hex: "#A78BFA").opacity(0.05))
+                    }
+                    .onMove { from, to in
+                        var mutable = groupItems
+                        mutable.move(fromOffsets: from, toOffset: to)
+                        for (i, a) in mutable.enumerated() { a.urutan = i }
+                        try? modelContext.save()
+                    }
+                } header: {
+                    Label(group.nama.uppercased(), systemImage: "folder.fill")
+                        .foregroundStyle(Color(hex: "#A78BFA"))
+                        .font(.caption.weight(.bold))
+                }
+            }
+
+            // Per-type sections (no portfolio)
+            ForEach(TipeAset.allCases) { tipe in
+                let group = noPortofolioAset.filter { $0.tipe == tipe }
+                if !group.isEmpty {
+                    Section {
+                        ForEach(group) { aset in
+                            reorderRow(aset: aset)
+                                .listRowBackground(Color.white.opacity(0.05))
+                        }
+                        .onMove { from, to in
+                            var mutable = group
+                            mutable.move(fromOffsets: from, toOffset: to)
+                            for (i, a) in mutable.enumerated() { a.urutan = i }
+                            try? modelContext.save()
+                        }
+                    } header: {
+                        Label(tipe.displayName.uppercased(), systemImage: tipe.iconName)
+                            .foregroundStyle(tipe.color)
+                            .font(.caption.weight(.bold))
+                    }
+                }
+            }
+
+            // Target investasi
+            if !linkedAset.isEmpty {
+                Section {
+                    ForEach(linkedAset) { aset in
+                        reorderRow(aset: aset, showTargetLabel: true)
+                            .listRowBackground(Color(hex: "#22C55E").opacity(0.05))
+                    }
+                    .onMove { from, to in
+                        var mutable = linkedAset
+                        mutable.move(fromOffsets: from, toOffset: to)
+                        for (i, a) in mutable.enumerated() { a.urutan = i }
+                        try? modelContext.save()
+                    }
+                } header: {
+                    Label("TARGET INVESTASI", systemImage: "target")
+                        .foregroundStyle(Color(hex: "#22C55E"))
+                        .font(.caption.weight(.bold))
+                }
+            }
+        }
+        .environment(\.editMode, .constant(.active))
+        .scrollContentBackground(.hidden)
+        .background(Color(hex: "#0D0D0D"))
+        .listStyle(.insetGrouped)
+    }
+
+    @ViewBuilder
+    func reorderRow(aset: Aset, showTargetLabel: Bool = false) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(aset.tipe.color.opacity(0.15))
+                    .frame(width: 32, height: 32)
+                Image(systemName: aset.tipe.iconName)
+                    .font(.system(size: 13))
+                    .foregroundStyle(aset.tipe.color)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(aset.nama)
+                    .foregroundStyle(.white)
+                    .font(.subheadline)
+                if showTargetLabel, let targetNama = aset.linkedTarget?.nama {
+                    HStack(spacing: 3) {
+                        Image(systemName: "target").font(.system(size: 9))
+                        Text(targetNama).font(.caption2)
+                    }
+                    .foregroundStyle(Color(hex: "#22C55E").opacity(0.7))
+                } else if let porto = aset.portofolio, !porto.isEmpty {
+                    Text(porto).font(.caption2).foregroundStyle(Color(hex: "#A78BFA").opacity(0.8))
+                }
+            }
+            Spacer()
+            if let kode = aset.kode, !kode.isEmpty {
+                Text(kode.uppercased()).font(.caption2).foregroundStyle(.white.opacity(0.4))
+            }
+        }
+    }
+}
+
 // MARK: - Portfolio Stat
 
 private struct PortfolioStat: View {
@@ -398,7 +516,7 @@ private struct PortofolioSection: View {
                     HStack(spacing: 3) {
                         Image(systemName: pnl >= 0 ? "arrow.up.right" : "arrow.down.right")
                             .font(.system(size: 8, weight: .bold))
-                        Text("\(pnl >= 0 ? "+" : "")\(returnPct.percentFormatted)")
+                        Text("\(pnl >= 0 ? "+" : "")\(pnl.shortFormatted)")
                             .font(.caption2.weight(.semibold))
                     }
                     .foregroundStyle(pnl >= 0 ? Color(hex: "#22C55E") : Color(hex: "#EF4444"))
@@ -467,7 +585,7 @@ private struct PortofolioAsetRow: View {
                 HStack(spacing: 3) {
                     Image(systemName: aset.pnl >= 0 ? "arrow.up.right" : "arrow.down.right")
                         .font(.system(size: 9, weight: .bold))
-                    Text("\(aset.pnl >= 0 ? "+" : "")\(aset.pnl.shortFormatted) (\(aset.returnPersen.percentFormatted))")
+                    Text("\(aset.pnl >= 0 ? "+" : "")\(aset.pnl.shortFormatted)")
                         .font(.caption2.weight(.semibold))
                 }
                 .foregroundStyle(aset.pnl >= 0 ? Color(hex: "#22C55E") : Color(hex: "#EF4444"))
@@ -645,7 +763,7 @@ private struct TargetAsetRow: View {
                 HStack(spacing: 3) {
                     Image(systemName: aset.pnl >= 0 ? "arrow.up.right" : "arrow.down.right")
                         .font(.system(size: 9, weight: .bold))
-                    Text("\(aset.pnl >= 0 ? "+" : "")\(aset.pnl.shortFormatted) (\(aset.returnPersen.percentFormatted))")
+                    Text("\(aset.pnl >= 0 ? "+" : "")\(aset.pnl.shortFormatted)")
                         .font(.caption2.weight(.semibold))
                 }
                 .foregroundStyle(aset.pnl >= 0 ? Color(hex: "#22C55E") : Color(hex: "#EF4444"))
@@ -707,7 +825,7 @@ private struct AsetRow: View {
                 HStack(spacing: 3) {
                     Image(systemName: aset.pnl >= 0 ? "arrow.up.right" : "arrow.down.right")
                         .font(.system(size: 9, weight: .bold))
-                    Text("\(aset.pnl >= 0 ? "+" : "")\(aset.pnl.shortFormatted) (\(aset.returnPersen.percentFormatted))")
+                    Text("\(aset.pnl >= 0 ? "+" : "")\(aset.pnl.shortFormatted)")
                         .font(.caption2.weight(.semibold))
                 }
                 .foregroundStyle(aset.pnl >= 0 ? Color(hex: "#22C55E") : Color(hex: "#EF4444"))

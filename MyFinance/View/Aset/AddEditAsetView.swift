@@ -71,6 +71,12 @@ struct AddEditAsetView: View {
     @State private var showPortofolioSuggestions: Bool = false
 
     @Query private var allAset: [Aset]
+    @Query(sort: \Kategori.urutan) private var allKategori: [Kategori]
+
+    /// Kategori nabung — otomatis dipakai saat beli/tambah aset
+    private var nabungKategori: Kategori? {
+        allKategori.first { $0.isNabung && $0.tipe == .pengeluaran }
+    }
 
     /// Nama portofolio unik dari aset yang sudah ada
     private var existingPortofolioNames: [String] {
@@ -998,6 +1004,7 @@ struct AddEditAsetView: View {
                     pocket: pocket,
                     catatan: "Aset: \(aset.nama)"
                 )
+                transaksi.kategori = nabungKategori
                 modelContext.insert(transaksi)
             }
         }
