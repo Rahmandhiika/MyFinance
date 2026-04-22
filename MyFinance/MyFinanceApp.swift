@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-@main
+@main   
 struct MyFinanceApp: App {
     let containerService = ModelContainerService.shared
 

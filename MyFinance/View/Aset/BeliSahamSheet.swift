@@ -41,6 +41,11 @@ struct BeliSahamSheet: View {
         lotBaru > 0 && hargaBeli > 0 && nominalPocket > 0 && selectedPocket != nil
     }
 
+    private var avgTurun: Bool {
+        guard hargaBeli > 0, lotBaru > 0, hargaLama > 0 else { return false }
+        return hargaRataRataBaru < hargaLama
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -187,8 +192,8 @@ struct BeliSahamSheet: View {
                                 previewRow(label: "Total Lot Setelah",
                                            value: "\(NSDecimalNumber(decimal: lotLama + lotBaru).intValue) lot")
                                 Divider().background(Color.white.opacity(0.06))
-                                previewRow(label: "Rata-rata Harga Baru",
-                                           value: hargaRataRataBaru.idrFormatted)
+                                // Avg before → after comparison
+                                avgComparisonRow
                             }
                             .background(accentColor.opacity(0.06))
                             .clipShape(RoundedRectangle(cornerRadius: 14))
@@ -238,6 +243,44 @@ struct BeliSahamSheet: View {
     }
 
     // MARK: - Sub Views
+
+    @ViewBuilder
+    private var avgComparisonRow: some View {
+        let changeColor = Color(hex: avgTurun ? "#22C55E" : "#F59E0B")
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Avg sekarang")
+                    .font(.caption2)
+                    .foregroundStyle(.gray)
+                Text(hargaLama > 0 ? hargaLama.idrFormatted : "–")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(spacing: 3) {
+                Image(systemName: avgTurun ? "arrow.down.right" : "arrow.up.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(changeColor)
+                Text(avgTurun ? "turun" : "naik")
+                    .font(.caption2)
+                    .foregroundStyle(changeColor)
+            }
+            .frame(width: 52)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                Text("Avg setelah")
+                    .font(.caption2)
+                    .foregroundStyle(.gray)
+                Text(hargaRataRataBaru.idrFormatted)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(changeColor)
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+    }
 
     @ViewBuilder
     private func infoRow(label: String, value: String) -> some View {

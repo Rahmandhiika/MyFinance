@@ -3,8 +3,8 @@ import Foundation
 struct ReksadanaItem: Codable, Identifiable, Hashable {
     let nama: String
     let manajer: String
-    let jenis: String  // "Pasar Uang", "Obligasi", "Saham"
-    var featured: Bool = false
+    let jenis: String
+    var featured: Bool?   // nil = tidak featured — pakai decodeIfPresent agar item tanpa key ini tetap terbaca
 
     var id: String { nama }
 }
@@ -16,7 +16,7 @@ final class ReksadanaSearchService {
 
     /// The 3 utama featured funds, shown as suggestions before user types.
     var featuredFunds: [ReksadanaItem] {
-        allFunds.filter { $0.featured }
+        allFunds.filter { $0.featured == true }
     }
 
     private init() {

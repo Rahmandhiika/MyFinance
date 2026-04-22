@@ -13,6 +13,10 @@ struct AddEditTransaksiSheet: View {
         allKategoris.first { $0.isAdmin && $0.tipe == .pengeluaran }
     }
 
+    private var nabungKategori: Kategori? {
+        allKategoris.first { $0.isNabung && $0.tipe == .pengeluaran }
+    }
+
     // Edit mode
     private let editingTransaksi: Transaksi?
 
@@ -281,6 +285,9 @@ struct AddEditTransaksiSheet: View {
     private func saveTransaksi() {
         guard let pocket = selectedPocket else { return }
 
+        // Transaksi simpan/pakai target otomatis pakai kategori nabung
+        let finalKategori: Kategori? = subTipe != .normal ? nabungKategori : selectedKategori
+
         if let existing = editingTransaksi {
             // Revert old pocket saldo
             if let oldPocket = existing.pocket {
@@ -294,7 +301,7 @@ struct AddEditTransaksiSheet: View {
             existing.nominal = nominal
             existing.tipe = tipe
             existing.subTipe = subTipe
-            existing.kategori = selectedKategori
+            existing.kategori = finalKategori
             existing.pocket = pocket
             existing.catatan = catatan.isEmpty ? nil : catatan
             existing.tanggal = tanggal
@@ -305,7 +312,7 @@ struct AddEditTransaksiSheet: View {
                 nominal: nominal,
                 tipe: tipe,
                 subTipe: subTipe,
-                kategori: selectedKategori,
+                kategori: finalKategori,
                 pocket: pocket,
                 catatan: catatan.isEmpty ? nil : catatan,
                 goalID: selectedTarget?.id
@@ -321,6 +328,11 @@ struct AddEditTransaksiSheet: View {
                     catatan: catatan.isEmpty ? nil : catatan
                 )
                 modelContext.insert(record)
+
+                // Tambah saldo pocket yang ter-link ke target biasa
+                if subTipe == .simpanKeTarget, let linkedPocket = target.linkedPocket {
+                    linkedPocket.saldo += nominal
+                }
             }
         }
 

@@ -17,6 +17,8 @@ struct AsetDetailSheet: View {
     @State private var navInput = ""
     @State private var showUpdateHargaEmas = false
     @State private var hargaEmasInput = ""
+    @State private var showEditHargaBeli = false
+    @State private var hargaBeliInput = ""
     @State private var showBeliSaham = false
     @State private var showTambahReksadana = false
 
@@ -102,6 +104,15 @@ struct AsetDetailSheet: View {
             Button("Batal", role: .cancel) { navInput = "" }
         } message: {
             Text("NAV saat ini: \(aset.navSaatIni?.idrFormatted ?? "-")\nMasukkan NAV terbaru per unit.")
+        }
+        .alert("Edit Rata-rata Harga Beli", isPresented: $showEditHargaBeli) {
+            TextField("Harga per lembar (Rp)", text: $hargaBeliInput)
+                .keyboardType(.numberPad)
+            Button("Simpan") { saveHargaBeli() }
+            Button("Batal", role: .cancel) { hargaBeliInput = "" }
+        } message: {
+            let modal = aset.modal
+            Text("Harga saat ini: \(aset.hargaPerLembar?.idrFormatted ?? "-")/lembar\nTotal modal saat ini: \(modal.idrDecimalFormatted)\n\nMengubah harga beli akan memperbarui total modal.")
         }
         .alert("Update Harga Emas", isPresented: $showUpdateHargaEmas) {
             TextField("Harga per gram (Rp)", text: $hargaEmasInput)
@@ -202,10 +213,35 @@ struct AsetDetailSheet: View {
             DetailRow(label: "Jumlah Lot", value: "\(NSDecimalNumber(decimal: lot).intValue) lot")
             Divider().background(Color.white.opacity(0.08))
         }
-        if let harga = aset.hargaPerLembar {
-            DetailRow(label: "Harga Beli/Lembar", value: harga.idrDecimalFormatted)
-            Divider().background(Color.white.opacity(0.08))
+        // Harga beli/lembar — bisa di-edit (mempengaruhi Total Modal)
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Rata-rata Harga Beli/Lembar")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.6))
+                Text(aset.hargaPerLembar?.idrDecimalFormatted ?? "–")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+            }
+            Spacer()
+            Button {
+                hargaBeliInput = aset.hargaPerLembar.map { "\(NSDecimalNumber(decimal: $0).intValue)" } ?? ""
+                showEditHargaBeli = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "pencil")
+                        .font(.caption.weight(.semibold))
+                    Text("Edit")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(Color(hex: "#3B82F6"))
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Color(hex: "#3B82F6").opacity(0.12))
+                .clipShape(Capsule())
+            }
         }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        Divider().background(Color.white.opacity(0.08))
         // Harga saat ini + refresh button
         HStack {
             VStack(alignment: .leading, spacing: 2) {
@@ -676,6 +712,15 @@ struct AsetDetailSheet: View {
         aset.nilaiSaatIni = aset.estimasiUnitReksadana * nav
         try? modelContext.save()
         navInput = ""
+    }
+
+    private func saveHargaBeli() {
+        guard let harga = Decimal(string: hargaBeliInput.replacingOccurrences(of: ",", with: "."), locale: .current),
+              harga > 0 else { return }
+        aset.hargaPerLembar = harga
+        // Nilai saat ini tidak diubah (tetap harga pasar), hanya modal yang berubah
+        try? modelContext.save()
+        hargaBeliInput = ""
     }
 
     private func saveHargaEmas() {

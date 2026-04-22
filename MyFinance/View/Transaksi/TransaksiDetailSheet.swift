@@ -208,7 +208,7 @@ struct TransaksiDetailSheet: View {
     }
 
     private func deleteTransaksi() {
-        // Revert pocket saldo
+        // 1. Revert saldo pocket sumber
         if let pocket = transaksi.pocket {
             if transaksi.tipe == .pengeluaran {
                 pocket.saldo += transaksi.nominal
@@ -216,6 +216,26 @@ struct TransaksiDetailSheet: View {
                 pocket.saldo -= transaksi.nominal
             }
         }
+
+        // 2. Rollback target-related side effects
+        if transaksi.subTipe != .normal, let target = linkedTarget {
+            let cal = Calendar.current
+
+            // Hapus SimpanKeTarget record yang matching (tanggal ±1 menit, nominal sama)
+            if let record = target.riwayat.first(where: {
+                cal.isDate($0.tanggal, equalTo: transaksi.tanggal, toGranularity: .minute)
+                && $0.nominal == transaksi.nominal
+            }) {
+                modelContext.delete(record)
+            }
+
+            // Rollback linkedPocket target biasa (hanya simpanKeTarget yang menambah saldo)
+            if transaksi.subTipe == .simpanKeTarget,
+               let linkedPocket = target.linkedPocket {
+                linkedPocket.saldo -= transaksi.nominal
+            }
+        }
+
         modelContext.delete(transaksi)
         try? modelContext.save()
         dismiss()

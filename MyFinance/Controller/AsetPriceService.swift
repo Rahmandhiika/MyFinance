@@ -9,7 +9,7 @@ class AsetPriceService {
 
     private init() {}
 
-    // MARK: - Refresh All
+    // MARK: - Refresh All (concurrent — all fetches start simultaneously)
 
     func refreshAll(_ asets: [Aset]) async {
         isLoading = true
@@ -18,52 +18,49 @@ class AsetPriceService {
             lastUpdated = Date()
         }
 
-        for aset in asets {
-            if let nilai = await fetchPrice(for: aset) {
-                await MainActor.run { aset.nilaiSaatIni = nilai }
+        // Kick off all price fetches in parallel, then apply results in one pass
+        await withTaskGroup(of: Void.self) { group in
+            for aset in asets {
+                group.addTask { @MainActor in
+                    await self.fetchAndApply(aset: aset)
+                }
             }
         }
     }
 
-    private func fetchPrice(for aset: Aset) async -> Decimal? {
+    // MARK: - Per-aset fetch + apply
+
+    private func fetchAndApply(aset: Aset) async {
         switch aset.tipe {
+
         case .saham:
-            guard let harga = await fetchSahamPrice(kode: aset.kode ?? aset.nama) else { return nil }
+            guard let harga = await fetchSahamPrice(kode: aset.kode ?? aset.nama) else { return }
             let lot = NSDecimalNumber(decimal: aset.lot ?? 0).doubleValue
-            return Decimal(Double(truncating: harga as NSDecimalNumber) * lot * 100)
+            aset.nilaiSaatIni = Decimal(Double(truncating: harga as NSDecimalNumber) * lot * 100)
 
         case .sahamAS:
-            guard let kode = aset.kode, !kode.isEmpty else { return nil }
+            guard let kode = aset.kode, !kode.isEmpty else { return }
+            // Fetch harga & kurs concurrently for this single asset
             async let hargaTask = fetchUSStockPrice(ticker: kode)
-            async let kursTask = fetchKursValas(.usd)
-            let (harga, kurs) = await (hargaTask, kursTask)
+            async let kursTask  = fetchKursValas(.usd)
+            let (harga, kurs)   = await (hargaTask, kursTask)
             let finalHarga = harga ?? aset.hargaSaatIniUSD
-            let finalKurs = kurs ?? aset.kursSaatIniUSD
-            guard let h = finalHarga, let k = finalKurs else { return nil }
-            await MainActor.run {
-                if let h = harga { aset.hargaSaatIniUSD = h }
-                if let k = kurs { aset.kursSaatIniUSD = k }
-            }
-            return aset.jumlahSharesAS * h * k
+            let finalKurs  = kurs  ?? aset.kursSaatIniUSD
+            guard let h = finalHarga, let k = finalKurs else { return }
+            if let h = harga { aset.hargaSaatIniUSD = h }
+            if let k = kurs  { aset.kursSaatIniUSD  = k }
+            aset.nilaiSaatIni = aset.jumlahSharesAS * h * k
 
         case .valas:
-            guard let mata = aset.mataUangValas,
+            guard let mata   = aset.mataUangValas,
                   let jumlah = aset.jumlahValas,
-                  let kurs = await fetchKursValas(mata) else { return nil }
-            await MainActor.run { aset.kursSaatIni = kurs }
-            return jumlah * kurs
+                  let kurs   = await fetchKursValas(mata) else { return }
+            aset.kursSaatIni  = kurs
+            aset.nilaiSaatIni = jumlah * kurs
 
-        case .reksadana:
-            // NAV reksadana Indonesia tidak ada free API — user update manual
-            return nil
-
-        case .emas:
-            // Harga emas perlu scraping — user update manual
-            return nil
-
-        case .deposito:
-            // Deposito tidak ada harga pasar — nilaiSaatIni = nominal
-            return nil
+        case .reksadana, .emas, .deposito:
+            // User update manual — no auto-fetch
+            break
         }
     }
 
@@ -77,17 +74,17 @@ class AsetPriceService {
             request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
             let (data, _) = try await URLSession.shared.data(for: request)
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let chart = json["chart"] as? [String: Any],
+               let chart  = json["chart"] as? [String: Any],
                let result = (chart["result"] as? [[String: Any]])?.first,
-               let meta = result["meta"] as? [String: Any],
-               let price = meta["regularMarketPrice"] as? Double {
+               let meta   = result["meta"] as? [String: Any],
+               let price  = meta["regularMarketPrice"] as? Double {
                 return Decimal(price)
             }
         } catch { }
         return nil
     }
 
-    // MARK: - Saham AS (US Stocks via Yahoo Finance — no .JK suffix)
+    // MARK: - Saham AS (US Stocks via Yahoo Finance)
 
     func fetchUSStockPrice(ticker: String) async -> Decimal? {
         let symbol = ticker.uppercased()
@@ -97,10 +94,10 @@ class AsetPriceService {
             request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
             let (data, _) = try await URLSession.shared.data(for: request)
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let chart = json["chart"] as? [String: Any],
+               let chart  = json["chart"] as? [String: Any],
                let result = (chart["result"] as? [[String: Any]])?.first,
-               let meta = result["meta"] as? [String: Any],
-               let price = meta["regularMarketPrice"] as? Double {
+               let meta   = result["meta"] as? [String: Any],
+               let price  = meta["regularMarketPrice"] as? Double {
                 return Decimal(price)
             }
         } catch { }
@@ -108,16 +105,14 @@ class AsetPriceService {
     }
 
     // MARK: - Valas (Frankfurter API — free, no key needed)
-    // Base: IDR, mengambil berapa 1 unit valas = berapa IDR
 
     func fetchKursValas(_ mata: MataUangValas) async -> Decimal? {
-        // Frankfurter: /latest?from=USD&to=IDR → {"rates":{"IDR":16350.0}}
         guard let url = URL(string: "https://api.frankfurter.app/latest?from=\(mata.apiCode)&to=IDR") else { return nil }
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let rates = json["rates"] as? [String: Any],
-               let kurs = rates["IDR"] as? Double {
+            if let json  = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let rates  = json["rates"] as? [String: Any],
+               let kurs   = rates["IDR"] as? Double {
                 return Decimal(kurs)
             }
         } catch { }

@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 struct AddEditAsetView: View {
     @Environment(\.modelContext) private var modelContext
@@ -20,6 +21,7 @@ struct AddEditAsetView: View {
     @State private var sahamLot: String = ""
     @State private var sahamHargaPerLembar: Decimal = 0
     @State private var sahamHargaMarket: Decimal? = nil
+    @State private var sahamTotalModal: Decimal = 0
     @State private var isFetchingPrice = false
 
     // Reksadana
@@ -65,6 +67,10 @@ struct AddEditAsetView: View {
     @State private var depoTanggalMulai: Date = Date()
     @State private var depoARO: Bool = false
 
+    // Logo / gambar custom
+    @State private var logoData: Data? = nil
+    @State private var selectedPhotoItem: PhotosPickerItem? = nil
+
     // Common
     @State private var catatSbgPengeluaran: Bool = false
     @State private var selectedPocket: Pocket? = nil
@@ -105,6 +111,8 @@ struct AddEditAsetView: View {
                     VStack(spacing: 20) {
                         tipeSelectorSection
 
+                        logoPicker
+
                         Group {
                             switch selectedTipe {
                             case .saham:     sahamFormSection
@@ -141,6 +149,65 @@ struct AddEditAsetView: View {
                 }
             }
             .onAppear { populateIfEditing() }
+            .onChange(of: selectedPhotoItem) { _, newItem in
+                Task {
+                    if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                        logoData = data
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Logo Picker
+
+    private var logoPicker: some View {
+        VStack(spacing: 8) {
+            PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                ZStack {
+                    if let data = logoData, let uiImage = UIImage(data: data) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 72, height: 72)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(selectedTipe.color, lineWidth: 2))
+                    } else {
+                        Circle()
+                            .fill(Color.white.opacity(0.07))
+                            .frame(width: 72, height: 72)
+                            .overlay(
+                                VStack(spacing: 4) {
+                                    Image(systemName: "camera.fill")
+                                        .font(.title3)
+                                        .foregroundStyle(.gray)
+                                    Text("Logo")
+                                        .font(.caption2)
+                                        .foregroundStyle(.gray)
+                                }
+                            )
+                    }
+                    // Edit badge
+                    Circle()
+                        .fill(selectedTipe.color)
+                        .frame(width: 22, height: 22)
+                        .overlay(
+                            Image(systemName: "pencil")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.black)
+                        )
+                        .offset(x: 24, y: 24)
+                }
+            }
+
+            if logoData != nil {
+                Button("Hapus Logo") {
+                    logoData = nil
+                    selectedPhotoItem = nil
+                }
+                .font(.caption)
+                .foregroundStyle(.red)
+            }
         }
     }
 
@@ -210,11 +277,41 @@ struct AddEditAsetView: View {
                 FormField(label: "JUMLAH LOT") {
                     TextField("Contoh: 10", text: $sahamLot).keyboardType(.numberPad).styledInput()
                 }
+                .onChange(of: sahamLot) { _, lot in
+                    let lotD = Decimal(string: lot) ?? 0
+                    if lotD > 0 && sahamHargaPerLembar > 0 { sahamTotalModal = lotD * sahamHargaPerLembar * 100 }
+                }
 
                 FormField(label: "HARGA BELI/LEMBAR") {
                     HStack(spacing: 8) {
                         Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
                         CurrencyInputField(value: $sahamHargaPerLembar, allowsDecimal: true)
+                    }
+                }
+                .onChange(of: sahamHargaPerLembar) { _, harga in
+                    let lotD = Decimal(string: sahamLot) ?? 0
+                    if lotD > 0 { sahamTotalModal = lotD * harga * 100 }
+                }
+
+                FormField(label: "TOTAL MODAL") {
+                    HStack(spacing: 8) {
+                        Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
+                        CurrencyInputField(value: $sahamTotalModal, allowsDecimal: true)
+                    }
+                }
+                .onChange(of: sahamTotalModal) { _, total in
+                    let lotD = Decimal(string: sahamLot) ?? 0
+                    guard lotD > 0, total > 0 else { return }
+                    sahamHargaPerLembar = total / (lotD * 100)
+                }
+
+                // Recap lot × harga
+                let lotD = Decimal(string: sahamLot) ?? 0
+                if lotD > 0 && sahamHargaPerLembar > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "info.circle").font(.caption2).foregroundStyle(.white.opacity(0.3))
+                        Text("\(NSDecimalNumber(decimal: lotD).intValue) lot × Rp\(sahamHargaPerLembar.idrDecimalFormatted)/lembar × 100")
+                            .font(.caption2).foregroundStyle(.white.opacity(0.3))
                     }
                 }
             }
@@ -1000,6 +1097,9 @@ struct AddEditAsetView: View {
         let portofolioTrimmed = portofolio.trimmingCharacters(in: .whitespaces)
         aset.portofolio = portofolioTrimmed.isEmpty ? nil : portofolioTrimmed
 
+        // Logo custom
+        aset.logoData = logoData
+
         // Catat pengeluaran untuk non-deposito
         if selectedTipe != .deposito {
             aset.catatSbgPengeluaran = catatSbgPengeluaran
@@ -1042,6 +1142,7 @@ struct AddEditAsetView: View {
             sahamKode = a.kode ?? ""
             sahamLot = a.lot.map { "\(NSDecimalNumber(decimal: $0).intValue)" } ?? ""
             sahamHargaPerLembar = a.hargaPerLembar ?? 0
+            sahamTotalModal = (a.lot ?? 0) * (a.hargaPerLembar ?? 0) * 100
 
         case .sahamAS:
             asNama = a.nama
@@ -1086,6 +1187,7 @@ struct AddEditAsetView: View {
         catatSbgPengeluaran = a.catatSbgPengeluaran
         selectedPocket = a.pocketSumber
         portofolio = a.portofolio ?? ""
+        logoData = a.logoData
     }
 
     // MARK: - Helpers

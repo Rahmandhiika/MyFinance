@@ -179,6 +179,28 @@ struct TargetDetailSheet: View {
         VStack(spacing: 1) {
             detailRow(label: "TARGET", value: target.targetNominal.idrFormatted, valueColor: .white)
             detailRow(label: "DEADLINE", value: deadlineFormatted, valueColor: .white)
+
+            // Pocket linked
+            if let pocket = target.linkedPocket {
+                HStack {
+                    Text("SIMPAN DI")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.gray)
+                        .tracking(0.4)
+                    Spacer()
+                    HStack(spacing: 5) {
+                        Image(systemName: "folder.fill")
+                            .font(.caption.weight(.semibold))
+                        Text(pocket.nama)
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(Color(hex: "#A78BFA"))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 14)
+                .background(Color.white.opacity(0.05))
+            }
+
             detailRow(label: "TERSIMPAN", value: target.tersimpan.idrFormatted, valueColor: Color(hex: "#22D3EE"))
             detailRow(label: "SISA", value: target.sisa.idrFormatted, valueColor: Color(hex: "#22D3EE"))
         }

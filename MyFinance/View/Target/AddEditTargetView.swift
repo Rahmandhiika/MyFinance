@@ -25,6 +25,9 @@ struct AddEditTargetView: View {
     @State private var selectedPhoto: PhotosPickerItem? = nil
     @State private var fotoData: Data? = nil
 
+    // MARK: - Biasa pocket state
+    @State private var linkedPocket: Pocket? = nil
+
     // MARK: - Investasi aset state
 
     @State private var invTipe: TipeAset = .reksadana
@@ -276,6 +279,19 @@ struct AddEditTargetView: View {
 
     @ViewBuilder
     private var biasaExtraFields: some View {
+        // Pocket pilihan — tempat uang tabungan ini disimpan
+        formSection(label: "SIMPAN DI POCKET MANA?") {
+            VStack(alignment: .leading, spacing: 8) {
+                PocketChipPicker(
+                    pockets: allPockets.filter { $0.isAktif && $0.kelompokPocket == .biasa },
+                    selected: $linkedPocket
+                )
+                Text("Setiap simpan ke target ini, saldo pocket yang dipilih otomatis bertambah.")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.35))
+            }
+        }
+
         formSection(label: "UDAH ADA BERAPA? (OPSIONAL)") {
             HStack(spacing: 8) {
                 Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
@@ -928,7 +944,10 @@ struct AddEditTargetView: View {
         ikonCustom = t.ikonCustom ?? ""
         jenisTarget = t.jenisTarget
         if let dl = t.deadline { hasDeadline = true; deadline = dl }
-        if t.jenisTarget == .biasa { saldoTerkumpulEdit = t.tersimpan }
+        if t.jenisTarget == .biasa {
+            saldoTerkumpulEdit = t.tersimpan
+            linkedPocket = t.linkedPocket
+        }
         fotoData = t.fotoData
     }
 
@@ -949,6 +968,7 @@ struct AddEditTargetView: View {
 
             // Saldo adjustment hanya untuk target biasa
             if existing.jenisTarget == .biasa {
+                existing.linkedPocket = linkedPocket
                 let selisih = saldoTerkumpulEdit - existing.tersimpan
                 if selisih != 0 {
                     let adj = SimpanKeTarget(target: existing, tanggal: Date(), nominal: selisih, catatan: "Penyesuaian manual")
@@ -969,6 +989,7 @@ struct AddEditTargetView: View {
             modelContext.insert(target)
 
             if jenisTarget == .biasa {
+                target.linkedPocket = linkedPocket
                 // Saldo awal
                 if saldoAwal > 0 {
                     let tgl = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()

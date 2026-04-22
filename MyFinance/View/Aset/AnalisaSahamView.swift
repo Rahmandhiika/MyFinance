@@ -9,6 +9,14 @@ private enum AnalisisState {
     case error(String)
 }
 
+// MARK: - Detail Item (Identifiable wrapper — fixes blank black sheet bug)
+
+private struct AnalisaDetailItem: Identifiable {
+    let id = UUID()
+    let aset: Aset
+    let hasil: HasilAnalisa
+}
+
 // MARK: - Main View
 
 struct AnalisaSahamView: View {
@@ -16,23 +24,45 @@ struct AnalisaSahamView: View {
     @Query(sort: [SortDescriptor(\Aset.urutan)]) private var allAset: [Aset]
 
     @State private var states: [String: AnalisisState] = [:]
-    @State private var showDetail = false
-    @State private var detailAset: Aset? = nil
-    @State private var detailHasil: HasilAnalisa? = nil
+    @State private var detailItem: AnalisaDetailItem? = nil
 
     private var sahamAset: [Aset] {
         allAset.filter { $0.tipe == .saham && !($0.kode ?? "").isEmpty }
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+        ZStack {
+            Color(hex: "#0D0D0D").ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Custom header — tanpa NavigationStack
+                HStack {
+                    Button("Tutup") { dismiss() }
+                        .font(.body)
+                        .foregroundStyle(.white.opacity(0.7))
+                    Spacer()
+                    Text("Analisa Saham")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                    Spacer()
+                    Button {
+                        Task { await fetchAll() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+
+                Divider().background(Color.white.opacity(0.08))
 
                 if sahamAset.isEmpty {
                     emptyState
                 } else {
-                    ScrollView {
+                    ScrollView(.vertical) {
                         VStack(spacing: 12) {
                             ForEach(sahamAset) { aset in
                                 AnalisaCard(
@@ -40,9 +70,7 @@ struct AnalisaSahamView: View {
                                     state: states[aset.kode?.uppercased() ?? ""] ?? .loading
                                 ) {
                                     if case .success(let hasil) = states[aset.kode?.uppercased() ?? ""] {
-                                        detailAset = aset
-                                        detailHasil = hasil
-                                        showDetail = true
+                                        detailItem = AnalisaDetailItem(aset: aset, hasil: hasil)
                                     }
                                 }
                             }
@@ -52,35 +80,14 @@ struct AnalisaSahamView: View {
                     }
                 }
             }
-            .navigationTitle("Analisa Saham")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Tutup") { dismiss() }
-                        .foregroundStyle(.white.opacity(0.7))
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await fetchAll() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.7))
-                    }
-                }
-            }
-            .sheet(isPresented: $showDetail) {
-                if let aset = detailAset, let hasil = detailHasil {
-                    AnalisaSahamDetailSheet(aset: aset, hasil: hasil)
-                        .presentationDetents([.large])
-                        .presentationDragIndicator(.visible)
-                }
-            }
         }
         .preferredColorScheme(.dark)
         .task { await fetchAll() }
+        .sheet(item: $detailItem) { item in
+            AnalisaSahamDetailSheet(aset: item.aset, hasil: item.hasil)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     private func fetchAll() async {
@@ -216,12 +223,12 @@ private struct AnalisaCard: View {
                         .background(color.opacity(0.15))
                         .clipShape(Capsule())
 
-                    // Score dots
+                    // Score segments
                     HStack(spacing: 3) {
                         ForEach(0..<4, id: \.self) { i in
-                            Circle()
+                            RoundedRectangle(cornerRadius: 2)
                                 .fill(i < hasil.score ? color : Color.white.opacity(0.15))
-                                .frame(width: 6, height: 6)
+                                .frame(width: 14, height: 5)
                         }
                         Text("\(hasil.score)/4")
                             .font(.caption2)
@@ -320,29 +327,39 @@ struct AnalisaSahamDetailSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
-                ScrollView {
+        ZStack {
+            Color(hex: "#0D0D0D").ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Custom header — tanpa NavigationStack agar tidak ada horizontal pop gesture
+                HStack {
+                    Button("Tutup") { dismiss() }
+                        .font(.body)
+                        .foregroundStyle(.white.opacity(0.7))
+                    Spacer()
+                    Text(aset.kode?.uppercased() ?? aset.nama)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                    Spacer()
+                    // Balance spacer agar title tetap center
+                    Text("Tutup").font(.body).opacity(0)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+
+                Divider().background(Color.white.opacity(0.08))
+
+                ScrollView(.vertical) {
                     VStack(spacing: 20) {
                         headerCard
                         posisiKamu
-                        kondisiTeknikal
+                        sinyalTeknikal
                         ringkasan
                         Spacer(minLength: 40)
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 16)
-                }
-            }
-            .navigationTitle(aset.kode?.uppercased() ?? aset.nama)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Tutup") { dismiss() }
-                        .foregroundStyle(.white.opacity(0.7))
                 }
             }
         }
@@ -427,16 +444,10 @@ struct AnalisaSahamDetailSheet: View {
             VStack(spacing: 0) {
                 rowItem(label: "Lot Dimiliki", value: "\(lot) lot (\(lot * 100) lembar)")
                 sep
-                rowItem(label: "Rata-rata Harga Beli", value: formatRp(Double(truncating: avgBeli as NSDecimalNumber)))
+                rowItem(label: "Rata-rata Harga Beli",
+                        value: formatRp(Double(truncating: avgBeli as NSDecimalNumber)))
                 sep
-                rowItem(label: "Modal", value: Decimal(0).idrFormatted.replacingOccurrences(of: "Rp", with: "Rp ")
-                    .replacingOccurrences(of: "Rp ", with: ""))
-                    .overlay(
-                        HStack {
-                            Spacer()
-                            Text(modal.idrFormatted).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                        }.padding(.trailing, 16)
-                    )
+                rowItem(label: "Modal", value: modal.idrFormatted)
                 sep
                 rowPnl(pnl: pnl, pct: pnlPct)
             }
@@ -445,12 +456,12 @@ struct AnalisaSahamDetailSheet: View {
         }
     }
 
-    // MARK: Kondisi Teknikal
+    // MARK: Sinyal Teknikal (redesigned)
 
-    private var kondisiTeknikal: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    private var sinyalTeknikal: some View {
+        VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("KONDISI TEKNIKAL")
+                Text("SINYAL TEKNIKAL")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.gray)
                     .tracking(0.5)
@@ -460,80 +471,137 @@ struct AnalisaSahamDetailSheet: View {
                     .foregroundStyle(color)
             }
 
+            // 2x2 metric grid
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                metricCard(
+                    label: "Harga Kini",
+                    value: formatRp(hasil.hargaSaatIni),
+                    sub: hasil.hargaDiAtasEMA20 ? "Di atas EMA20 ↑" : "Di bawah EMA20 ↓",
+                    ok: hasil.hargaDiAtasEMA20
+                )
+                metricCard(
+                    label: "EMA 20",
+                    value: formatRp(hasil.ema20),
+                    sub: "Rata-rata 20 hari",
+                    ok: nil
+                )
+                metricCard(
+                    label: "RSI 14",
+                    value: String(format: "%.1f", hasil.rsi14),
+                    sub: rsiLabel(hasil.rsi14),
+                    ok: hasil.rsiDiAtas50
+                )
+                metricCard(
+                    label: "Volume",
+                    value: formatVol(hasil.volume),
+                    sub: "Avg \(formatVol(hasil.avgVolume20))",
+                    ok: hasil.volumeDiAtasAvg
+                )
+            }
+
+            // Kondisi checklist
             VStack(spacing: 0) {
-                kondisiRow(
-                    ok:     hasil.hargaDiAtasEMA20,
-                    label:  "Harga di atas EMA20",
-                    detail: "\(formatRp(hasil.hargaSaatIni)) vs EMA \(formatRp(hasil.ema20))",
-                    penjelasan: hasil.hargaDiAtasEMA20
-                        ? "Harga saham sedang di atas rata-rata 20 hari — tren naik."
-                        : "Harga di bawah EMA20, tren masih cenderung turun."
-                )
-                sep
-                kondisiRow(
-                    ok:     hasil.rsiDiAtas50,
-                    label:  "RSI 14 di atas 50",
-                    detail: String(format: "RSI: %.1f", hasil.rsi14),
-                    penjelasan: rsiPenjelasan(hasil.rsi14)
-                )
-                sep
-                kondisiRow(
-                    ok:     hasil.volumeDiAtasAvg,
-                    label:  "Volume di atas rata-rata 20 hari",
-                    detail: "\(formatVol(hasil.volume)) vs avg \(formatVol(hasil.avgVolume20))",
-                    penjelasan: hasil.volumeDiAtasAvg
-                        ? "Volume hari ini tinggi — ada minat beli yang kuat."
-                        : "Volume rendah — kurang ada konfirmasi dari pelaku pasar."
-                )
-                sep
-                kondisiRow(
-                    ok:     hasil.candleBullish,
-                    label:  "Candle bullish",
-                    detail: hasil.candleBullish ? "Close > Open" : "Close ≤ Open",
-                    penjelasan: hasil.candleBullish
-                        ? "Candle hari ini ditutup lebih tinggi dari pembukaan — momentum positif."
-                        : "Candle merah hari ini — tekanan jual masih dominan."
-                )
+                kondisiItem(ok: hasil.hargaDiAtasEMA20, label: "Harga di atas EMA20")
+                Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
+                kondisiItem(ok: hasil.rsiDiAtas50, label: "RSI 14 di atas 50")
+                Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
+                kondisiItem(ok: hasil.volumeDiAtasAvg, label: "Volume di atas rata-rata 20 hari")
+                Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
+                kondisiItem(ok: hasil.candleBullish, label: "Candle bullish (Close > Open)")
             }
             .background(Color.white.opacity(0.05))
             .clipShape(RoundedRectangle(cornerRadius: 14))
+
+            // Score bar
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Skor Teknikal")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.5))
+                    Spacer()
+                    Text("\(hasil.score) dari 4 kondisi terpenuhi")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(color)
+                }
+                HStack(spacing: 5) {
+                    ForEach(0..<4, id: \.self) { i in
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(i < hasil.score ? color : Color.white.opacity(0.1))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 10)
+                    }
+                }
+            }
+            .padding(14)
+            .background(Color.white.opacity(0.04))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
 
-    private func kondisiRow(ok: Bool, label: String, detail: String, penjelasan: String) -> some View {
-        let okColor = Color(hex: ok ? "#22C55E" : "#EF4444")
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(okColor.opacity(0.12))
-                        .frame(width: 28, height: 28)
-                    Image(systemName: ok ? "checkmark" : "xmark")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(okColor)
-                }
-                .padding(.top, 2)
+    private func metricCard(label: String, value: String, sub: String, ok: Bool?) -> some View {
+        let cardColor: Color = ok.map { $0 ? Color(hex: "#22C55E") : Color(hex: "#EF4444") }
+            ?? Color.white.opacity(0.4)
+        let bgColor: Color = ok.map { $0 ? Color(hex: "#22C55E").opacity(0.08) : Color(hex: "#EF4444").opacity(0.08) }
+            ?? Color.white.opacity(0.05)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(ok ? label : label)
-                        .font(.subheadline)
-                        .foregroundStyle(ok ? .white : .white.opacity(0.5))
-                        .strikethrough(!ok, color: .white.opacity(0.3))
-                    Text(detail)
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
-                }
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(label)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.5))
                 Spacer()
+                if let ok {
+                    Image(systemName: ok ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(cardColor)
+                }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-
-            Text(penjelasan)
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.4))
-                .padding(.horizontal, 56)
-                .padding(.bottom, 12)
+            Text(value)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(sub)
+                .font(.caption2)
+                .foregroundStyle(cardColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(bgColor)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(cardColor.opacity(ok != nil ? 0.2 : 0.1), lineWidth: 1)
+        )
+    }
+
+    private func kondisiItem(ok: Bool, label: String) -> some View {
+        let okColor = Color(hex: ok ? "#22C55E" : "#EF4444")
+        return HStack(spacing: 10) {
+            Image(systemName: ok ? "checkmark.circle.fill" : "xmark.circle.fill")
+                .font(.system(size: 16))
+                .foregroundStyle(okColor)
+                .frame(width: 24)
+
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(ok ? .white : .white.opacity(0.4))
+                .strikethrough(!ok, color: .white.opacity(0.25))
+
+            Spacer()
+
+            Text("+1")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(ok ? okColor : Color.white.opacity(0.2))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(ok ? okColor.opacity(0.12) : Color.white.opacity(0.05))
+                .clipShape(Capsule())
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
     }
 
     // MARK: Ringkasan
@@ -625,12 +693,12 @@ struct AnalisaSahamDetailSheet: View {
         return String(format: "%.0f", val)
     }
 
-    private func rsiPenjelasan(_ rsi: Double) -> String {
+    private func rsiLabel(_ rsi: Double) -> String {
         switch rsi {
-        case ..<30:  return String(format: "RSI %.1f — oversold, potensi rebound tapi konfirmasi dulu.", rsi)
-        case 30..<50: return String(format: "RSI %.1f — masih di area bearish, momentum belum kuat.", rsi)
-        case 50..<70: return String(format: "RSI %.1f — zona bullish, momentum positif.", rsi)
-        default:     return String(format: "RSI %.1f — overbought, waspadai potensi koreksi.", rsi)
+        case ..<30:  return "Oversold"
+        case 30..<50: return "Bearish zone"
+        case 50..<70: return "Bullish zone"
+        default:     return "Overbought"
         }
     }
 

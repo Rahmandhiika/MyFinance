@@ -27,95 +27,90 @@ struct HomeView: View {
     // MARK: - Profile
     private var profile: UserProfile? { profiles.first }
 
-    // MARK: - Filtered Transactions
-    private var transaksiMonth: [Transaksi] {
-        allTransaksi.filter { $0.tanggal.isSameMonth(as: selectedMonth) }
+    // MARK: - Month Stats (single-pass — computes all tx-derived values in one loop)
+
+    private struct MonthStats {
+        var pemasukan: Decimal = 0
+        var pengeluaran: Decimal = 0
+        var nabungBulanIni: Decimal = 0
+        var kebutuhanPokok: Decimal = 0
+        var gayaHidup: Decimal = 0
+        var kategoriTeratas: [(Kategori, Decimal)] = []
+        var terbaru: [Transaksi] = []
+        var txList: [Transaksi] = []    // pengeluaran bulan ini, untuk terpakai(for:)
+
+        var amanDibelanjakan: Decimal { pemasukan - pengeluaran - nabungBulanIni }
+
+        var kebutuhanPokokPct: Double {
+            guard pengeluaran > 0 else { return 0 }
+            return Double(truncating: (kebutuhanPokok / pengeluaran * 100) as NSDecimalNumber)
+        }
+        var gayaHidupPct: Double {
+            guard pengeluaran > 0 else { return 0 }
+            return Double(truncating: (gayaHidup / pengeluaran * 100) as NSDecimalNumber)
+        }
+        var danaTersimpanPct: Double {
+            guard pemasukan > 0 else { return 0 }
+            return Double(truncating: (nabungBulanIni / pemasukan * 100) as NSDecimalNumber)
+        }
+
+        func terpakai(for anggaran: Anggaran) -> Decimal {
+            txList.filter { t in
+                t.tipe == .pengeluaran &&
+                (anggaran.kategori == nil || t.kategori?.id == anggaran.kategori?.id)
+            }.reduce(0) { $0 + $1.nominal }
+        }
     }
 
-    // MARK: - Cashflow Computed
-    private var pemasukan: Decimal {
-        transaksiMonth.filter { $0.tipe == .pemasukan }.reduce(0) { $0 + $1.nominal }
-    }
-    private var pengeluaran: Decimal {
-        transaksiMonth.filter { $0.tipe == .pengeluaran }.reduce(0) { $0 + $1.nominal }
-    }
-    private var nabungBulanIni: Decimal {
-        // Setoran ke target (biasa)
-        let dariTarget = allSimpan
-            .filter { $0.tanggal.isSameMonth(as: selectedMonth) }
-            .reduce(Decimal(0)) { $0 + $1.nominal }
-        // Transaksi pengeluaran berkategori "nabung" (termasuk beli saham/reksadana)
-        let dariKategoriNabung = transaksiMonth
-            .filter { $0.tipe == .pengeluaran && $0.kategori?.isNabung == true }
-            .reduce(Decimal(0)) { $0 + $1.nominal }
-        return dariTarget + dariKategoriNabung
-    }
-    private var danaTersimpan: Decimal {
-        allTargets.reduce(0) { $0 + $1.tersimpan }
-    }
-    private var amanDibelanjakan: Decimal {
-        pemasukan - pengeluaran - nabungBulanIni
-    }
+    /// Single pass through allTransaksi — replaces 9+ individual filter/reduce calls
+    private var monthStats: MonthStats {
+        var s = MonthStats()
+        var katMap: [UUID: (Kategori, Decimal)] = [:]
 
-    // MARK: - Kekayaan Computed
-    private var cash: Decimal {
-        allPockets.filter { $0.kelompokPocket == .biasa }.reduce(0) { $0 + $1.saldo }
-    }
-    private var hutang: Decimal {
-        allPockets.filter { $0.kelompokPocket == .utang }.reduce(0) { $0 + $1.saldo }
-    }
-    private var totalAset: Decimal {
-        allAset.filter { $0.linkedTarget == nil }.reduce(0) { $0 + $1.nilaiEfektif }
-    }
-    private var totalKekayaan: Decimal {
-        cash + danaTersimpan + totalAset - hutang
-    }
-
-    // MARK: - Rincian Biaya
-    private var kebutuhanPokokTotal: Decimal {
-        transaksiMonth.filter {
-            $0.tipe == .pengeluaran && $0.kategori?.klasifikasi == .kebutuhanPokok
-        }.reduce(0) { $0 + $1.nominal }
-    }
-    private var gayaHidupTotal: Decimal {
-        transaksiMonth.filter {
-            $0.tipe == .pengeluaran && $0.kategori?.klasifikasi == .gayaHidup
-        }.reduce(0) { $0 + $1.nominal }
-    }
-    private var kebutuhanPokokPct: Double {
-        guard pengeluaran > 0 else { return 0 }
-        return Double(truncating: (kebutuhanPokokTotal / pengeluaran * 100) as NSDecimalNumber)
-    }
-    private var gayaHidupPct: Double {
-        guard pengeluaran > 0 else { return 0 }
-        return Double(truncating: (gayaHidupTotal / pengeluaran * 100) as NSDecimalNumber)
-    }
-    private var danaTersimpanPct: Double {
-        guard pemasukan > 0 else { return 0 }
-        return Double(truncating: (nabungBulanIni / pemasukan * 100) as NSDecimalNumber)
-    }
-
-    // MARK: - Kategori Teratas
-    private var kategoriTeratas: [(Kategori, Decimal)] {
-        let pengeluaranTx = transaksiMonth.filter { $0.tipe == .pengeluaran && $0.kategori != nil }
-        var grouped: [UUID: (Kategori, Decimal)] = [:]
-        for tx in pengeluaranTx {
-            guard let kat = tx.kategori else { continue }
-            if let existing = grouped[kat.id] {
-                grouped[kat.id] = (kat, existing.1 + tx.nominal)
-            } else {
-                grouped[kat.id] = (kat, tx.nominal)
+        for tx in allTransaksi where tx.tanggal.isSameMonth(as: selectedMonth) {
+            s.txList.append(tx)
+            switch tx.tipe {
+            case .pemasukan:
+                s.pemasukan += tx.nominal
+            case .pengeluaran:
+                s.pengeluaran += tx.nominal
+                if tx.kategori?.isNabung == true { s.nabungBulanIni += tx.nominal }
+                switch tx.kategori?.klasifikasi {
+                case .kebutuhanPokok: s.kebutuhanPokok += tx.nominal
+                case .gayaHidup:      s.gayaHidup      += tx.nominal
+                default: break
+                }
+                if let kat = tx.kategori {
+                    if let e = katMap[kat.id] { katMap[kat.id] = (kat, e.1 + tx.nominal) }
+                    else { katMap[kat.id] = (kat, tx.nominal) }
+                }
             }
         }
-        return grouped.values.sorted { $0.1 > $1.1 }.prefix(3).map { $0 }
+
+        // Setoran ke target
+        for simpan in allSimpan where simpan.tanggal.isSameMonth(as: selectedMonth) {
+            s.nabungBulanIni += simpan.nominal
+        }
+
+        s.kategoriTeratas = katMap.values.sorted { $0.1 > $1.1 }.prefix(3).map { $0 }
+        s.terbaru = Array(s.txList.prefix(5))
+        return s
     }
 
-    // MARK: - Active Targets
+    // MARK: - Kekayaan Computed (non-tx, kept as individual props)
+
+    private var danaTersimpan: Decimal { allTargets.reduce(0) { $0 + $1.tersimpan } }
+    private var cash: Decimal { allPockets.filter { $0.kelompokPocket == .biasa }.reduce(0) { $0 + $1.saldo } }
+    private var hutang: Decimal { allPockets.filter { $0.kelompokPocket == .utang }.reduce(0) { $0 + $1.saldo } }
+    private var totalAset: Decimal { allAset.filter { $0.linkedTarget == nil }.reduce(0) { $0 + $1.nilaiEfektif } }
+    private var totalKekayaan: Decimal { cash + danaTersimpan + totalAset - hutang }
+
+    // MARK: - Active Targets & Anggaran (non-tx)
+
     private var activeTargets: [Target] {
-        allTargets.filter { !$0.isSelesai && $0.tersimpan < $0.targetNominal }
+        allTargets.filter { !$0.isSelesai }
     }
 
-    // MARK: - Anggaran Bulan Ini
     private var anggaranBulanIni: [Anggaran] {
         let m = Calendar.current.component(.month, from: selectedMonth)
         let y = Calendar.current.component(.year, from: selectedMonth)
@@ -125,51 +120,40 @@ struct HomeView: View {
         }
     }
 
-    private func terpakai(for anggaran: Anggaran) -> Decimal {
-        transaksiMonth
-            .filter { t in
-                t.tipe == .pengeluaran &&
-                (anggaran.kategori == nil || t.kategori?.id == anggaran.kategori?.id)
-            }
-            .reduce(0) { $0 + $1.nominal }
-    }
-
-    private var totalAnggaran: Decimal { anggaranBulanIni.reduce(0) { $0 + $1.nominal } }
-    private var totalTerpakai: Decimal { anggaranBulanIni.reduce(0) { $0 + terpakai(for: $1) } }
-
-    // MARK: - Terbaru
-    private var terbaru: [Transaksi] {
-        Array(transaksiMonth.prefix(5))
-    }
-
     // MARK: - Body
     var body: some View {
-        NavigationStack {
+        // Compute once per render — all tx-derived values come from here
+        let stats = monthStats
+        let angg  = anggaranBulanIni
+        let totalAngg   = angg.reduce(Decimal(0)) { $0 + $1.nominal }
+        let totalTerp   = angg.reduce(Decimal(0)) { $0 + stats.terpakai(for: $1) }
+
+        return NavigationStack {
             ZStack(alignment: .bottomTrailing) {
                 bgColor.ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: 16) {
+                    LazyVStack(spacing: 16) {
                         topBar
                         MonthNavigator(selectedMonth: $selectedMonth)
                             .padding(.horizontal)
-                        cashflowCard
+                        cashflowCard(stats)
                         shortcutRow
                         totalKekayaanCard
-                        rincianBiayaCard
-                        if !anggaranBulanIni.isEmpty {
-                            anggaranSection
+                        rincianBiayaCard(stats)
+                        if !angg.isEmpty {
+                            anggaranSection(angg, stats: stats, totalAnggaran: totalAngg, totalTerpakai: totalTerp)
                         }
                         if !activeTargets.isEmpty {
                             goalsSection
                         }
                         LanggananBulanIniCard()
                             .padding(.horizontal)
-                        if !kategoriTeratas.isEmpty {
-                            kategoriTeratSection
+                        if !stats.kategoriTeratas.isEmpty {
+                            kategoriTeratSection(stats)
                         }
-                        if !terbaru.isEmpty {
-                            terbarSection
+                        if !stats.terbaru.isEmpty {
+                            terbarSection(stats)
                         }
                         Spacer().frame(height: 80)
                     }
@@ -256,32 +240,30 @@ struct HomeView: View {
     }
 
     // MARK: - Cashflow Card
-    private var cashflowCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header
-            let isAman = amanDibelanjakan >= 0
+    private func cashflowCard(_ stats: MonthStats) -> some View {
+        let aman = stats.amanDibelanjakan
+        let isAman = aman >= 0
+        return VStack(alignment: .leading, spacing: 12) {
             Text(isAman ? "AMAN DIBELANJAKAN" : "WAH, OVER BUDGET!")
                 .font(.caption)
                 .fontWeight(.semibold)
                 .foregroundStyle(isAman ? accentGreen : accentRed)
 
-            // Large Nominal
-            Text(masked((amanDibelanjakan < 0 ? "-" : "+") + abs(amanDibelanjakan).idrFormatted))
+            Text(masked((aman < 0 ? "-" : "+") + abs(aman).idrFormatted))
                 .font(.system(size: 30, weight: .bold))
                 .foregroundStyle(isAman ? accentGreen : accentRed)
 
-            Text(masked("Tersisa: \(amanDibelanjakan.shortFormatted)"))
+            Text(masked("Tersisa: \(aman.shortFormatted)"))
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.6))
 
             Divider().background(Color.white.opacity(0.1))
 
-            // 2x2 Grid
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                cashflowGridItem(label: "PEMASUKAN", icon: "arrow.down.circle.fill", iconColor: accentGreen, amount: pemasukan, amountColor: accentGreen)
-                cashflowGridItem(label: "PENGELUARAN", icon: "arrow.up.circle.fill", iconColor: accentRed, amount: pengeluaran, amountColor: accentRed)
-                cashflowGridItem(label: "NABUNG BULAN INI", icon: "arrow.down.to.line.circle.fill", iconColor: accentCyan, amount: nabungBulanIni, amountColor: accentCyan)
-                cashflowGridItem(label: "TOTAL TABUNGAN", icon: "banknote.fill", iconColor: accentCyan, amount: danaTersimpan, amountColor: accentCyan)
+                cashflowGridItem(label: "PEMASUKAN", icon: "arrow.down.circle.fill", iconColor: accentGreen, amount: stats.pemasukan, amountColor: accentGreen)
+                cashflowGridItem(label: "PENGELUARAN", icon: "arrow.up.circle.fill", iconColor: accentRed, amount: stats.pengeluaran, amountColor: accentRed)
+                cashflowGridItem(label: "NABUNG BULAN INI", icon: "arrow.down.to.line.circle.fill", iconColor: accentCyan, amount: stats.nabungBulanIni, amountColor: accentCyan)
+                cashflowGridItem(label: "TOTAL TABUNGAN", icon: "banknote.fill", iconColor: accentCyan, amount: danaTersimpan + totalAset, amountColor: accentCyan)
             }
         }
         .padding(16)
@@ -403,7 +385,7 @@ struct HomeView: View {
     }
 
     // MARK: - Rincian Biaya Card
-    private var rincianBiayaCard: some View {
+    private func rincianBiayaCard(_ stats: MonthStats) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
                 Image(systemName: "chart.pie.fill")
@@ -415,9 +397,9 @@ struct HomeView: View {
                     .foregroundStyle(.gray)
             }
 
-            rincianRow(label: "Kebutuhan Pokok", pct: kebutuhanPokokPct, color: Color(hex: "#F59E0B"))
-            rincianRow(label: "Gaya Hidup", pct: gayaHidupPct, color: Color(hex: "#A78BFA"))
-            rincianRow(label: "Dana Tersimpan", pct: danaTersimpanPct, color: accentCyan)
+            rincianRow(label: "Kebutuhan Pokok", pct: stats.kebutuhanPokokPct, color: Color(hex: "#F59E0B"))
+            rincianRow(label: "Gaya Hidup", pct: stats.gayaHidupPct, color: Color(hex: "#A78BFA"))
+            rincianRow(label: "Dana Tersimpan", pct: stats.danaTersimpanPct, color: accentCyan)
         }
         .padding(16)
         .background(Color.white.opacity(0.05))
@@ -443,7 +425,12 @@ struct HomeView: View {
 
     // MARK: - Anggaran Section
 
-    private var anggaranSection: some View {
+    private func anggaranSection(
+        _ angg: [Anggaran],
+        stats: MonthStats,
+        totalAnggaran: Decimal,
+        totalTerpakai: Decimal
+    ) -> some View {
         let sisa = totalAnggaran - totalTerpakai
         let overBudget = sisa < 0
         let progress = totalAnggaran > 0
@@ -489,14 +476,14 @@ struct HomeView: View {
                 }
 
                 // Per-kategori rows (max 4, sisanya lipat)
-                if anggaranBulanIni.count > 1 {
+                if angg.count > 1 {
                     Divider().background(Color.white.opacity(0.06))
                     VStack(spacing: 8) {
-                        ForEach(Array(anggaranBulanIni.prefix(4))) { anggaran in
-                            anggaranRow(anggaran)
+                        ForEach(Array(angg.prefix(4))) { anggaran in
+                            anggaranRow(anggaran, stats: stats)
                         }
-                        if anggaranBulanIni.count > 4 {
-                            Text("+\(anggaranBulanIni.count - 4) anggaran lainnya")
+                        if angg.count > 4 {
+                            Text("+\(angg.count - 4) anggaran lainnya")
                                 .font(.caption2)
                                 .foregroundStyle(.gray)
                                 .frame(maxWidth: .infinity, alignment: .center)
@@ -515,8 +502,8 @@ struct HomeView: View {
         .padding(.horizontal)
     }
 
-    private func anggaranRow(_ anggaran: Anggaran) -> some View {
-        let pakai = terpakai(for: anggaran)
+    private func anggaranRow(_ anggaran: Anggaran, stats: MonthStats) -> some View {
+        let pakai = stats.terpakai(for: anggaran)
         let prog = anggaran.nominal > 0
             ? min(Double(truncating: (pakai / anggaran.nominal) as NSDecimalNumber), 1.0)
             : 0.0
@@ -683,12 +670,12 @@ struct HomeView: View {
     }
 
     // MARK: - Kategori Teratas
-    private var kategoriTeratSection: some View {
+    private func kategoriTeratSection(_ stats: MonthStats) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader(label: "KATEGORI TERATAS", icon: "list.bullet.clipboard.fill")
 
-            let maxAmount = kategoriTeratas.map { $0.1 }.max() ?? 1
-            ForEach(Array(kategoriTeratas.enumerated()), id: \.offset) { _, pair in
+            let maxAmount = stats.kategoriTeratas.map { $0.1 }.max() ?? 1
+            ForEach(Array(stats.kategoriTeratas.enumerated()), id: \.offset) { _, pair in
                 let (kat, amount) = pair
                 let progress = Double(truncating: (amount / maxAmount) as NSDecimalNumber)
                 HStack(spacing: 10) {
@@ -728,11 +715,11 @@ struct HomeView: View {
     }
 
     // MARK: - Terbaru Section
-    private var terbarSection: some View {
+    private func terbarSection(_ stats: MonthStats) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader(label: "TERBARU", icon: "clock.fill")
 
-            ForEach(terbaru) { tx in
+            ForEach(stats.terbaru) { tx in
                 HStack(spacing: 10) {
                     ZStack {
                         Circle()
@@ -779,7 +766,7 @@ struct HomeView: View {
                         .fontWeight(.semibold)
                         .foregroundStyle(tx.tipe == .pemasukan ? accentGreen : accentRed)
                 }
-                if tx.id != terbaru.last?.id {
+                if tx.id != stats.terbaru.last?.id {
                     Divider().background(Color.white.opacity(0.08))
                 }
             }

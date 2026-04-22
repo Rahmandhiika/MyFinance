@@ -327,6 +327,13 @@ struct TransaksiRowView: View {
 
 private struct TransaksiRow: View {
     let transaksi: Transaksi
+    @Query private var allTargets: [Target]
+
+    /// Target yang di-link via goalID (untuk subTipe simpanKeTarget / pakaiDariTarget)
+    private var linkedTarget: Target? {
+        guard let gid = transaksi.goalID else { return nil }
+        return allTargets.first { $0.id == gid }
+    }
 
     var body: some View {
         HStack(spacing: 14) {
@@ -344,19 +351,50 @@ private struct TransaksiRow: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(transaksi.kategori?.nama ?? "Tanpa Kategori")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.white)
-                if let catatan = transaksi.catatan, !catatan.isEmpty {
-                    Text(catatan)
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                        .lineLimit(1)
-                } else if let pocket = transaksi.pocket {
-                    Text(pocket.nama)
-                        .font(.caption)
-                        .foregroundStyle(.gray)
+
+                HStack(spacing: 6) {
+                    // Target badge — muncul kalau ada goalID
+                    if let target = linkedTarget {
+                        let isKeluar = transaksi.subTipe == .simpanKeTarget
+                        HStack(spacing: 3) {
+                            Image(systemName: isKeluar ? "arrow.right.circle.fill" : "arrow.left.circle.fill")
+                                .font(.system(size: 8))
+                            Text(target.nama)
+                                .font(.caption2.weight(.medium))
+                        }
+                        .foregroundStyle(Color(hex: target.warna))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color(hex: target.warna).opacity(0.15))
+                        .clipShape(Capsule())
+                    }
+
+                    // Pocket badge — selalu tampil
+                    if let pocket = transaksi.pocket {
+                        HStack(spacing: 3) {
+                            Image(systemName: "folder.fill")
+                                .font(.system(size: 8))
+                            Text(pocket.nama)
+                                .font(.caption2.weight(.medium))
+                        }
+                        .foregroundStyle(Color(hex: "#A78BFA"))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color(hex: "#A78BFA").opacity(0.15))
+                        .clipShape(Capsule())
+                    }
+
+                    // Catatan (jika ada)
+                    if let catatan = transaksi.catatan, !catatan.isEmpty {
+                        Text(catatan)
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                            .lineLimit(1)
+                    }
                 }
             }
 

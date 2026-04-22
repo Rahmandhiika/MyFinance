@@ -23,6 +23,10 @@ import Foundation
     /// Aset dihapus → Target ikut dihapus (dihandle di sisi Aset).
     var linkedAset: Aset?
 
+    /// Untuk target biasa: pocket tempat uang tabungan ini disimpan.
+    /// Setiap "Simpan ke Target" akan menambah saldo pocket ini.
+    var linkedPocket: Pocket? = nil
+
     // MARK: - Computed
 
     /// Nilai yang sudah terkumpul:

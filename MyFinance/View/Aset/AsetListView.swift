@@ -13,6 +13,7 @@ struct AsetListView: View {
     @State private var showAdd = false
     @State private var showReorder = false
     @State private var showAnalisa = false
+    @State private var flatItems: [FlatReorderItem] = []
 
     // MARK: - Computed Totals (aset bebas saja, tidak termasuk linked target)
 
@@ -72,6 +73,7 @@ struct AsetListView: View {
     }
 
     private var asetBySaham:     [Aset] { noPortofolioAset.filter { $0.tipe == .saham } }
+    private var anySaham:        [Aset] { freeAset.filter { $0.tipe == .saham } }  // termasuk yang di dalam portofolio
     private var asetBySahamAS:   [Aset] { noPortofolioAset.filter { $0.tipe == .sahamAS } }
     private var asetByReksadana: [Aset] { noPortofolioAset.filter { $0.tipe == .reksadana } }
     private var asetByValas:     [Aset] { noPortofolioAset.filter { $0.tipe == .valas } }
@@ -90,7 +92,7 @@ struct AsetListView: View {
                 reorderList
             } else {
                 ScrollView {
-                    VStack(spacing: 20) {
+                    LazyVStack(spacing: 20) {
                         portfolioCard
                         asetSections
                     }
@@ -127,7 +129,7 @@ struct AsetListView: View {
                     .foregroundStyle(.white)
                 } else {
                     HStack(spacing: 8) {
-                        if !asetBySaham.isEmpty {
+                        if !anySaham.isEmpty {
                             Button {
                                 showAnalisa = true
                             } label: {
@@ -166,7 +168,9 @@ struct AsetListView: View {
             }
         }
         .onAppear { ensurePortofolioConfigs() }
-        .onChange(of: allAset) { ensurePortofolioConfigs() }
+        // onChange(of: allAset) dihapus — price updates tidak perlu trigger config sync
+        // ensurePortofolioConfigs hanya perlu jalan saat view muncul
+        .onChange(of: allAset.map(\.portofolio)) { _, _ in ensurePortofolioConfigs() }
         .sheet(item: $selectedAset) { aset in
             AsetDetailSheet(aset: aset)
                 .presentationDetents([.medium, .large])
@@ -292,7 +296,7 @@ struct AsetListView: View {
     // MARK: - Aset Sections
 
     private var asetSections: some View {
-        VStack(spacing: 16) {
+        LazyVStack(spacing: 16) {
             // Portfolio groups (aset dengan nama portofolio)
             ForEach(portofolioGroups, id: \.nama) { group in
                 PortofolioSection(
@@ -384,12 +388,39 @@ struct AsetListView: View {
     }
 }
 
-// MARK: - Reorder List (inline)
+// MARK: - Flat Reorder Item
+
+/// Item di flat reorder list — bisa header grup (non-movable) atau aset (movable).
+enum FlatReorderItem: Identifiable {
+    case portfolioHeader(String)       // nama portofolio
+    case tipeHeader(TipeAset)          // tipe tanpa portofolio
+    case linkedHeader                  // target investasi (non-movable group)
+    case aset(UUID)                    // referensi ke Aset by ID
+
+    var id: String {
+        switch self {
+        case .portfolioHeader(let n): return "ph_\(n)"
+        case .tipeHeader(let t):      return "th_\(t.rawValue)"
+        case .linkedHeader:           return "linked_header"
+        case .aset(let id):           return id.uuidString
+        }
+    }
+
+    var isHeader: Bool {
+        switch self {
+        case .aset: return false
+        default:    return true
+        }
+    }
+}
+
+// MARK: - Reorder List (flat — supports cross-group drag)
 
 extension AsetListView {
+
     var reorderList: some View {
         List {
-            // Section 0: Reorder the groups themselves
+            // Section 0: Urutan grup portofolio (tidak berubah)
             if !allPortofolioConfigs.isEmpty {
                 Section {
                     ForEach(allPortofolioConfigs) { config in
@@ -416,88 +447,185 @@ extension AsetListView {
                 }
             }
 
-            // Portfolio groups
-            ForEach(portofolioGroups, id: \.nama) { group in
-                let groupItems = group.items
-                let groupColor = colorForPortofolio(group.nama)
-                Section {
-                    ForEach(groupItems) { aset in
-                        reorderRow(aset: aset)
-                            .listRowBackground(groupColor.opacity(0.05))
-                    }
-                    .onMove { from, to in
-                        var mutable = groupItems
-                        mutable.move(fromOffsets: from, toOffset: to)
-                        for (i, a) in mutable.enumerated() { a.urutan = i }
-                        try? modelContext.save()
-                    }
-                } header: {
-                    Label(group.nama.uppercased(), systemImage: "folder.fill")
-                        .foregroundStyle(groupColor)
-                        .font(.caption.weight(.bold))
+            // Section 1: Flat — semua aset + header non-movable
+            // Drag ke bawah header portofolio lain → aset pindah ke grup itu
+            Section {
+                ForEach(flatItems) { item in
+                    flatRow(item: item)
+                        .moveDisabled(item.isHeader)
+                        .listRowBackground(flatRowBackground(item: item))
                 }
-            }
-
-            // Per-type sections (no portfolio)
-            ForEach(TipeAset.allCases) { tipe in
-                let group = noPortofolioAset.filter { $0.tipe == tipe }
-                if !group.isEmpty {
-                    Section {
-                        ForEach(group) { aset in
-                            reorderRow(aset: aset)
-                                .listRowBackground(Color.white.opacity(0.05))
-                        }
-                        .onMove { from, to in
-                            var mutable = group
-                            mutable.move(fromOffsets: from, toOffset: to)
-                            for (i, a) in mutable.enumerated() { a.urutan = i }
-                            try? modelContext.save()
-                        }
-                    } header: {
-                        Label(tipe.displayName.uppercased(), systemImage: tipe.iconName)
-                            .foregroundStyle(tipe.color)
-                            .font(.caption.weight(.bold))
-                    }
+                .onMove { from, to in
+                    applyFlatMove(from: from, to: to)
                 }
-            }
-
-            // Target investasi
-            if !linkedAset.isEmpty {
-                Section {
-                    ForEach(linkedAset) { aset in
-                        reorderRow(aset: aset, showTargetLabel: true)
-                            .listRowBackground(Color(hex: "#22C55E").opacity(0.05))
-                    }
-                    .onMove { from, to in
-                        var mutable = linkedAset
-                        mutable.move(fromOffsets: from, toOffset: to)
-                        for (i, a) in mutable.enumerated() { a.urutan = i }
-                        try? modelContext.save()
-                    }
-                } header: {
-                    Label("TARGET INVESTASI", systemImage: "target")
-                        .foregroundStyle(Color(hex: "#22C55E"))
-                        .font(.caption.weight(.bold))
-                }
+            } header: {
+                Text("ASET — DRAG ANTAR GRUP")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.4))
             }
         }
         .environment(\.editMode, .constant(.active))
         .scrollContentBackground(.hidden)
         .background(Color(hex: "#0D0D0D"))
         .listStyle(.insetGrouped)
+        .onAppear { buildFlatItems() }
     }
+
+    // MARK: - Flat Row Views
+
+    @ViewBuilder
+    private func flatRow(item: FlatReorderItem) -> some View {
+        switch item {
+        case .portfolioHeader(let name):
+            let color = colorForPortofolio(name)
+            HStack(spacing: 10) {
+                Image(systemName: "folder.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(color)
+                Text(name.uppercased())
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(color)
+                    .tracking(0.5)
+                Spacer()
+                Text("Grup Portofolio")
+                    .font(.caption2)
+                    .foregroundStyle(color.opacity(0.6))
+            }
+            .padding(.vertical, 4)
+
+        case .tipeHeader(let tipe):
+            HStack(spacing: 10) {
+                Image(systemName: tipe.iconName)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(tipe.color)
+                Text(tipe.displayName.uppercased())
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(tipe.color)
+                    .tracking(0.5)
+                Spacer()
+                Text("Tanpa Grup")
+                    .font(.caption2)
+                    .foregroundStyle(tipe.color.opacity(0.6))
+            }
+            .padding(.vertical, 4)
+
+        case .linkedHeader:
+            HStack(spacing: 10) {
+                Image(systemName: "target")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color(hex: "#22C55E"))
+                Text("TARGET INVESTASI")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color(hex: "#22C55E"))
+                    .tracking(0.5)
+                Spacer()
+            }
+            .padding(.vertical, 4)
+
+        case .aset(let id):
+            if let aset = allAset.first(where: { $0.id == id }) {
+                reorderRow(aset: aset, showTargetLabel: aset.linkedTarget != nil)
+            }
+        }
+    }
+
+    private func flatRowBackground(item: FlatReorderItem) -> Color {
+        switch item {
+        case .portfolioHeader(let name): return colorForPortofolio(name).opacity(0.08)
+        case .tipeHeader(let tipe):      return tipe.color.opacity(0.04)
+        case .linkedHeader:              return Color(hex: "#22C55E").opacity(0.05)
+        case .aset(let id):
+            if let aset = allAset.first(where: { $0.id == id }) {
+                if let porto = aset.portofolio, !porto.isEmpty {
+                    return colorForPortofolio(porto).opacity(0.03)
+                }
+            }
+            return Color.white.opacity(0.03)
+        }
+    }
+
+    // MARK: - Build Flat Items
+
+    func buildFlatItems() {
+        var items: [FlatReorderItem] = []
+
+        for group in portofolioGroups {
+            items.append(.portfolioHeader(group.nama))
+            for aset in group.items {
+                items.append(.aset(aset.id))
+            }
+        }
+
+        for tipe in TipeAset.allCases {
+            let group = noPortofolioAset.filter { $0.tipe == tipe }
+            if !group.isEmpty {
+                items.append(.tipeHeader(tipe))
+                for aset in group {
+                    items.append(.aset(aset.id))
+                }
+            }
+        }
+
+        if !linkedAset.isEmpty {
+            items.append(.linkedHeader)
+            for aset in linkedAset {
+                items.append(.aset(aset.id))
+            }
+        }
+
+        flatItems = items
+    }
+
+    // MARK: - Apply Flat Move (cross-group reassignment)
+
+    func applyFlatMove(from: IndexSet, to: Int) {
+        guard let sourceIdx = from.first else { return }
+
+        // Jangan izinkan memindahkan header
+        guard !flatItems[sourceIdx].isHeader else { return }
+
+        flatItems.move(fromOffsets: from, toOffset: to)
+
+        // Scan ulang flat list — tentukan portofolio baru berdasarkan header di atasnya
+        var currentPortfolio: String? = nil
+        var isLinkedSection = false
+        var urutan = 0
+
+        for item in flatItems {
+            switch item {
+            case .portfolioHeader(let name):
+                currentPortfolio = name
+                isLinkedSection = false
+                urutan = 0
+            case .tipeHeader:
+                currentPortfolio = nil
+                isLinkedSection = false
+                urutan = 0
+            case .linkedHeader:
+                isLinkedSection = true
+                currentPortfolio = nil
+                urutan = 0
+            case .aset(let id):
+                // Linked aset tidak boleh pindah portofolio via drag
+                guard !isLinkedSection else { continue }
+                if let aset = allAset.first(where: { $0.id == id }) {
+                    aset.portofolio = currentPortfolio
+                    aset.urutan = urutan
+                    urutan += 1
+                }
+            }
+        }
+
+        ensurePortofolioConfigs()
+        try? modelContext.save()
+    }
+
+    // MARK: - Reorder Row
 
     @ViewBuilder
     func reorderRow(aset: Aset, showTargetLabel: Bool = false) -> some View {
         HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(aset.tipe.color.opacity(0.15))
-                    .frame(width: 32, height: 32)
-                Image(systemName: aset.tipe.iconName)
-                    .font(.system(size: 13))
-                    .foregroundStyle(aset.tipe.color)
-            }
+            asetIconView(aset: aset, size: 32)
             VStack(alignment: .leading, spacing: 2) {
                 Text(aset.nama)
                     .foregroundStyle(.white)
@@ -510,6 +638,8 @@ extension AsetListView {
                     .foregroundStyle(Color(hex: "#22C55E").opacity(0.7))
                 } else if let porto = aset.portofolio, !porto.isEmpty {
                     Text(porto).font(.caption2).foregroundStyle(colorForPortofolio(porto).opacity(0.8))
+                } else {
+                    Text(aset.tipe.displayName).font(.caption2).foregroundStyle(.white.opacity(0.3))
                 }
             }
             Spacer()
@@ -627,14 +757,7 @@ private struct PortofolioAsetRow: View {
     let aset: Aset
     var body: some View {
         HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(aset.tipe.color.opacity(0.15))
-                    .frame(width: 40, height: 40)
-                Image(systemName: aset.tipe.iconName)
-                    .font(.system(size: 16))
-                    .foregroundStyle(aset.tipe.color)
-            }
+            asetIconView(aset: aset, size: 40)
             VStack(alignment: .leading, spacing: 3) {
                 Text(aset.nama)
                     .font(.subheadline.weight(.semibold))
@@ -801,15 +924,7 @@ private struct TargetAsetRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(aset.tipe.color.opacity(0.15))
-                    .frame(width: 40, height: 40)
-                Image(systemName: aset.tipe.iconName)
-                    .font(.system(size: 16))
-                    .foregroundStyle(aset.tipe.color)
-            }
+            asetIconView(aset: aset, size: 40)
 
             // Name + linked target
             VStack(alignment: .leading, spacing: 3) {
@@ -859,6 +974,29 @@ private struct TargetAsetRow: View {
     }
 }
 
+// MARK: - Shared icon helper
+
+private func asetIconView(aset: Aset, size: CGFloat) -> some View {
+    Group {
+        if let data = aset.logoData, let img = UIImage(data: data) {
+            Image(uiImage: img)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+        } else {
+            ZStack {
+                Circle()
+                    .fill(aset.tipe.color.opacity(0.15))
+                    .frame(width: size, height: size)
+                Image(systemName: aset.tipe.iconName)
+                    .font(.system(size: size * 0.4))
+                    .foregroundStyle(aset.tipe.color)
+            }
+        }
+    }
+}
+
 // MARK: - Aset Row
 
 private struct AsetRow: View {
@@ -866,15 +1004,7 @@ private struct AsetRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(aset.tipe.color.opacity(0.15))
-                    .frame(width: 40, height: 40)
-                Image(systemName: aset.tipe.iconName)
-                    .font(.system(size: 16))
-                    .foregroundStyle(aset.tipe.color)
-            }
+            asetIconView(aset: aset, size: 40)
 
             // Name + code
             VStack(alignment: .leading, spacing: 3) {
