@@ -5,8 +5,11 @@ struct AsetListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: [SortDescriptor(\Aset.urutan), SortDescriptor(\Aset.createdAt)]) var allAset: [Aset]
 
+    @Query(sort: \PortofolioConfig.urutan) private var allPortofolioConfigs: [PortofolioConfig]
+
     private let priceService = AsetPriceService.shared
     @State private var selectedAset: Aset? = nil
+    @State private var editingPortofolioConfig: PortofolioConfig? = nil
     @State private var showAdd = false
     @State private var showReorder = false
     @State private var showAnalisa = false
@@ -31,16 +34,41 @@ struct AsetListView: View {
         let withPorto = freeAset.filter { $0.portofolio != nil && !($0.portofolio!.isEmpty) }
         var grouped: [String: [Aset]] = [:]
         for aset in withPorto {
-            let key = aset.portofolio!
-            grouped[key, default: []].append(aset)
+            grouped[aset.portofolio!, default: []].append(aset)
         }
+        let configMap = Dictionary(uniqueKeysWithValues: allPortofolioConfigs.map { ($0.nama, $0.urutan) })
         return grouped.map { (nama: $0.key, items: $0.value) }
-            .sorted { $0.nama < $1.nama }
+            .sorted {
+                let u0 = configMap[$0.nama] ?? Int.max
+                let u1 = configMap[$1.nama] ?? Int.max
+                return u0 != u1 ? u0 < u1 : $0.nama < $1.nama
+            }
     }
 
     /// Aset bebas tanpa portofolio, digroup per tipe
     private var noPortofolioAset: [Aset] {
         freeAset.filter { $0.portofolio == nil || $0.portofolio!.isEmpty }
+    }
+
+    private func configFor(nama: String) -> PortofolioConfig? {
+        allPortofolioConfigs.first { $0.nama == nama }
+    }
+
+    private func colorForPortofolio(_ nama: String) -> Color {
+        Color(hex: configFor(nama: nama)?.warna ?? "#A78BFA")
+    }
+
+    private func ensurePortofolioConfigs() {
+        let existingNames = Set(allPortofolioConfigs.map { $0.nama })
+        let usedNames = Set(freeAset.compactMap { $0.portofolio }.filter { !$0.isEmpty })
+        let missing = usedNames.subtracting(existingNames)
+        guard !missing.isEmpty else { return }
+        var next = (allPortofolioConfigs.map { $0.urutan }.max() ?? -1) + 1
+        for name in missing.sorted() {
+            modelContext.insert(PortofolioConfig(nama: name, urutan: next))
+            next += 1
+        }
+        try? modelContext.save()
     }
 
     private var asetBySaham:     [Aset] { noPortofolioAset.filter { $0.tipe == .saham } }
@@ -137,9 +165,16 @@ struct AsetListView: View {
                 await priceService.refreshAll(allAset)
             }
         }
+        .onAppear { ensurePortofolioConfigs() }
+        .onChange(of: allAset) { ensurePortofolioConfigs() }
         .sheet(item: $selectedAset) { aset in
             AsetDetailSheet(aset: aset)
                 .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $editingPortofolioConfig) { config in
+            EditPortofolioSheet(config: config)
+                .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showAdd) {
@@ -260,7 +295,13 @@ struct AsetListView: View {
         VStack(spacing: 16) {
             // Portfolio groups (aset dengan nama portofolio)
             ForEach(portofolioGroups, id: \.nama) { group in
-                PortofolioSection(nama: group.nama, items: group.items, onTap: { selectedAset = $0 })
+                PortofolioSection(
+                    nama: group.nama,
+                    items: group.items,
+                    color: colorForPortofolio(group.nama),
+                    onTap: { selectedAset = $0 },
+                    onEdit: { editingPortofolioConfig = configFor(nama: group.nama) }
+                )
             }
 
             // Aset tanpa portofolio, digroup per tipe
@@ -348,13 +389,41 @@ struct AsetListView: View {
 extension AsetListView {
     var reorderList: some View {
         List {
+            // Section 0: Reorder the groups themselves
+            if !allPortofolioConfigs.isEmpty {
+                Section {
+                    ForEach(allPortofolioConfigs) { config in
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle().fill(Color(hex: config.warna).opacity(0.15)).frame(width: 32, height: 32)
+                                Image(systemName: "folder.fill").font(.system(size: 13)).foregroundStyle(Color(hex: config.warna))
+                            }
+                            Text(config.nama).foregroundStyle(.white).font(.subheadline)
+                            Spacer()
+                        }
+                        .listRowBackground(Color(hex: config.warna).opacity(0.05))
+                    }
+                    .onMove { from, to in
+                        var mutable = allPortofolioConfigs
+                        mutable.move(fromOffsets: from, toOffset: to)
+                        for (i, c) in mutable.enumerated() { c.urutan = i }
+                        try? modelContext.save()
+                    }
+                } header: {
+                    Text("URUTAN GRUP PORTOFOLIO")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color(hex: "#A78BFA").opacity(0.7))
+                }
+            }
+
             // Portfolio groups
             ForEach(portofolioGroups, id: \.nama) { group in
                 let groupItems = group.items
+                let groupColor = colorForPortofolio(group.nama)
                 Section {
                     ForEach(groupItems) { aset in
                         reorderRow(aset: aset)
-                            .listRowBackground(Color(hex: "#A78BFA").opacity(0.05))
+                            .listRowBackground(groupColor.opacity(0.05))
                     }
                     .onMove { from, to in
                         var mutable = groupItems
@@ -364,7 +433,7 @@ extension AsetListView {
                     }
                 } header: {
                     Label(group.nama.uppercased(), systemImage: "folder.fill")
-                        .foregroundStyle(Color(hex: "#A78BFA"))
+                        .foregroundStyle(groupColor)
                         .font(.caption.weight(.bold))
                 }
             }
@@ -440,7 +509,7 @@ extension AsetListView {
                     }
                     .foregroundStyle(Color(hex: "#22C55E").opacity(0.7))
                 } else if let porto = aset.portofolio, !porto.isEmpty {
-                    Text(porto).font(.caption2).foregroundStyle(Color(hex: "#A78BFA").opacity(0.8))
+                    Text(porto).font(.caption2).foregroundStyle(colorForPortofolio(porto).opacity(0.8))
                 }
             }
             Spacer()
@@ -479,7 +548,9 @@ private struct PortfolioStat: View {
 private struct PortofolioSection: View {
     let nama: String
     let items: [Aset]
+    let color: Color
     let onTap: (Aset) -> Void
+    let onEdit: () -> Void
 
     private var totalNilai: Decimal { items.reduce(0) { $0 + $1.nilaiEfektif } }
     private var totalModal: Decimal { items.reduce(0) { $0 + $1.modal } }
@@ -496,16 +567,16 @@ private struct PortofolioSection: View {
                 HStack(spacing: 8) {
                     Image(systemName: "folder.fill")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color(hex: "#A78BFA"))
+                        .foregroundStyle(color)
                     Text(nama.uppercased())
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.white.opacity(0.8))
                         .tracking(0.6)
                     Text("\(items.count)")
                         .font(.caption2.weight(.bold))
-                        .foregroundStyle(Color(hex: "#A78BFA"))
+                        .foregroundStyle(color)
                         .padding(.horizontal, 7).padding(.vertical, 2)
-                        .background(Color(hex: "#A78BFA").opacity(0.15))
+                        .background(color.opacity(0.15))
                         .clipShape(Capsule())
                 }
                 Spacer()
@@ -521,9 +592,18 @@ private struct PortofolioSection: View {
                     }
                     .foregroundStyle(pnl >= 0 ? Color(hex: "#22C55E") : Color(hex: "#EF4444"))
                 }
+                Button { onEdit() } label: {
+                    Image(systemName: "pencil")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(color.opacity(0.7))
+                        .padding(7)
+                        .background(color.opacity(0.12))
+                        .clipShape(Circle())
+                }
+                .padding(.leading, 8)
             }
             .padding(.horizontal, 16).padding(.vertical, 12)
-            .background(Color(hex: "#A78BFA").opacity(0.05))
+            .background(color.opacity(0.05))
 
             // Rows (dengan tipe indicator)
             ForEach(Array(items.enumerated()), id: \.element.id) { idx, aset in
@@ -538,7 +618,7 @@ private struct PortofolioSection: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color(hex: "#A78BFA").opacity(0.2), lineWidth: 1)
+                .stroke(color.opacity(0.2), lineWidth: 1)
         )
     }
 }

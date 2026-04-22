@@ -13,6 +13,7 @@ struct BackupFile: Codable {
     let transferInternal: [TransferInternalDTO]
     let aset: [AsetDTO]
     let langganan: [LanggananDTO]
+    let portofolioConfigs: [PortofolioConfigDTO]
 }
 
 // Backward-compat: pindah init(from:) ke extension supaya memberwise init tetap ada
@@ -28,6 +29,7 @@ extension BackupFile {
         transferInternal = try c.decode([TransferInternalDTO].self, forKey: .transferInternal)
         aset = try c.decode([AsetDTO].self, forKey: .aset)
         langganan = (try? c.decode([LanggananDTO].self, forKey: .langganan)) ?? []
+        portofolioConfigs = (try? c.decode([PortofolioConfigDTO].self, forKey: .portofolioConfigs)) ?? []
     }
 }
 
@@ -87,6 +89,12 @@ struct TransferInternalDTO: Codable {
     let pocketAsalNama: String?
     let pocketTujuanNama: String?
     let catatan: String?
+}
+
+struct PortofolioConfigDTO: Codable {
+    let nama: String
+    let warna: String
+    let urutan: Int
 }
 
 struct AsetDTO: Codable {
@@ -154,6 +162,7 @@ final class BackupService {
         let aset = try context.fetch(FetchDescriptor<Aset>(sortBy: [SortDescriptor(\.urutan)]))
             .filter { $0.linkedTarget == nil }  // hanya aset bebas
         let langganan = try context.fetch(FetchDescriptor<Langganan>(sortBy: [SortDescriptor(\.urutan)]))
+        let portofolioConfigs = try context.fetch(FetchDescriptor<PortofolioConfig>(sortBy: [SortDescriptor(\.urutan)]))
 
         let backup = BackupFile(
             schemaVersion: schemaVersion,
@@ -164,7 +173,8 @@ final class BackupService {
             transaksi: transaksi.map(mapTransaksi),
             transferInternal: transfer.map(mapTransfer),
             aset: aset.map(mapAset),
-            langganan: langganan.map(mapLangganan)
+            langganan: langganan.map(mapLangganan),
+            portofolioConfigs: portofolioConfigs.map { PortofolioConfigDTO(nama: $0.nama, warna: $0.warna, urutan: $0.urutan) }
         )
         return try encoder.encode(backup)
     }
@@ -185,6 +195,7 @@ final class BackupService {
         // Hapus aset bebas saja
         let asetBebas = try context.fetch(FetchDescriptor<Aset>()).filter { $0.linkedTarget == nil }
         for a in asetBebas { context.delete(a) }
+        try context.delete(model: PortofolioConfig.self)
         try context.save()
 
         // Insert KategoriPocket
@@ -299,6 +310,11 @@ final class BackupService {
             context.insert(a)
         }
 
+        // Insert PortofolioConfig
+        for dto in backup.portofolioConfigs {
+            context.insert(PortofolioConfig(nama: dto.nama, warna: dto.warna, urutan: dto.urutan))
+        }
+
         // Insert Langganan
         for dto in backup.langganan {
             let l = Langganan(
@@ -324,7 +340,8 @@ final class BackupService {
             transaksi: backup.transaksi.count,
             transfer: backup.transferInternal.count,
             aset: backup.aset.count,
-            langganan: backup.langganan.count
+            langganan: backup.langganan.count,
+            portofolioConfig: backup.portofolioConfigs.count
         )
     }
 
@@ -444,4 +461,5 @@ struct RestoreSummary {
     let transfer: Int
     let aset: Int
     let langganan: Int
+    let portofolioConfig: Int
 }

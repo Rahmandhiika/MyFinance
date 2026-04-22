@@ -19,7 +19,8 @@ class ModelContainerService {
             Anggaran.self,
             Langganan.self,
             PembayaranLangganan.self,
-            UserProfile.self
+            UserProfile.self,
+            PortofolioConfig.self
         ])
 
         let storeURL = URL.applicationSupportDirectory
