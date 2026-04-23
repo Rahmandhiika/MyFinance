@@ -133,16 +133,13 @@ struct AddEditTransaksiSheet: View {
                         if tipe == .pengeluaran && subTipe != .normal {
                             VStack(alignment: .leading, spacing: 10) {
                                 sectionLabel("Target")
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: 8) {
-                                        ForEach(allTargets.filter { !$0.isSelesai }) { target in
-                                            TargetChip(target: target, isSelected: selectedTarget?.id == target.id)
-                                                .onTapGesture {
-                                                    selectedTarget = selectedTarget?.id == target.id ? nil : target
-                                                }
-                                        }
+                                FlowLayout(spacing: 8, lineSpacing: 8) {
+                                    ForEach(allTargets.filter { !$0.isSelesai }) { target in
+                                        TargetChip(target: target, isSelected: selectedTarget?.id == target.id)
+                                            .onTapGesture {
+                                                selectedTarget = selectedTarget?.id == target.id ? nil : target
+                                            }
                                     }
-                                    .padding(.horizontal, 1)
                                 }
                             }
                             .padding(.horizontal, 16)
