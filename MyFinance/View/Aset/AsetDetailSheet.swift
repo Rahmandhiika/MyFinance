@@ -21,6 +21,7 @@ struct AsetDetailSheet: View {
     @State private var hargaBeliInput = ""
     @State private var showBeliSaham = false
     @State private var showTambahReksadana = false
+    @State private var showBeliValas = false
 
     var body: some View {
         NavigationStack {
@@ -82,6 +83,9 @@ struct AsetDetailSheet: View {
         }
         .sheet(isPresented: $showTambahReksadana) {
             TambahReksadanaSheet(aset: aset)
+        }
+        .sheet(isPresented: $showBeliValas) {
+            BeliValasSheet(aset: aset)
         }
         .alert("Hapus \(aset.nama)?", isPresented: $showHapusAlert) {
             Button("Hapus", role: .destructive) {
@@ -687,6 +691,7 @@ struct AsetDetailSheet: View {
                     switch aset.tipe {
                     case .saham:     showBeliSaham = true
                     case .reksadana: showTambahReksadana = true
+                    case .valas:     showBeliValas = true
                     default:
                         editMode = .beli
                         showEdit = true
