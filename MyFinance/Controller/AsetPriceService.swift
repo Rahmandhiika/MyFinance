@@ -104,15 +104,20 @@ class AsetPriceService {
         return nil
     }
 
-    // MARK: - Valas (Frankfurter API — free, no key needed)
+    // MARK: - Valas (Yahoo Finance — same source as stock prices, real-time market rate)
 
     func fetchKursValas(_ mata: MataUangValas) async -> Decimal? {
-        guard let url = URL(string: "https://api.frankfurter.app/latest?from=\(mata.apiCode)&to=IDR") else { return nil }
+        let ticker = "\(mata.apiCode)IDR=X"
+        guard let url = URL(string: "https://query1.finance.yahoo.com/v8/finance/chart/\(ticker)") else { return nil }
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            var request = URLRequest(url: url, timeoutInterval: 10)
+            request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+            let (data, _) = try await URLSession.shared.data(for: request)
             if let json  = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let rates  = json["rates"] as? [String: Any],
-               let kurs   = rates["IDR"] as? Double {
+               let chart  = json["chart"] as? [String: Any],
+               let result = (chart["result"] as? [[String: Any]])?.first,
+               let meta   = result["meta"] as? [String: Any],
+               let kurs   = meta["regularMarketPrice"] as? Double {
                 return Decimal(kurs)
             }
         } catch { }

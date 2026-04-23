@@ -176,7 +176,7 @@ enum MataUangValas: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// Franfkurter API currency code
+    /// ISO 4217 currency code — used to build Yahoo Finance ticker (e.g. USDIDR=X)
     var apiCode: String { rawValue }
 }
 
