@@ -14,24 +14,54 @@ struct BackupFile: Codable {
     let aset: [AsetDTO]
     let langganan: [LanggananDTO]
     let portofolioConfigs: [PortofolioConfigDTO]
+    let target: [TargetDTO]
 }
 
 // Backward-compat: pindah init(from:) ke extension supaya memberwise init tetap ada
 extension BackupFile {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
-        exportedAt = try c.decode(Date.self, forKey: .exportedAt)
-        kategoriPocket = try c.decode([KategoriPocketDTO].self, forKey: .kategoriPocket)
-        kategori = try c.decode([KategoriDTO].self, forKey: .kategori)
-        pocket = try c.decode([PocketDTO].self, forKey: .pocket)
-        transaksi = try c.decode([TransaksiDTO].self, forKey: .transaksi)
+        schemaVersion    = try c.decode(Int.self, forKey: .schemaVersion)
+        exportedAt       = try c.decode(Date.self, forKey: .exportedAt)
+        kategoriPocket   = try c.decode([KategoriPocketDTO].self, forKey: .kategoriPocket)
+        kategori         = try c.decode([KategoriDTO].self, forKey: .kategori)
+        pocket           = try c.decode([PocketDTO].self, forKey: .pocket)
+        transaksi        = try c.decode([TransaksiDTO].self, forKey: .transaksi)
         transferInternal = try c.decode([TransferInternalDTO].self, forKey: .transferInternal)
-        aset = try c.decode([AsetDTO].self, forKey: .aset)
-        langganan = (try? c.decode([LanggananDTO].self, forKey: .langganan)) ?? []
+        aset             = try c.decode([AsetDTO].self, forKey: .aset)
+        langganan        = (try? c.decode([LanggananDTO].self, forKey: .langganan)) ?? []
         portofolioConfigs = (try? c.decode([PortofolioConfigDTO].self, forKey: .portofolioConfigs)) ?? []
+        target           = (try? c.decode([TargetDTO].self, forKey: .target)) ?? []
     }
 }
+
+// MARK: - Target DTOs
+
+struct TargetDTO: Codable {
+    let id: UUID
+    let nama: String
+    let targetNominal: String
+    let deadline: Date?
+    let ikon: String
+    let ikonCustom: String?
+    let warna: String
+    let catatan: String?
+    let isSelesai: Bool
+    let jenisTarget: String
+    let fotoData: String?        // Base64
+    let createdAt: Date
+    let linkedPocketNama: String?
+    let riwayat: [SimpanKeTargetDTO]
+}
+
+struct SimpanKeTargetDTO: Codable {
+    let tanggal: Date
+    let nominal: String
+    let catatan: String?
+    let createdAt: Date
+}
+
+// MARK: - Other DTOs
 
 struct LanggananDTO: Codable {
     let nama: String
@@ -81,6 +111,24 @@ struct TransaksiDTO: Codable {
     let catatan: String?
     let klasifikasiExpense: String?
     let kelompokIncome: String?
+    let goalID: UUID?          // link ke Target
+}
+
+// Backward-compat TransaksiDTO
+extension TransaksiDTO {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        tanggal          = try c.decode(Date.self, forKey: .tanggal)
+        nominal          = try c.decode(String.self, forKey: .nominal)
+        tipe             = try c.decode(String.self, forKey: .tipe)
+        subTipe          = try c.decode(String.self, forKey: .subTipe)
+        kategoriNama     = try? c.decode(String?.self, forKey: .kategoriNama)
+        pocketNama       = try? c.decode(String?.self, forKey: .pocketNama)
+        catatan          = try? c.decode(String?.self, forKey: .catatan)
+        klasifikasiExpense = try? c.decode(String?.self, forKey: .klasifikasiExpense)
+        kelompokIncome   = try? c.decode(String?.self, forKey: .kelompokIncome)
+        goalID           = try? c.decode(UUID?.self, forKey: .goalID)
+    }
 }
 
 struct TransferInternalDTO: Codable {
@@ -107,6 +155,7 @@ struct AsetDTO: Codable {
     let totalInvestasiReksadana: String?
     let hargaBeliPerUnit: String?
     let navSaatIni: String?
+    let jumlahUnitReksadana: String?   // override unit aktual
     let totalInvestasiUSD: String?
     let hargaBeliPerShareUSD: String?
     let hargaSaatIniUSD: String?
@@ -128,15 +177,61 @@ struct AsetDTO: Codable {
     let autoRollOver: Bool
     let nilaiSaatIni: String
     let urutan: Int
+    let portofolio: String?            // nama grup portfolio
+    let logoData: String?              // Base64 logo/foto custom
     let catatSbgPengeluaran: Bool
     let pocketSumberNama: String?
+    let linkedTargetID: UUID?          // untuk aset yang merupakan wadah target investasi
+}
+
+// Backward-compat AsetDTO
+extension AsetDTO {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        tipe                    = try c.decode(String.self, forKey: .tipe)
+        nama                    = try c.decode(String.self, forKey: .nama)
+        kode                    = try? c.decode(String?.self, forKey: .kode)
+        lot                     = try? c.decode(String?.self, forKey: .lot)
+        hargaPerLembar          = try? c.decode(String?.self, forKey: .hargaPerLembar)
+        jenisReksadana          = try? c.decode(String?.self, forKey: .jenisReksadana)
+        totalInvestasiReksadana = try? c.decode(String?.self, forKey: .totalInvestasiReksadana)
+        hargaBeliPerUnit        = try? c.decode(String?.self, forKey: .hargaBeliPerUnit)
+        navSaatIni              = try? c.decode(String?.self, forKey: .navSaatIni)
+        jumlahUnitReksadana     = try? c.decode(String?.self, forKey: .jumlahUnitReksadana)
+        totalInvestasiUSD       = try? c.decode(String?.self, forKey: .totalInvestasiUSD)
+        hargaBeliPerShareUSD    = try? c.decode(String?.self, forKey: .hargaBeliPerShareUSD)
+        hargaSaatIniUSD         = try? c.decode(String?.self, forKey: .hargaSaatIniUSD)
+        kursBeliUSD             = try? c.decode(String?.self, forKey: .kursBeliUSD)
+        kursSaatIniUSD          = try? c.decode(String?.self, forKey: .kursSaatIniUSD)
+        mataUangValas           = try? c.decode(String?.self, forKey: .mataUangValas)
+        jumlahValas             = try? c.decode(String?.self, forKey: .jumlahValas)
+        kursBeliPerUnit         = try? c.decode(String?.self, forKey: .kursBeliPerUnit)
+        kursSaatIni             = try? c.decode(String?.self, forKey: .kursSaatIni)
+        jenisEmas               = try? c.decode(String?.self, forKey: .jenisEmas)
+        tahunCetak              = try? c.decode(Int?.self, forKey: .tahunCetak)
+        beratGram               = try? c.decode(String?.self, forKey: .beratGram)
+        hargaBeliPerGram        = try? c.decode(String?.self, forKey: .hargaBeliPerGram)
+        nominalDeposito         = try? c.decode(String?.self, forKey: .nominalDeposito)
+        bungaPA                 = try? c.decode(String?.self, forKey: .bungaPA)
+        pphFinal                = try? c.decode(String?.self, forKey: .pphFinal)
+        tenorBulan              = try? c.decode(Int?.self, forKey: .tenorBulan)
+        tanggalMulaiDeposito    = try? c.decode(Date?.self, forKey: .tanggalMulaiDeposito)
+        autoRollOver            = (try? c.decode(Bool.self, forKey: .autoRollOver)) ?? false
+        nilaiSaatIni            = try c.decode(String.self, forKey: .nilaiSaatIni)
+        urutan                  = (try? c.decode(Int.self, forKey: .urutan)) ?? 0
+        portofolio              = try? c.decode(String?.self, forKey: .portofolio)
+        logoData                = try? c.decode(String?.self, forKey: .logoData)
+        catatSbgPengeluaran     = (try? c.decode(Bool.self, forKey: .catatSbgPengeluaran)) ?? false
+        pocketSumberNama        = try? c.decode(String?.self, forKey: .pocketSumberNama)
+        linkedTargetID          = try? c.decode(UUID?.self, forKey: .linkedTargetID)
+    }
 }
 
 // MARK: - BackupService
 
 final class BackupService {
     static let shared = BackupService()
-    private let schemaVersion = 1
+    private let schemaVersion = 2
 
     private let encoder: JSONEncoder = {
         let e = JSONEncoder()
@@ -154,15 +249,15 @@ final class BackupService {
     // MARK: - Export
 
     func export(context: ModelContext) throws -> Data {
-        let kategoriPocket = try context.fetch(FetchDescriptor<KategoriPocket>(sortBy: [SortDescriptor(\.urutan)]))
-        let kategori = try context.fetch(FetchDescriptor<Kategori>(sortBy: [SortDescriptor(\.urutan)]))
-        let pocket = try context.fetch(FetchDescriptor<Pocket>(sortBy: [SortDescriptor(\.urutan)]))
-        let transaksi = try context.fetch(FetchDescriptor<Transaksi>(sortBy: [SortDescriptor(\.tanggal)]))
-        let transfer = try context.fetch(FetchDescriptor<TransferInternal>(sortBy: [SortDescriptor(\.tanggal)]))
-        let aset = try context.fetch(FetchDescriptor<Aset>(sortBy: [SortDescriptor(\.urutan)]))
-            .filter { $0.linkedTarget == nil }  // hanya aset bebas
-        let langganan = try context.fetch(FetchDescriptor<Langganan>(sortBy: [SortDescriptor(\.urutan)]))
+        let kategoriPocket    = try context.fetch(FetchDescriptor<KategoriPocket>(sortBy: [SortDescriptor(\.urutan)]))
+        let kategori          = try context.fetch(FetchDescriptor<Kategori>(sortBy: [SortDescriptor(\.urutan)]))
+        let pocket            = try context.fetch(FetchDescriptor<Pocket>(sortBy: [SortDescriptor(\.urutan)]))
+        let transaksi         = try context.fetch(FetchDescriptor<Transaksi>(sortBy: [SortDescriptor(\.tanggal)]))
+        let transfer          = try context.fetch(FetchDescriptor<TransferInternal>(sortBy: [SortDescriptor(\.tanggal)]))
+        let aset              = try context.fetch(FetchDescriptor<Aset>(sortBy: [SortDescriptor(\.urutan)]))  // SEMUA aset
+        let langganan         = try context.fetch(FetchDescriptor<Langganan>(sortBy: [SortDescriptor(\.urutan)]))
         let portofolioConfigs = try context.fetch(FetchDescriptor<PortofolioConfig>(sortBy: [SortDescriptor(\.urutan)]))
+        let targets           = try context.fetch(FetchDescriptor<Target>())
 
         let backup = BackupFile(
             schemaVersion: schemaVersion,
@@ -174,7 +269,8 @@ final class BackupService {
             transferInternal: transfer.map(mapTransfer),
             aset: aset.map(mapAset),
             langganan: langganan.map(mapLangganan),
-            portofolioConfigs: portofolioConfigs.map { PortofolioConfigDTO(nama: $0.nama, warna: $0.warna, urutan: $0.urutan) }
+            portofolioConfigs: portofolioConfigs.map { PortofolioConfigDTO(nama: $0.nama, warna: $0.warna, urutan: $0.urutan) },
+            target: targets.map(mapTarget)
         )
         return try encoder.encode(backup)
     }
@@ -184,27 +280,27 @@ final class BackupService {
     func restore(data: Data, context: ModelContext) throws -> RestoreSummary {
         let backup = try decoder.decode(BackupFile.self, from: data)
 
-        // Hapus data lama (hanya yang di scope backup)
+        // 1. Hapus semua data lama
+        try context.delete(model: SimpanKeTarget.self)
         try context.delete(model: Transaksi.self)
         try context.delete(model: TransferInternal.self)
         try context.delete(model: PembayaranLangganan.self)
         try context.delete(model: Langganan.self)
+        try context.delete(model: Aset.self)
+        try context.delete(model: Target.self)
         try context.delete(model: KategoriPocket.self)
         try context.delete(model: Kategori.self)
         try context.delete(model: Pocket.self)
-        // Hapus aset bebas saja
-        let asetBebas = try context.fetch(FetchDescriptor<Aset>()).filter { $0.linkedTarget == nil }
-        for a in asetBebas { context.delete(a) }
         try context.delete(model: PortofolioConfig.self)
         try context.save()
 
-        // Insert KategoriPocket
+        // 2. KategoriPocket
         for dto in backup.kategoriPocket {
             context.insert(KategoriPocket(nama: dto.nama, urutan: dto.urutan))
         }
         try context.save()
 
-        // Insert Kategori
+        // 3. Kategori
         for dto in backup.kategori {
             let k = Kategori(
                 nama: dto.nama,
@@ -212,21 +308,21 @@ final class BackupService {
                 ikon: dto.ikon,
                 warna: dto.warna
             )
-            k.ikonCustom = dto.ikonCustom
-            k.klasifikasi = dto.klasifikasi.flatMap { KlasifikasiExpense(rawValue: $0) }
+            k.ikonCustom   = dto.ikonCustom
+            k.klasifikasi  = dto.klasifikasi.flatMap { KlasifikasiExpense(rawValue: $0) }
             k.kelompokIncome = dto.kelompokIncome.flatMap { KelompokIncome(rawValue: $0) }
-            k.urutan = dto.urutan
+            k.urutan       = dto.urutan
             context.insert(k)
         }
         try context.save()
 
         // Fetch lookup maps
-        let allKP = try context.fetch(FetchDescriptor<KategoriPocket>())
+        let allKP  = try context.fetch(FetchDescriptor<KategoriPocket>())
         let allKat = try context.fetch(FetchDescriptor<Kategori>())
-        let kpMap = Dictionary(uniqueKeysWithValues: allKP.map { ($0.nama, $0) })
+        let kpMap  = Dictionary(uniqueKeysWithValues: allKP.map { ($0.nama, $0) })
         let katMap = Dictionary(uniqueKeysWithValues: allKat.map { ($0.nama, $0) })
 
-        // Insert Pocket
+        // 4. Pocket
         for dto in backup.pocket {
             let p = Pocket(
                 nama: dto.nama,
@@ -235,20 +331,116 @@ final class BackupService {
                 saldo: Decimal(string: dto.saldo) ?? 0,
                 catatan: dto.catatan
             )
-            p.limit = dto.limit.flatMap { Decimal(string: $0) }
-            p.urutan = dto.urutan
-            if let b64 = dto.logo, let data = Data(base64Encoded: b64) {
-                p.logo = data
-            }
+            p.limit   = dto.limit.flatMap { Decimal(string: $0) }
+            p.urutan  = dto.urutan
+            if let b64 = dto.logo, let data = Data(base64Encoded: b64) { p.logo = data }
             context.insert(p)
         }
         try context.save()
 
-        // Fetch pocket map
         let allPocket = try context.fetch(FetchDescriptor<Pocket>())
         let pocketMap = Dictionary(uniqueKeysWithValues: allPocket.map { ($0.nama, $0) })
 
-        // Insert Transaksi
+        // 5. PortofolioConfig
+        for dto in backup.portofolioConfigs {
+            context.insert(PortofolioConfig(nama: dto.nama, warna: dto.warna, urutan: dto.urutan))
+        }
+        try context.save()
+
+        // 6. Target — insert dulu tanpa linkedAset, simpan UUID map
+        var targetByID: [UUID: Target] = [:]
+        for dto in backup.target {
+            let t = Target(
+                nama: dto.nama,
+                targetNominal: Decimal(string: dto.targetNominal) ?? 0,
+                deadline: dto.deadline,
+                ikon: dto.ikon,
+                warna: dto.warna,
+                jenisTarget: JenisTarget(rawValue: dto.jenisTarget) ?? .biasa
+            )
+            t.id          = dto.id   // preserve UUID supaya goalID pada Transaksi tetap valid
+            t.ikonCustom  = dto.ikonCustom
+            t.catatan     = dto.catatan
+            t.isSelesai   = dto.isSelesai
+            t.createdAt   = dto.createdAt
+            t.linkedPocket = dto.linkedPocketNama.flatMap { pocketMap[$0] }
+            if let b64 = dto.fotoData, let data = Data(base64Encoded: b64) { t.fotoData = data }
+            context.insert(t)
+            targetByID[dto.id] = t
+        }
+        try context.save()
+
+        // 7. Aset — insert semua, simpan map untuk link ke Target setelahnya
+        var asetByLinkedTargetID: [UUID: Aset] = [:]
+        for dto in backup.aset {
+            let tipeAset = TipeAset(rawValue: dto.tipe) ?? .saham
+            let a = Aset(tipe: tipeAset, nama: dto.nama, kode: dto.kode)
+            a.lot                    = dto.lot.flatMap { Decimal(string: $0) }
+            a.hargaPerLembar         = dto.hargaPerLembar.flatMap { Decimal(string: $0) }
+            a.jenisReksadana         = dto.jenisReksadana
+            a.totalInvestasiReksadana = dto.totalInvestasiReksadana.flatMap { Decimal(string: $0) }
+            a.hargaBeliPerUnit       = dto.hargaBeliPerUnit.flatMap { Decimal(string: $0) }
+            a.navSaatIni             = dto.navSaatIni.flatMap { Decimal(string: $0) }
+            a.jumlahUnitReksadana    = dto.jumlahUnitReksadana.flatMap { Decimal(string: $0) }
+            a.totalInvestasiUSD      = dto.totalInvestasiUSD.flatMap { Decimal(string: $0) }
+            a.hargaBeliPerShareUSD   = dto.hargaBeliPerShareUSD.flatMap { Decimal(string: $0) }
+            a.hargaSaatIniUSD        = dto.hargaSaatIniUSD.flatMap { Decimal(string: $0) }
+            a.kursBeliUSD            = dto.kursBeliUSD.flatMap { Decimal(string: $0) }
+            a.kursSaatIniUSD         = dto.kursSaatIniUSD.flatMap { Decimal(string: $0) }
+            a.mataUangValas          = dto.mataUangValas.flatMap { MataUangValas(rawValue: $0) }
+            a.jumlahValas            = dto.jumlahValas.flatMap { Decimal(string: $0) }
+            a.kursBeliPerUnit        = dto.kursBeliPerUnit.flatMap { Decimal(string: $0) }
+            a.kursSaatIni            = dto.kursSaatIni.flatMap { Decimal(string: $0) }
+            a.jenisEmas              = dto.jenisEmas.flatMap { JenisEmas(rawValue: $0) }
+            a.tahunCetak             = dto.tahunCetak
+            a.beratGram              = dto.beratGram.flatMap { Decimal(string: $0) }
+            a.hargaBeliPerGram       = dto.hargaBeliPerGram.flatMap { Decimal(string: $0) }
+            a.nominalDeposito        = dto.nominalDeposito.flatMap { Decimal(string: $0) }
+            a.bungaPA                = dto.bungaPA.flatMap { Decimal(string: $0) }
+            a.pphFinal               = dto.pphFinal.flatMap { Decimal(string: $0) }
+            a.tenorBulan             = dto.tenorBulan
+            a.tanggalMulaiDeposito   = dto.tanggalMulaiDeposito
+            a.autoRollOver           = dto.autoRollOver
+            a.nilaiSaatIni           = Decimal(string: dto.nilaiSaatIni) ?? 0
+            a.urutan                 = dto.urutan
+            a.portofolio             = dto.portofolio
+            a.catatSbgPengeluaran    = dto.catatSbgPengeluaran
+            a.pocketSumber           = dto.pocketSumberNama.flatMap { pocketMap[$0] }
+            if let b64 = dto.logoData, let data = Data(base64Encoded: b64) { a.logoData = data }
+            context.insert(a)
+
+            // Simpan untuk linking nanti
+            if let tid = dto.linkedTargetID {
+                asetByLinkedTargetID[tid] = a
+            }
+        }
+        try context.save()
+
+        // 8. Link Target.linkedAset ↔ Aset.linkedTarget (dua arah)
+        for (targetID, aset) in asetByLinkedTargetID {
+            if let target = targetByID[targetID] {
+                target.linkedAset = aset
+            }
+        }
+        try context.save()
+
+        // 9. SimpanKeTarget
+        for dto in backup.target {
+            guard let target = targetByID[dto.id] else { continue }
+            for rDto in dto.riwayat {
+                let r = SimpanKeTarget(
+                    target: target,
+                    tanggal: rDto.tanggal,
+                    nominal: Decimal(string: rDto.nominal) ?? 0,
+                    catatan: rDto.catatan
+                )
+                r.createdAt = rDto.createdAt
+                context.insert(r)
+            }
+        }
+        try context.save()
+
+        // 10. Transaksi (dengan goalID)
         for dto in backup.transaksi {
             let t = Transaksi(
                 tanggal: dto.tanggal,
@@ -259,10 +451,11 @@ final class BackupService {
                 catatan: dto.catatan
             )
             t.kategori = dto.kategoriNama.flatMap { katMap[$0] }
+            t.goalID   = dto.goalID   // UUID langsung — target sudah ada dengan ID sama
             context.insert(t)
         }
 
-        // Insert TransferInternal
+        // 11. TransferInternal
         for dto in backup.transferInternal {
             let tr = TransferInternal(
                 tanggal: dto.tanggal,
@@ -274,48 +467,7 @@ final class BackupService {
             context.insert(tr)
         }
 
-        // Insert Aset
-        for dto in backup.aset {
-            let tipe = TipeAset(rawValue: dto.tipe) ?? .saham
-            let a = Aset(tipe: tipe, nama: dto.nama, kode: dto.kode)
-            a.lot = dto.lot.flatMap { Decimal(string: $0) }
-            a.hargaPerLembar = dto.hargaPerLembar.flatMap { Decimal(string: $0) }
-            a.jenisReksadana = dto.jenisReksadana
-            a.totalInvestasiReksadana = dto.totalInvestasiReksadana.flatMap { Decimal(string: $0) }
-            a.hargaBeliPerUnit = dto.hargaBeliPerUnit.flatMap { Decimal(string: $0) }
-            a.navSaatIni = dto.navSaatIni.flatMap { Decimal(string: $0) }
-            a.totalInvestasiUSD = dto.totalInvestasiUSD.flatMap { Decimal(string: $0) }
-            a.hargaBeliPerShareUSD = dto.hargaBeliPerShareUSD.flatMap { Decimal(string: $0) }
-            a.hargaSaatIniUSD = dto.hargaSaatIniUSD.flatMap { Decimal(string: $0) }
-            a.kursBeliUSD = dto.kursBeliUSD.flatMap { Decimal(string: $0) }
-            a.kursSaatIniUSD = dto.kursSaatIniUSD.flatMap { Decimal(string: $0) }
-            a.mataUangValas = dto.mataUangValas.flatMap { MataUangValas(rawValue: $0) }
-            a.jumlahValas = dto.jumlahValas.flatMap { Decimal(string: $0) }
-            a.kursBeliPerUnit = dto.kursBeliPerUnit.flatMap { Decimal(string: $0) }
-            a.kursSaatIni = dto.kursSaatIni.flatMap { Decimal(string: $0) }
-            a.jenisEmas = dto.jenisEmas.flatMap { JenisEmas(rawValue: $0) }
-            a.tahunCetak = dto.tahunCetak
-            a.beratGram = dto.beratGram.flatMap { Decimal(string: $0) }
-            a.hargaBeliPerGram = dto.hargaBeliPerGram.flatMap { Decimal(string: $0) }
-            a.nominalDeposito = dto.nominalDeposito.flatMap { Decimal(string: $0) }
-            a.bungaPA = dto.bungaPA.flatMap { Decimal(string: $0) }
-            a.pphFinal = dto.pphFinal.flatMap { Decimal(string: $0) }
-            a.tenorBulan = dto.tenorBulan
-            a.tanggalMulaiDeposito = dto.tanggalMulaiDeposito
-            a.autoRollOver = dto.autoRollOver
-            a.nilaiSaatIni = Decimal(string: dto.nilaiSaatIni) ?? 0
-            a.urutan = dto.urutan
-            a.catatSbgPengeluaran = dto.catatSbgPengeluaran
-            a.pocketSumber = dto.pocketSumberNama.flatMap { pocketMap[$0] }
-            context.insert(a)
-        }
-
-        // Insert PortofolioConfig
-        for dto in backup.portofolioConfigs {
-            context.insert(PortofolioConfig(nama: dto.nama, warna: dto.warna, urutan: dto.urutan))
-        }
-
-        // Insert Langganan
+        // 12. Langganan
         for dto in backup.langganan {
             let l = Langganan(
                 nama: dto.nama,
@@ -325,10 +477,8 @@ final class BackupService {
                 catatan: dto.catatan
             )
             l.isAktif = dto.isAktif
-            l.urutan = dto.urutan
-            if let b64 = dto.logo, let data = Data(base64Encoded: b64) {
-                l.logo = data
-            }
+            l.urutan  = dto.urutan
+            if let b64 = dto.logo, let data = Data(base64Encoded: b64) { l.logo = data }
             context.insert(l)
         }
 
@@ -341,7 +491,9 @@ final class BackupService {
             transfer: backup.transferInternal.count,
             aset: backup.aset.count,
             langganan: backup.langganan.count,
-            portofolioConfig: backup.portofolioConfigs.count
+            portofolioConfig: backup.portofolioConfigs.count,
+            target: backup.target.count,
+            simpanKeTarget: backup.target.reduce(0) { $0 + $1.riwayat.count }
         )
     }
 
@@ -387,7 +539,8 @@ final class BackupService {
             pocketNama: t.pocket?.nama,
             catatan: t.catatan,
             klasifikasiExpense: t.kategori?.klasifikasi?.rawValue,
-            kelompokIncome: t.kategori?.kelompokIncome?.rawValue
+            kelompokIncome: t.kategori?.kelompokIncome?.rawValue,
+            goalID: t.goalID
         )
     }
 
@@ -414,6 +567,32 @@ final class BackupService {
         )
     }
 
+    private func mapTarget(_ t: Target) -> TargetDTO {
+        TargetDTO(
+            id: t.id,
+            nama: t.nama,
+            targetNominal: "\(t.targetNominal)",
+            deadline: t.deadline,
+            ikon: t.ikon,
+            ikonCustom: t.ikonCustom,
+            warna: t.warna,
+            catatan: t.catatan,
+            isSelesai: t.isSelesai,
+            jenisTarget: t.jenisTarget.rawValue,
+            fotoData: t.fotoData?.base64EncodedString(),
+            createdAt: t.createdAt,
+            linkedPocketNama: t.linkedPocket?.nama,
+            riwayat: t.riwayat.sorted { $0.tanggal < $1.tanggal }.map { r in
+                SimpanKeTargetDTO(
+                    tanggal: r.tanggal,
+                    nominal: "\(r.nominal)",
+                    catatan: r.catatan,
+                    createdAt: r.createdAt
+                )
+            }
+        )
+    }
+
     private func mapAset(_ a: Aset) -> AsetDTO {
         AsetDTO(
             tipe: a.tipe.rawValue,
@@ -425,6 +604,7 @@ final class BackupService {
             totalInvestasiReksadana: a.totalInvestasiReksadana.map { "\($0)" },
             hargaBeliPerUnit: a.hargaBeliPerUnit.map { "\($0)" },
             navSaatIni: a.navSaatIni.map { "\($0)" },
+            jumlahUnitReksadana: a.jumlahUnitReksadana.map { "\($0)" },
             totalInvestasiUSD: a.totalInvestasiUSD.map { "\($0)" },
             hargaBeliPerShareUSD: a.hargaBeliPerShareUSD.map { "\($0)" },
             hargaSaatIniUSD: a.hargaSaatIniUSD.map { "\($0)" },
@@ -446,8 +626,11 @@ final class BackupService {
             autoRollOver: a.autoRollOver,
             nilaiSaatIni: "\(a.nilaiSaatIni)",
             urutan: a.urutan,
+            portofolio: a.portofolio,
+            logoData: a.logoData?.base64EncodedString(),
             catatSbgPengeluaran: a.catatSbgPengeluaran,
-            pocketSumberNama: a.pocketSumber?.nama
+            pocketSumberNama: a.pocketSumber?.nama,
+            linkedTargetID: a.linkedTarget?.id
         )
     }
 }
@@ -462,4 +645,6 @@ struct RestoreSummary {
     let aset: Int
     let langganan: Int
     let portofolioConfig: Int
+    let target: Int
+    let simpanKeTarget: Int
 }

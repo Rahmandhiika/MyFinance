@@ -76,17 +76,19 @@ struct BackupRestoreView: View {
                             .padding(.horizontal, 14)
                             .padding(.top, 14)
                             .padding(.bottom, 4)
-                        scopeRow(icon: "creditcard.fill", label: "Pocket", color: "#3B82F6")
+                        scopeRow(icon: "creditcard.fill", label: "Pocket & Saldo", color: "#3B82F6")
                         Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
                         scopeRow(icon: "tag.fill", label: "Kategori Transaksi", color: "#A78BFA")
                         Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
                         scopeRow(icon: "arrow.left.arrow.right", label: "Semua Transaksi & Transfer", color: "#22D3EE")
                         Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
-                        scopeRow(icon: "chart.pie.fill", label: "Aset Bebas (bukan target investasi)", color: "#F59E0B")
+                        scopeRow(icon: "chart.pie.fill", label: "Semua Aset (termasuk target investasi)", color: "#F59E0B")
                         Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
-                        scopeRow(icon: "creditcard.circle.fill", label: "Daftar Bills", color: "#22C55E")
+                        scopeRow(icon: "target", label: "Target & Riwayat Tabungan", color: "#22C55E")
                         Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
-                        scopeRow(icon: "photo.fill", label: "Logo pocket & warna kategori", color: "#EC4899")
+                        scopeRow(icon: "creditcard.circle.fill", label: "Daftar Bills", color: "#EC4899")
+                        Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
+                        scopeRow(icon: "photo.fill", label: "Logo, foto & portofolio aset", color: "#F97316")
                     }
                     .background(Color.white.opacity(0.05))
                     .clipShape(RoundedRectangle(cornerRadius: 14))
@@ -152,7 +154,7 @@ struct BackupRestoreView: View {
                         }
                         .padding(.horizontal, 16)
 
-                        Text("⚠️ Import akan menggantikan semua data pocket, transaksi, kategori, dan aset bebas yang ada sekarang.")
+                        Text("⚠️ Import akan menggantikan SEMUA data yang ada sekarang — pocket, transaksi, kategori, aset, target, dan bills.")
                             .font(.caption)
                             .foregroundStyle(Color(hex: "#F59E0B").opacity(0.7))
                             .multilineTextAlignment(.center)
@@ -209,7 +211,7 @@ struct BackupRestoreView: View {
             }
             Button("Batal", role: .cancel) { pendingImportData = nil }
         } message: {
-            Text("Data pocket, transaksi, kategori, dan aset bebas yang ada sekarang akan digantikan dengan data dari file backup.")
+            Text("Semua data yang ada sekarang (pocket, transaksi, kategori, aset, target, bills) akan digantikan dengan data dari file backup.")
         }
         // Result alert
         .alert(resultIsError ? "Gagal" : "Berhasil", isPresented: $showResult) {
@@ -254,6 +256,7 @@ struct BackupRestoreView: View {
                         "• \(summary.transaksi) transaksi\n" +
                         "• \(summary.transfer) transfer\n" +
                         "• \(summary.aset) aset\n" +
+                        "• \(summary.target) target (\(summary.simpanKeTarget) riwayat)\n" +
                         "• \(summary.langganan) bills"
                     )
                 }
