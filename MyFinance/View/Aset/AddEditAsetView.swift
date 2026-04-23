@@ -137,6 +137,8 @@ struct AddEditAsetView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text(navigationTitle)
@@ -157,6 +159,7 @@ struct AddEditAsetView: View {
                 }
             }
         }
+        .preferredColorScheme(.dark)
     }
 
     // MARK: - Logo Picker

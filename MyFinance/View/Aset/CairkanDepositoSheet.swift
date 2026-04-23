@@ -8,7 +8,7 @@ struct CairkanDepositoSheet: View {
     let aset: Aset
     var onCairkan: () -> Void
 
-    @Query var allPockets: [Pocket]
+    @Query(sort: \Pocket.urutan) private var allPockets: [Pocket]
     @State private var selectedPocket: Pocket? = nil
     @State private var tanggalCair: Date = Date()
 
@@ -32,6 +32,8 @@ struct CairkanDepositoSheet: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("Cairkan Deposito")
@@ -44,6 +46,7 @@ struct CairkanDepositoSheet: View {
                 }
             }
         }
+        .preferredColorScheme(.dark)
     }
 
     // MARK: - Summary Card
@@ -106,43 +109,15 @@ struct CairkanDepositoSheet: View {
 
     // MARK: - Pocket Picker
 
+    private var activePockets: [Pocket] {
+        allPockets.filter { $0.isAktif && $0.kelompokPocket == .biasa }
+    }
+
     private var pocketSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("CAIRKAN KE POCKET")
                 .font(.caption).foregroundStyle(.white.opacity(0.5)).tracking(1)
-
-            let pockets = allPockets.filter { $0.isAktif && $0.kelompokPocket == .biasa }
-            if pockets.isEmpty {
-                Text("Tidak ada pocket aktif")
-                    .font(.subheadline).foregroundStyle(.white.opacity(0.4))
-                    .padding(14)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.white.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(pockets) { pocket in
-                            Button {
-                                selectedPocket = pocket
-                            } label: {
-                                VStack(spacing: 4) {
-                                    Text(pocket.nama)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(selectedPocket?.id == pocket.id ? .black : .white)
-                                    Text(pocket.saldo.idrFormatted)
-                                        .font(.caption)
-                                        .foregroundStyle(selectedPocket?.id == pocket.id ? .black.opacity(0.6) : .white.opacity(0.5))
-                                }
-                                .padding(.horizontal, 16).padding(.vertical, 10)
-                                .background(selectedPocket?.id == pocket.id ? Color(hex: "#A78BFA") : Color.white.opacity(0.08))
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 1)
-                }
-            }
+            PocketChipPicker(pockets: activePockets, selected: $selectedPocket)
         }
     }
 

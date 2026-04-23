@@ -49,6 +49,8 @@ struct JualAsetSheet: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("Jual \(aset.tipe.displayName)")
@@ -71,6 +73,7 @@ struct JualAsetSheet: View {
                 }
             }
         }
+        .preferredColorScheme(.dark)
     }
 
     // MARK: - Aset Info
@@ -170,34 +173,15 @@ struct JualAsetSheet: View {
 
     // MARK: - Pocket Picker
 
+    private var activePockets: [Pocket] {
+        allPockets.filter { $0.isAktif && $0.kelompokPocket == .biasa }
+    }
+
     private var pocketSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("MASUKKAN HASIL KE POCKET")
                 .font(.caption).foregroundStyle(.white.opacity(0.5)).tracking(1)
-
-            let pockets = allPockets.filter { $0.isAktif && $0.kelompokPocket == .biasa }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(pockets) { pocket in
-                        Button {
-                            selectedPocket = pocket
-                        } label: {
-                            VStack(spacing: 4) {
-                                Text(pocket.nama)
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(selectedPocket?.id == pocket.id ? .black : .white)
-                                Text(pocket.saldo.idrFormatted)
-                                    .font(.caption)
-                                    .foregroundStyle(selectedPocket?.id == pocket.id ? .black.opacity(0.6) : .white.opacity(0.5))
-                            }
-                            .padding(.horizontal, 16).padding(.vertical, 10)
-                            .background(selectedPocket?.id == pocket.id ? aset.tipe.color : Color.white.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                        }
-                    }
-                }
-                .padding(.horizontal, 1)
-            }
+            PocketChipPicker(pockets: activePockets, selected: $selectedPocket)
         }
     }
 

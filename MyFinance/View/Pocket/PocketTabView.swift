@@ -20,7 +20,7 @@ struct PocketTabView: View {
 
     private var utangPockets: [Pocket] {
         activePockets.filter { $0.kelompokPocket == .utang }
-            .sorted { $0.createdAt < $1.createdAt }
+            .sorted { $0.urutan == $1.urutan ? $0.createdAt < $1.createdAt : $0.urutan < $1.urutan }
     }
 
     private var totalSaldoBiasa: Decimal {

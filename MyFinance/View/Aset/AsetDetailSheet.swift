@@ -47,6 +47,8 @@ struct AsetDetailSheet: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     VStack(spacing: 2) {
@@ -69,6 +71,7 @@ struct AsetDetailSheet: View {
                 }
             }
         }
+        .preferredColorScheme(.dark)
         .sheet(isPresented: $showEdit) {
             AddEditAsetView(existingAset: aset, mode: editMode)
         }

@@ -37,7 +37,7 @@ struct HomeView: View {
         var gayaHidup: Decimal = 0
         var kategoriTeratas: [(Kategori, Decimal)] = []
         var terbaru: [Transaksi] = []
-        var txList: [Transaksi] = []    // pengeluaran bulan ini, untuk terpakai(for:)
+        var txList: [Transaksi] = []    // semua transaksi bulan ini, untuk terpakai(for:)
 
         var amanDibelanjakan: Decimal { pemasukan - pengeluaran - nabungBulanIni }
 

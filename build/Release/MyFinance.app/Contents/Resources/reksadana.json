@@ -1,0 +1,17 @@
+[
+  { "nama": "Sucorinvest Money Market Fund", "manajer": "Sucorinvest Asset Management", "jenis": "Pasar Uang", "featured": true },
+  { "nama": "Sucorinvest Sharia Money Market Fund", "manajer": "Sucorinvest Asset Management", "jenis": "Pasar Uang" },
+  { "nama": "Sucorinvest Dollar Fund", "manajer": "Sucorinvest Asset Management", "jenis": "Pasar Uang" },
+
+  { "nama": "Sucorinvest Stable Fund", "manajer": "Sucorinvest Asset Management", "jenis": "Obligasi"},
+  { "nama": "Sucorinvest Bond Fund", "manajer": "Sucorinvest Asset Management", "jenis": "Obligasi", "featured": true  },
+  { "nama": "Sucorinvest Premier Fund", "manajer": "Sucorinvest Asset Management", "jenis": "Obligasi" },
+
+  { "nama": "Sucorinvest Equity Fund Kelas A", "manajer": "Sucorinvest Asset Management", "jenis": "Saham"},
+  { "nama": "Sucorinvest Sharia Equity Fund", "manajer": "Sucorinvest Asset Management", "jenis": "Saham" },
+  { "nama": "Sucorinvest Maxi Fund", "manajer": "Sucorinvest Asset Management", "jenis": "Saham", "featured": true  },
+  { "nama": "Sucorinvest Long Short Equity Fund", "manajer": "Sucorinvest Asset Management", "jenis": "Saham" },
+
+  { "nama": "Sucorinvest Citra Dana Berimbang", "manajer": "Sucorinvest Asset Management", "jenis": "Campuran", "featured": true },
+  { "nama": "Sucorinvest Flexible Fund", "manajer": "Sucorinvest Asset Management", "jenis": "Campuran" }
+]
