@@ -8,7 +8,7 @@ struct JualAsetSheet: View {
     let aset: Aset
     var onJual: () -> Void
 
-    @Query(sort: \Pocket.urutan) var allPockets: [Pocket]
+    @Query(sort: \Pocket.urutan) private var allPockets: [Pocket]
     @Query(sort: \Kategori.urutan) private var allKategori: [Kategori]
 
     @State private var hasilJual: Decimal = 0
@@ -17,18 +17,22 @@ struct JualAsetSheet: View {
     @State private var tanggalJual: Date = Date()
     @State private var showConfirmJual = false
 
+    private let accentColor = Color(hex: "#EF4444")
+
     private var adminKategori: Kategori? {
         allKategori.first { $0.isAdmin && $0.tipe == .pengeluaran }
     }
-
     private var hasilAsetKategori: Kategori? {
         allKategori.first { $0.isHasilAset && $0.tipe == .pemasukan }
     }
-
+    private var activePockets: [Pocket] {
+        allPockets.filter { $0.isAktif && $0.kelompokPocket == .biasa }
+    }
     private var modal: Decimal { aset.modal }
     private var pnl: Decimal { hasilJual - biayaAdmin - modal }
     private var pnlPositive: Bool { pnl >= 0 }
     private var hasilBersih: Decimal { hasilJual - biayaAdmin }
+    private var canSave: Bool { selectedPocket != nil && hasilJual > 0 }
 
     var body: some View {
         NavigationStack {
@@ -36,16 +40,152 @@ struct JualAsetSheet: View {
                 Color(hex: "#0D0D0D").ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 20) {
-                        asetInfoCard
-                        hasilJualSection
-                        biayaAdminSection
-                        pocketSection
-                        tanggalSection
-                        if hasilJual > 0 { pnlPreview }
-                        jualButton
+
+                        // Header — info aset
+                        headerCard
+                            .padding(.top, 8)
+
+                        // Info kepemilikan (read-only)
+                        VStack(spacing: 0) {
+                            infoRow(label: "Total Modal", value: modal.idrDecimalFormatted)
+                            Divider().background(Color.white.opacity(0.06))
+                            infoRow(label: "Nilai Pasar Saat Ini", value: aset.nilaiSaatIni.idrDecimalFormatted)
+                        }
+                        .background(Color.white.opacity(0.05))
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .padding(.horizontal, 16)
+
+                        // Form input — grouped dalam satu card
+                        VStack(alignment: .leading, spacing: 14) {
+                            sectionLabel("DETAIL PENJUALAN")
+
+                            VStack(spacing: 0) {
+                                // Hasil jual
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("HARGA JUAL (IDR)")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.gray)
+                                        .tracking(0.5)
+                                        .padding(.horizontal, 14)
+                                        .padding(.top, 14)
+                                    HStack {
+                                        Text("Rp")
+                                            .foregroundStyle(.gray)
+                                            .font(.subheadline)
+                                            .padding(.leading, 14)
+                                        CurrencyInputField(value: $hasilJual, allowsDecimal: true)
+                                    }
+                                    // Shortcut pakai nilai pasar
+                                    if aset.nilaiSaatIni > 0 && hasilJual != aset.nilaiSaatIni {
+                                        Button { hasilJual = aset.nilaiSaatIni } label: {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "arrow.clockwise")
+                                                    .font(.caption2.weight(.semibold))
+                                                Text("Pakai nilai pasar (\(aset.nilaiSaatIni.idrFormatted))")
+                                                    .font(.caption2.weight(.medium))
+                                            }
+                                            .foregroundStyle(accentColor)
+                                        }
+                                        .padding(.horizontal, 14)
+                                    }
+                                    Spacer(minLength: 14)
+                                }
+
+                                Divider().background(Color.white.opacity(0.06))
+
+                                // Biaya admin
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "building.columns.fill")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(Color(hex: "#F59E0B"))
+                                        Text("BIAYA ADMIN (OPSIONAL)")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.gray)
+                                            .tracking(0.5)
+                                    }
+                                    .padding(.horizontal, 14)
+                                    .padding(.top, 14)
+                                    HStack {
+                                        Text("Rp")
+                                            .foregroundStyle(.gray)
+                                            .font(.subheadline)
+                                            .padding(.leading, 14)
+                                        CurrencyInputField(value: $biayaAdmin, allowsDecimal: true)
+                                    }
+                                    if biayaAdmin > 0 {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "info.circle")
+                                                .font(.caption2)
+                                                .foregroundStyle(.gray)
+                                            Text("Dicatat sebagai pengeluaran\(adminKategori != nil ? " \"\(adminKategori!.nama)\"" : "") dari pocket yang sama")
+                                                .font(.caption2)
+                                                .foregroundStyle(.gray)
+                                        }
+                                        .padding(.horizontal, 14)
+                                    }
+                                    Spacer(minLength: 14)
+                                }
+
+                                Divider().background(Color.white.opacity(0.06))
+
+                                // Tanggal
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("TANGGAL JUAL")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.gray)
+                                            .tracking(0.5)
+                                        Text(tanggalJual.formatted(date: .abbreviated, time: .omitted))
+                                            .font(.subheadline)
+                                            .foregroundStyle(.white)
+                                    }
+                                    Spacer()
+                                    DatePicker("", selection: $tanggalJual, displayedComponents: .date)
+                                        .datePickerStyle(.compact)
+                                        .colorScheme(.dark)
+                                        .labelsHidden()
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 14)
+                            }
+                            .background(Color.white.opacity(0.05))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
+                        .padding(.horizontal, 16)
+
+                        // P&L preview
+                        if hasilJual > 0 {
+                            pnlPreview
+                                .padding(.horizontal, 16)
+                        }
+
+                        // Pocket picker
+                        VStack(alignment: .leading, spacing: 10) {
+                            sectionLabel("MASUKKAN HASIL KE POCKET")
+                                .padding(.horizontal, 16)
+                            PocketChipPicker(pockets: activePockets, selected: $selectedPocket)
+                                .padding(.horizontal, 16)
+                        }
+
+                        // Confirm button
+                        Button { showConfirmJual = true } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "arrow.up.right.circle.fill")
+                                Text("Konfirmasi Jual")
+                                    .fontWeight(.bold)
+                            }
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(canSave ? accentColor : Color.white.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
+                        .disabled(!canSave)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 24)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 24)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -69,154 +209,55 @@ struct JualAsetSheet: View {
                 if aset.linkedTarget != nil {
                     Text("Aset ini terhubung ke target \"\(aset.linkedTarget?.nama ?? "")\". Menjual aset akan menghapus target tersebut secara permanen.")
                 } else {
-                    Text("Hasil bersih \(hasilBersih.idrFormatted) akan masuk ke pocket yang dipilih.")
+                    Text("Hasil bersih \(hasilBersih.idrFormatted) akan masuk ke pocket \"\(selectedPocket?.nama ?? "")\".")
                 }
             }
         }
         .preferredColorScheme(.dark)
     }
 
-    // MARK: - Aset Info
+    // MARK: - Header
 
-    private var asetInfoCard: some View {
-        HStack(spacing: 14) {
+    private var headerCard: some View {
+        VStack(spacing: 8) {
             ZStack {
                 Circle()
-                    .fill(aset.tipe.color.opacity(0.15))
-                    .frame(width: 44, height: 44)
+                    .fill(accentColor.opacity(0.15))
+                    .frame(width: 56, height: 56)
                 Image(systemName: aset.tipe.iconName)
-                    .font(.body)
-                    .foregroundStyle(aset.tipe.color)
+                    .font(.title2)
+                    .foregroundStyle(accentColor)
             }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(aset.nama)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                Text("Modal: \(modal.idrDecimalFormatted)")
+            Text(aset.nama)
+                .font(.headline)
+                .foregroundStyle(.white)
+            if let kode = aset.kode, !kode.isEmpty {
+                Text(kode.uppercased())
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.5))
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("Nilai Saat Ini")
-                    .font(.caption2).foregroundStyle(.white.opacity(0.4))
-                Text(aset.nilaiSaatIni.idrDecimalFormatted)
-                    .font(.subheadline.weight(.bold)).foregroundStyle(.white)
+                    .foregroundStyle(.gray)
             }
         }
-        .padding(16)
-        .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-    }
-
-    // MARK: - Hasil Jual Input
-
-    private var hasilJualSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("HASIL JUAL (IDR)")
-                .font(.caption).foregroundStyle(.white.opacity(0.5)).tracking(1)
-            HStack(spacing: 8) {
-                Text("Rp")
-                    .foregroundStyle(.white.opacity(0.5))
-                    .font(.subheadline)
-                CurrencyInputField(value: $hasilJual, allowsDecimal: true)
-            }
-            .padding(14)
-            .background(Color.white.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-
-            Button {
-                hasilJual = aset.nilaiSaatIni
-            } label: {
-                Text("Gunakan nilai pasar saat ini")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(aset.tipe.color)
-            }
-        }
-    }
-
-    // MARK: - Biaya Admin
-
-    private var biayaAdminSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                Image(systemName: "building.columns.fill")
-                    .font(.caption)
-                    .foregroundStyle(Color(hex: "#F59E0B"))
-                Text("BIAYA ADMIN (OPSIONAL)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.5))
-                    .tracking(1)
-            }
-            HStack(spacing: 8) {
-                Text("Rp")
-                    .foregroundStyle(.white.opacity(0.5))
-                    .font(.subheadline)
-                CurrencyInputField(value: $biayaAdmin, allowsDecimal: true)
-            }
-            .padding(14)
-            .background(Color.white.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            if biayaAdmin > 0 {
-                HStack(spacing: 4) {
-                    Image(systemName: "info.circle")
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
-                    Text("Akan dicatat sebagai pengeluaran\(adminKategori != nil ? " kategori \"\(adminKategori!.nama)\"" : "") dari pocket yang sama")
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
-                }
-            }
-        }
-    }
-
-    // MARK: - Pocket Picker
-
-    private var activePockets: [Pocket] {
-        allPockets.filter { $0.isAktif && $0.kelompokPocket == .biasa }
-    }
-
-    private var pocketSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("MASUKKAN HASIL KE POCKET")
-                .font(.caption).foregroundStyle(.white.opacity(0.5)).tracking(1)
-            PocketChipPicker(pockets: activePockets, selected: $selectedPocket)
-        }
-    }
-
-    // MARK: - Tanggal
-
-    private var tanggalSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("TANGGAL JUAL")
-                .font(.caption).foregroundStyle(.white.opacity(0.5)).tracking(1)
-            DatePicker("", selection: $tanggalJual, displayedComponents: .date)
-                .datePickerStyle(.compact)
-                .colorScheme(.dark)
-                .labelsHidden()
-                .padding(12)
-                .background(Color.white.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
     }
 
     // MARK: - P&L Preview
 
     private var pnlPreview: some View {
-        VStack(spacing: 0) {
+        let color = pnlPositive ? Color(hex: "#22C55E") : accentColor
+        return VStack(spacing: 0) {
             HStack(spacing: 0) {
-                pnlItem(label: "Modal", value: modal.idrDecimalFormatted, color: .white)
+                pnlItem(label: "Modal", value: modal.idrFormatted, color: .white.opacity(0.7))
                 Divider().background(Color.white.opacity(0.1)).frame(height: 40)
-                pnlItem(label: "Hasil Jual", value: hasilJual.idrDecimalFormatted, color: .white)
+                pnlItem(label: "Hasil Jual", value: hasilJual.idrFormatted, color: .white)
                 Divider().background(Color.white.opacity(0.1)).frame(height: 40)
                 pnlItem(
                     label: pnlPositive ? "Untung" : "Rugi",
-                    value: "\(pnlPositive ? "+" : "")\(pnl.idrDecimalFormatted)",
-                    color: pnlPositive ? Color(hex: "#22C55E") : Color(hex: "#EF4444")
+                    value: "\(pnlPositive ? "+" : "")\(pnl.idrFormatted)",
+                    color: color
                 )
             }
-            .padding(.vertical, 12)
+            .padding(.vertical, 14)
 
             if biayaAdmin > 0 {
                 Divider().background(Color.white.opacity(0.1))
@@ -225,29 +266,42 @@ struct JualAsetSheet: View {
                         Image(systemName: "building.columns.fill")
                             .font(.caption2)
                             .foregroundStyle(Color(hex: "#F59E0B"))
-                        Text("Setelah admin")
+                        Text("Hasil bersih (setelah admin)")
                             .font(.caption2)
                             .foregroundStyle(.white.opacity(0.5))
                     }
                     Spacer()
-                    Text(hasilBersih.idrDecimalFormatted)
+                    Text(hasilBersih.idrFormatted)
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(hasilBersih >= modal ? Color(hex: "#22C55E") : Color(hex: "#EF4444"))
+                        .foregroundStyle(hasilBersih >= modal ? Color(hex: "#22C55E") : accentColor)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
             }
         }
-        .background(
-            (pnlPositive ? Color(hex: "#22C55E") : Color(hex: "#EF4444")).opacity(0.07)
-        )
+        .background(color.opacity(0.07))
         .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke((pnlPositive ? Color(hex: "#22C55E") : Color(hex: "#EF4444")).opacity(0.2), lineWidth: 1)
-        )
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(color.opacity(0.2), lineWidth: 1))
     }
 
+    // MARK: - Helpers
+
+    @ViewBuilder
+    private func infoRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.6))
+            Spacer()
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    @ViewBuilder
     private func pnlItem(label: String, value: String, color: Color) -> some View {
         VStack(spacing: 4) {
             Text(label).font(.caption2).foregroundStyle(.white.opacity(0.5))
@@ -256,18 +310,12 @@ struct JualAsetSheet: View {
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: - CTA
-
-    private var jualButton: some View {
-        Button(action: { showConfirmJual = true }) {
-            Label("Konfirmasi Jual", systemImage: "arrow.up.right.circle.fill")
-                .font(.headline).foregroundStyle(.black)
-                .frame(maxWidth: .infinity).padding(.vertical, 16)
-                .background(selectedPocket != nil && hasilJual > 0 ? Color(hex: "#EF4444") : Color.white.opacity(0.15))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-        }
-        .disabled(selectedPocket == nil || hasilJual == 0)
-        .opacity(selectedPocket != nil && hasilJual > 0 ? 1 : 0.5)
+    @ViewBuilder
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.gray)
+            .tracking(0.5)
     }
 
     // MARK: - Action
@@ -288,7 +336,6 @@ struct JualAsetSheet: View {
         transaksi.kategori = hasilAsetKategori
         modelContext.insert(transaksi)
 
-        // Catat biaya admin jika ada
         if biayaAdmin > 0 {
             let adminTransaksi = Transaksi(
                 tanggal: tanggalJual,
@@ -304,7 +351,6 @@ struct JualAsetSheet: View {
         }
 
         modelContext.delete(aset)
-
         try? modelContext.save()
         dismiss()
         onJual()
