@@ -6,7 +6,6 @@ struct HomeView: View {
     @Query(sort: \Transaksi.tanggal, order: .reverse) private var allTransaksi: [Transaksi]
     @Query private var allPockets: [Pocket]
     @Query private var allAset: [Aset]
-    @Query(sort: \SimpanKeTarget.tanggal, order: .reverse) private var allSimpan: [SimpanKeTarget]
     @Query private var allTargets: [Target]
     @Query private var allAnggaran: [Anggaran]
     @Query private var profiles: [UserProfile]
@@ -74,6 +73,7 @@ struct HomeView: View {
                 s.pemasukan += tx.nominal
             case .pengeluaran:
                 s.pengeluaran += tx.nominal
+                // nabung hanya dari transaksi berkategori isNabung (sinkron dengan filter kategori)
                 if tx.kategori?.isNabung == true { s.nabungBulanIni += tx.nominal }
                 switch tx.kategori?.klasifikasi {
                 case .kebutuhanPokok: s.kebutuhanPokok += tx.nominal
@@ -85,11 +85,6 @@ struct HomeView: View {
                     else { katMap[kat.id] = (kat, tx.nominal) }
                 }
             }
-        }
-
-        // Setoran ke target
-        for simpan in allSimpan where simpan.tanggal.isSameMonth(as: selectedMonth) {
-            s.nabungBulanIni += simpan.nominal
         }
 
         s.kategoriTeratas = katMap.values.sorted { $0.1 > $1.1 }.prefix(3).map { $0 }
@@ -259,11 +254,12 @@ struct HomeView: View {
 
             Divider().background(Color.white.opacity(0.1))
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            HStack(spacing: 0) {
                 cashflowGridItem(label: "PEMASUKAN", icon: "arrow.down.circle.fill", iconColor: accentGreen, amount: stats.pemasukan, amountColor: accentGreen)
+                Divider().frame(width: 1, height: 36).background(Color.white.opacity(0.12))
                 cashflowGridItem(label: "PENGELUARAN", icon: "arrow.up.circle.fill", iconColor: accentRed, amount: stats.pengeluaran, amountColor: accentRed)
-                cashflowGridItem(label: "NABUNG BULAN INI", icon: "arrow.down.to.line.circle.fill", iconColor: accentCyan, amount: stats.nabungBulanIni, amountColor: accentCyan)
-                cashflowGridItem(label: "TOTAL TABUNGAN", icon: "banknote.fill", iconColor: accentCyan, amount: danaTersimpan + totalAset, amountColor: accentCyan)
+                Divider().frame(width: 1, height: 36).background(Color.white.opacity(0.12))
+                cashflowGridItem(label: "SISA POCKET", icon: "creditcard.fill", iconColor: accentCyan, amount: cash, amountColor: accentCyan)
             }
         }
         .padding(16)
@@ -279,22 +275,23 @@ struct HomeView: View {
     }
 
     private func cashflowGridItem(label: String, icon: String, iconColor: Color, amount: Decimal, amountColor: Color) -> some View {
-        HStack(spacing: 8) {
+        VStack(spacing: 6) {
             Image(systemName: icon)
                 .foregroundStyle(iconColor)
-                .font(.system(size: 18))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.gray)
-                Text(masked(amount.idrFormatted))
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(amountColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-            Spacer()
+                .font(.system(size: 16))
+            Text(masked(amount.idrFormatted))
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(amountColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+            Text(label)
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(.gray)
+                .tracking(0.3)
+                .multilineTextAlignment(.center)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
     }
 
     // MARK: - Shortcut Row
