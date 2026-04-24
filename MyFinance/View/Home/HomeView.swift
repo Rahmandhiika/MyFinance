@@ -95,7 +95,16 @@ struct HomeView: View {
     // MARK: - Kekayaan Computed (non-tx, kept as individual props)
 
     private var danaTersimpan: Decimal { allTargets.reduce(0) { $0 + $1.tersimpan } }
-    private var cash: Decimal { allPockets.filter { $0.kelompokPocket == .biasa }.reduce(0) { $0 + $1.saldo } }
+    /// ID pocket yang dikunci sebagai tempat simpan target — tidak masuk sisa pocket
+    private var targetLinkedPocketIDs: Set<PersistentIdentifier> {
+        Set(allTargets.compactMap { $0.linkedPocket?.persistentModelID })
+    }
+    private var cash: Decimal {
+        let lockedIDs = targetLinkedPocketIDs
+        return allPockets
+            .filter { $0.kelompokPocket == .biasa && !lockedIDs.contains($0.persistentModelID) }
+            .reduce(0) { $0 + $1.saldo }
+    }
     private var hutang: Decimal { allPockets.filter { $0.kelompokPocket == .utang }.reduce(0) { $0 + $1.saldo } }
     private var totalAset: Decimal { allAset.filter { $0.linkedTarget == nil }.reduce(0) { $0 + $1.nilaiEfektif } }
     private var totalKekayaan: Decimal { cash + danaTersimpan + totalAset - hutang }
@@ -236,7 +245,8 @@ struct HomeView: View {
 
     // MARK: - Cashflow Card
     private func cashflowCard(_ stats: MonthStats) -> some View {
-        let activePocketCount = allPockets.filter { $0.isAktif && $0.kelompokPocket == .biasa }.count
+        let lockedIDs = targetLinkedPocketIDs
+        let activePocketCount = allPockets.filter { $0.isAktif && $0.kelompokPocket == .biasa && !lockedIDs.contains($0.persistentModelID) }.count
         return VStack(alignment: .leading, spacing: 12) {
             Text("SISA POCKET")
                 .font(.caption)
