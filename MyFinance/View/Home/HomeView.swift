@@ -236,30 +236,28 @@ struct HomeView: View {
 
     // MARK: - Cashflow Card
     private func cashflowCard(_ stats: MonthStats) -> some View {
-        let aman = stats.amanDibelanjakan
-        let isAman = aman >= 0
+        let activePocketCount = allPockets.filter { $0.isAktif && $0.kelompokPocket == .biasa }.count
         return VStack(alignment: .leading, spacing: 12) {
-            Text(isAman ? "AMAN DIBELANJAKAN" : "WAH, OVER BUDGET!")
+            Text("SISA POCKET")
                 .font(.caption)
                 .fontWeight(.semibold)
-                .foregroundStyle(isAman ? accentGreen : accentRed)
+                .foregroundStyle(.gray)
 
-            Text(masked((aman < 0 ? "-" : "+") + abs(aman).idrFormatted))
+            Text(masked(cash.idrFormatted))
                 .font(.system(size: 30, weight: .bold))
-                .foregroundStyle(isAman ? accentGreen : accentRed)
+                .foregroundStyle(accentGreen)
 
-            Text(masked("Tersisa: \(aman.shortFormatted)"))
+            Text("dari \(activePocketCount) pocket aktif")
                 .font(.caption)
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(.white.opacity(0.5))
 
             Divider().background(Color.white.opacity(0.1))
 
-            HStack(spacing: 0) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 cashflowGridItem(label: "PEMASUKAN", icon: "arrow.down.circle.fill", iconColor: accentGreen, amount: stats.pemasukan, amountColor: accentGreen)
-                Divider().frame(width: 1, height: 36).background(Color.white.opacity(0.12))
                 cashflowGridItem(label: "PENGELUARAN", icon: "arrow.up.circle.fill", iconColor: accentRed, amount: stats.pengeluaran, amountColor: accentRed)
-                Divider().frame(width: 1, height: 36).background(Color.white.opacity(0.12))
-                cashflowGridItem(label: "SISA POCKET", icon: "creditcard.fill", iconColor: accentCyan, amount: cash, amountColor: accentCyan)
+                cashflowGridItem(label: "NABUNG BULAN INI", icon: "arrow.down.to.line.circle.fill", iconColor: accentCyan, amount: stats.nabungBulanIni, amountColor: accentCyan)
+                cashflowGridItem(label: "TOTAL TABUNGAN", icon: "banknote.fill", iconColor: accentCyan, amount: danaTersimpan + totalAset, amountColor: accentCyan)
             }
         }
         .padding(16)
@@ -275,23 +273,22 @@ struct HomeView: View {
     }
 
     private func cashflowGridItem(label: String, icon: String, iconColor: Color, amount: Decimal, amountColor: Color) -> some View {
-        VStack(spacing: 6) {
+        HStack(spacing: 8) {
             Image(systemName: icon)
                 .foregroundStyle(iconColor)
-                .font(.system(size: 16))
-            Text(masked(amount.idrFormatted))
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(amountColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.65)
-            Text(label)
-                .font(.system(size: 8, weight: .semibold))
-                .foregroundStyle(.gray)
-                .tracking(0.3)
-                .multilineTextAlignment(.center)
+                .font(.system(size: 18))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.gray)
+                Text(masked(amount.idrFormatted))
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(amountColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            Spacer()
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
     }
 
     // MARK: - Shortcut Row
