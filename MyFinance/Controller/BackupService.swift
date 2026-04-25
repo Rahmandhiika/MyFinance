@@ -54,6 +54,28 @@ struct TargetDTO: Codable {
     let riwayat: [SimpanKeTargetDTO]
     let urutan: Int
 
+    init(id: UUID, nama: String, targetNominal: String, deadline: Date?,
+         ikon: String, ikonCustom: String?, warna: String, catatan: String?,
+         isSelesai: Bool, jenisTarget: String, fotoData: String?,
+         createdAt: Date, linkedPocketNama: String?,
+         riwayat: [SimpanKeTargetDTO], urutan: Int) {
+        self.id              = id
+        self.nama            = nama
+        self.targetNominal   = targetNominal
+        self.deadline        = deadline
+        self.ikon            = ikon
+        self.ikonCustom      = ikonCustom
+        self.warna           = warna
+        self.catatan         = catatan
+        self.isSelesai       = isSelesai
+        self.jenisTarget     = jenisTarget
+        self.fotoData        = fotoData
+        self.createdAt       = createdAt
+        self.linkedPocketNama = linkedPocketNama
+        self.riwayat         = riwayat
+        self.urutan          = urutan
+    }
+
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id              = try c.decode(UUID.self, forKey: .id)
