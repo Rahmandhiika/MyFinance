@@ -4,11 +4,18 @@ import SwiftData
 struct TargetListView: View {
     @Environment(\.modelContext) private var modelContext
 
-    @Query(sort: \Target.createdAt) var allTargets: [Target]
+    @Query(sort: \Target.urutan) var allTargets: [Target]
 
     @State private var showAddSheet = false
     @State private var editingTarget: Target? = nil
     @State private var selectedTarget: Target? = nil
+    @State private var isReordering = false
+
+    private let accentGreen = Color(hex: "#22C55E")
+
+    var sortedTargets: [Target] {
+        allTargets.sorted { $0.urutan == $1.urutan ? $0.createdAt < $1.createdAt : $0.urutan < $1.urutan }
+    }
 
     var totalTersimpan: Decimal {
         allTargets.reduce(0) { $0 + $1.tersimpan }
@@ -24,11 +31,15 @@ struct TargetListView: View {
                 ScrollView {
                     VStack(spacing: 16) {
                         headerCard
-                        ForEach(allTargets) { target in
-                            targetCard(target)
-                                .onTapGesture {
-                                    selectedTarget = target
-                                }
+
+                        if isReordering {
+                            reorderHint
+                            reorderList
+                        } else {
+                            ForEach(sortedTargets) { target in
+                                targetCard(target)
+                                    .onTapGesture { selectedTarget = target }
+                            }
                         }
                     }
                     .padding(.horizontal, 16)
@@ -42,15 +53,30 @@ struct TargetListView: View {
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showAddSheet = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus")
-                        Text("Tambah")
+                HStack(spacing: 12) {
+                    if !allTargets.isEmpty {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isReordering.toggle()
+                            }
+                        } label: {
+                            Text(isReordering ? "Selesai" : "Atur Urutan")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(isReordering ? .white : accentGreen)
+                        }
                     }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color(hex: "#22C55E"))
+                    if !isReordering {
+                        Button {
+                            showAddSheet = true
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "plus")
+                                Text("Tambah")
+                            }
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(accentGreen)
+                        }
+                    }
                 }
             }
         }
@@ -63,6 +89,82 @@ struct TargetListView: View {
         .sheet(item: $selectedTarget) { target in
             TargetDetailSheet(target: target)
         }
+    }
+
+    // MARK: - Reorder Hint
+
+    private var reorderHint: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.up.arrow.down")
+                .font(.caption2)
+                .foregroundStyle(.gray)
+            Text("Seret untuk mengatur urutan")
+                .font(.caption2)
+                .foregroundStyle(.gray)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    // MARK: - Reorder List (compact rows)
+
+    private var reorderList: some View {
+        List {
+            ForEach(sortedTargets) { target in
+                reorderRow(target)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+            }
+            .onMove { source, destination in
+                var targets = sortedTargets
+                targets.move(fromOffsets: source, toOffset: destination)
+                for (index, target) in targets.enumerated() {
+                    target.urutan = index
+                }
+                try? modelContext.save()
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .scrollDisabled(true)
+        .frame(height: CGFloat(allTargets.count) * 68)
+        .environment(\.editMode, .constant(.active))
+    }
+
+    @ViewBuilder
+    private func reorderRow(_ target: Target) -> some View {
+        let targetColor = Color(hex: target.warna)
+        HStack(spacing: 12) {
+            // Color accent + icon
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(targetColor.opacity(0.15))
+                    .frame(width: 40, height: 40)
+                if let emoji = target.ikonCustom, !emoji.isEmpty {
+                    Text(emoji).font(.system(size: 18))
+                } else {
+                    Image(systemName: target.ikon)
+                        .font(.system(size: 16))
+                        .foregroundStyle(targetColor)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(target.nama)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                Text(String(format: "%.0f%%", target.progressPersen))
+                    .font(.caption2)
+                    .foregroundStyle(targetColor)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     // MARK: - Header Card
@@ -81,10 +183,10 @@ struct TargetListView: View {
             Spacer()
             Text("\(allTargets.count) TARGET")
                 .font(.caption.weight(.bold))
-                .foregroundStyle(Color(hex: "#22C55E"))
+                .foregroundStyle(accentGreen)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(Color(hex: "#22C55E").opacity(0.15))
+                .background(accentGreen.opacity(0.15))
                 .clipShape(Capsule())
         }
         .padding(16)
@@ -119,7 +221,7 @@ struct TargetListView: View {
                 }
             }
 
-            // Gradient overlay (selalu ada, lebih tebal kalau ada foto)
+            // Gradient overlay
             LinearGradient(
                 colors: hasFoto
                     ? [Color.black.opacity(0), Color.black.opacity(0.55), Color.black.opacity(0.92)]
@@ -268,7 +370,7 @@ struct TargetListView: View {
                     .foregroundStyle(.black)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
-                    .background(Color(hex: "#22C55E"))
+                    .background(accentGreen)
                     .clipShape(Capsule())
             }
         }

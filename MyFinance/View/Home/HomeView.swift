@@ -112,7 +112,9 @@ struct HomeView: View {
     // MARK: - Active Targets & Anggaran (non-tx)
 
     private var activeTargets: [Target] {
-        allTargets.filter { !$0.isSelesai }
+        allTargets
+            .filter { !$0.isSelesai }
+            .sorted { $0.urutan == $1.urutan ? $0.createdAt < $1.createdAt : $0.urutan < $1.urutan }
     }
 
     private var anggaranBulanIni: [Anggaran] {

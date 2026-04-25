@@ -14,6 +14,7 @@ import Foundation
     var jenisTarget: JenisTarget  // biasa atau investasi
     var fotoData: Data?            // foto background kartu (opsional)
     var createdAt: Date
+    var urutan: Int = 0            // untuk drag reorder
 
     @Relationship(deleteRule: .cascade, inverse: \SimpanKeTarget.target)
     var riwayat: [SimpanKeTarget] = []

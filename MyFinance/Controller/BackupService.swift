@@ -52,6 +52,26 @@ struct TargetDTO: Codable {
     let createdAt: Date
     let linkedPocketNama: String?
     let riwayat: [SimpanKeTargetDTO]
+    let urutan: Int
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id              = try c.decode(UUID.self, forKey: .id)
+        nama            = try c.decode(String.self, forKey: .nama)
+        targetNominal   = try c.decode(String.self, forKey: .targetNominal)
+        deadline        = try? c.decode(Date.self, forKey: .deadline)
+        ikon            = try c.decode(String.self, forKey: .ikon)
+        ikonCustom      = try? c.decode(String.self, forKey: .ikonCustom)
+        warna           = try c.decode(String.self, forKey: .warna)
+        catatan         = try? c.decode(String.self, forKey: .catatan)
+        isSelesai       = (try? c.decode(Bool.self, forKey: .isSelesai)) ?? false
+        jenisTarget     = (try? c.decode(String.self, forKey: .jenisTarget)) ?? "biasa"
+        fotoData        = try? c.decode(String.self, forKey: .fotoData)
+        createdAt       = (try? c.decode(Date.self, forKey: .createdAt)) ?? Date()
+        linkedPocketNama = try? c.decode(String.self, forKey: .linkedPocketNama)
+        riwayat         = (try? c.decode([SimpanKeTargetDTO].self, forKey: .riwayat)) ?? []
+        urutan          = (try? c.decode(Int.self, forKey: .urutan)) ?? 0
+    }
 }
 
 struct SimpanKeTargetDTO: Codable {
@@ -363,6 +383,7 @@ final class BackupService {
             t.catatan     = dto.catatan
             t.isSelesai   = dto.isSelesai
             t.createdAt   = dto.createdAt
+            t.urutan      = dto.urutan
             t.linkedPocket = dto.linkedPocketNama.flatMap { pocketMap[$0] }
             if let b64 = dto.fotoData, let data = Data(base64Encoded: b64) { t.fotoData = data }
             context.insert(t)
@@ -589,7 +610,8 @@ final class BackupService {
                     catatan: r.catatan,
                     createdAt: r.createdAt
                 )
-            }
+            },
+            urutan: t.urutan
         )
     }
 
