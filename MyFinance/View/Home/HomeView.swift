@@ -113,7 +113,7 @@ struct HomeView: View {
 
     private var activeTargets: [Target] {
         allTargets
-            .filter { !$0.isSelesai }
+            .filter { !$0.isSelesai && $0.tampilDiHome }
             .sorted { $0.urutan == $1.urutan ? $0.createdAt < $1.createdAt : $0.urutan < $1.urutan }
     }
 

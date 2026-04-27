@@ -53,12 +53,13 @@ struct TargetDTO: Codable {
     let linkedPocketNama: String?
     let riwayat: [SimpanKeTargetDTO]
     let urutan: Int
+    let tampilDiHome: Bool
 
     init(id: UUID, nama: String, targetNominal: String, deadline: Date?,
          ikon: String, ikonCustom: String?, warna: String, catatan: String?,
          isSelesai: Bool, jenisTarget: String, fotoData: String?,
          createdAt: Date, linkedPocketNama: String?,
-         riwayat: [SimpanKeTargetDTO], urutan: Int) {
+         riwayat: [SimpanKeTargetDTO], urutan: Int, tampilDiHome: Bool) {
         self.id              = id
         self.nama            = nama
         self.targetNominal   = targetNominal
@@ -74,6 +75,7 @@ struct TargetDTO: Codable {
         self.linkedPocketNama = linkedPocketNama
         self.riwayat         = riwayat
         self.urutan          = urutan
+        self.tampilDiHome    = tampilDiHome
     }
 
     init(from decoder: Decoder) throws {
@@ -93,6 +95,7 @@ struct TargetDTO: Codable {
         linkedPocketNama = try? c.decode(String.self, forKey: .linkedPocketNama)
         riwayat         = (try? c.decode([SimpanKeTargetDTO].self, forKey: .riwayat)) ?? []
         urutan          = (try? c.decode(Int.self, forKey: .urutan)) ?? 0
+        tampilDiHome    = (try? c.decode(Bool.self, forKey: .tampilDiHome)) ?? true
     }
 }
 
@@ -406,6 +409,7 @@ final class BackupService {
             t.isSelesai   = dto.isSelesai
             t.createdAt   = dto.createdAt
             t.urutan      = dto.urutan
+            t.tampilDiHome = dto.tampilDiHome
             t.linkedPocket = dto.linkedPocketNama.flatMap { pocketMap[$0] }
             if let b64 = dto.fotoData, let data = Data(base64Encoded: b64) { t.fotoData = data }
             context.insert(t)
@@ -633,7 +637,8 @@ final class BackupService {
                     createdAt: r.createdAt
                 )
             },
-            urutan: t.urutan
+            urutan: t.urutan,
+            tampilDiHome: t.tampilDiHome
         )
     }
 

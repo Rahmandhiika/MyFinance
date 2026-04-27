@@ -160,6 +160,10 @@ struct TargetListView: View {
             }
 
             Spacer()
+
+            Image(systemName: target.tampilDiHome ? "house.fill" : "house")
+                .font(.system(size: 12))
+                .foregroundStyle(target.tampilDiHome ? accentGreen : .gray.opacity(0.4))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -315,8 +319,28 @@ struct TargetListView: View {
                 .padding(.bottom, 14)
 
                 // Bottom action buttons
-                HStack {
+                HStack(spacing: 8) {
+                    // Toggle tampil di home
+                    Button {
+                        target.tampilDiHome.toggle()
+                        try? modelContext.save()
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: target.tampilDiHome ? "house.fill" : "house")
+                                .font(.system(size: 11))
+                            Text(target.tampilDiHome ? "Di Home" : "Disembunyikan")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .foregroundStyle(target.tampilDiHome ? accentGreen : .gray)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background((target.tampilDiHome ? accentGreen : Color.white).opacity(hasFoto ? 0.2 : 0.08))
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+
                     Spacer()
+
                     Button {
                         editingTarget = target
                     } label: {

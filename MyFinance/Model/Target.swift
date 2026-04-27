@@ -15,6 +15,7 @@ import Foundation
     var fotoData: Data?            // foto background kartu (opsional)
     var createdAt: Date
     var urutan: Int = 0            // untuk drag reorder
+    var tampilDiHome: Bool = true  // kontrol visibilitas di HomeView
 
     @Relationship(deleteRule: .cascade, inverse: \SimpanKeTarget.target)
     var riwayat: [SimpanKeTarget] = []
