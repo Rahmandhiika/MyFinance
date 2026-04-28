@@ -95,16 +95,19 @@ struct HomeView: View {
     // MARK: - Kekayaan Computed (non-tx, kept as individual props)
 
     private var danaTersimpan: Decimal { allTargets.reduce(0) { $0 + $1.tersimpan } }
-    /// ID pocket yang dikunci sebagai tempat simpan target — tidak masuk sisa pocket
-    private var targetLinkedPocketIDs: Set<PersistentIdentifier> {
-        Set(allTargets.compactMap { $0.linkedPocket?.persistentModelID })
-    }
+    /// Total saldo semua pocket biasa (tanpa pengurangan apapun — untuk total kekayaan)
     private var cash: Decimal {
-        let lockedIDs = targetLinkedPocketIDs
-        return allPockets
-            .filter { $0.kelompokPocket == .biasa && !lockedIDs.contains($0.persistentModelID) }
-            .reduce(0) { $0 + $1.saldo }
+        allPockets.filter { $0.kelompokPocket == .biasa }.reduce(0) { $0 + $1.saldo }
     }
+    /// Dana yang sudah disisihkan ke target biasa (masih ada di pocket, tapi sudah "dipesan")
+    private var danaTersisihkanTarget: Decimal {
+        allTargets
+            .filter { $0.jenisTarget == .biasa }
+            .reduce(0) { $0 + $1.tersimpan }
+    }
+    /// Uang yang benar-benar bebas dipakai = saldo pocket - yang sudah ke target
+    private var sisaPocket: Decimal { max(cash - danaTersisihkanTarget, 0) }
+
     private var hutang: Decimal { allPockets.filter { $0.kelompokPocket == .utang }.reduce(0) { $0 + $1.saldo } }
     private var totalAset: Decimal { allAset.filter { $0.linkedTarget == nil }.reduce(0) { $0 + $1.nilaiEfektif } }
     private var totalKekayaan: Decimal { cash + danaTersimpan + totalAset - hutang }
@@ -247,19 +250,18 @@ struct HomeView: View {
 
     // MARK: - Cashflow Card
     private func cashflowCard(_ stats: MonthStats) -> some View {
-        let lockedIDs = targetLinkedPocketIDs
-        let activePocketCount = allPockets.filter { $0.isAktif && $0.kelompokPocket == .biasa && !lockedIDs.contains($0.persistentModelID) }.count
+        let activePocketCount = allPockets.filter { $0.isAktif && $0.kelompokPocket == .biasa }.count
         return VStack(alignment: .leading, spacing: 12) {
             Text("SISA POCKET")
                 .font(.caption)
                 .fontWeight(.semibold)
                 .foregroundStyle(.gray)
 
-            Text(masked(cash.idrFormatted))
+            Text(masked(sisaPocket.idrFormatted))
                 .font(.system(size: 30, weight: .bold))
                 .foregroundStyle(accentGreen)
 
-            Text("dari \(activePocketCount) pocket aktif")
+            Text("dari \(activePocketCount) pocket aktif · target sudah dikurangi")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.5))
 
