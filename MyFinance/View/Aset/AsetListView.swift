@@ -977,8 +977,12 @@ private struct TargetAsetRow: View {
 // MARK: - Shared icon helper
 
 private func asetIconView(aset: Aset, size: CGFloat) -> some View {
-    Group {
-        if let data = aset.logoData, let img = UIImage(data: data) {
+    // Priority: logoData custom → pocket logo (deposito) → default icon
+    let imageData: Data? = aset.logoData
+        ?? (aset.tipe == .deposito ? aset.pocketSumber?.logo : nil)
+
+    return Group {
+        if let data = imageData, let img = UIImage(data: data) {
             Image(uiImage: img)
                 .resizable()
                 .scaledToFill()

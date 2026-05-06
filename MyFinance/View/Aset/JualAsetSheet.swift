@@ -294,14 +294,14 @@ struct JualAsetSheet: View {
         HStack(spacing: 6) {
             ForEach(presets, id: \.0) { label, amount in
                 Button {
-                    binding.wrappedValue = binding.wrappedValue == amount ? 0 : amount
+                    binding.wrappedValue += amount
                 } label: {
                     Text(label)
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(binding.wrappedValue == amount ? .black : Color(hex: "#F59E0B"))
+                        .foregroundStyle(Color(hex: "#F59E0B"))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(binding.wrappedValue == amount ? Color(hex: "#F59E0B") : Color(hex: "#F59E0B").opacity(0.15))
+                        .background(Color(hex: "#F59E0B").opacity(0.15))
                         .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)

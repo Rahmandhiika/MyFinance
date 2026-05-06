@@ -135,14 +135,23 @@ struct AsetDetailSheet: View {
 
     private var headerSection: some View {
         VStack(spacing: 8) {
-            // Tipe icon
+            // Tipe icon — deposito pakai logo pocket sumber jika ada
+            let iconData: Data? = aset.logoData ?? (aset.tipe == .deposito ? aset.pocketSumber?.logo : nil)
             ZStack {
                 Circle()
                     .fill(aset.tipe.color.opacity(0.15))
                     .frame(width: 56, height: 56)
-                Image(systemName: aset.tipe.iconName)
-                    .font(.title2)
-                    .foregroundStyle(aset.tipe.color)
+                if let data = iconData, let img = UIImage(data: data) {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 56, height: 56)
+                        .clipShape(Circle())
+                } else {
+                    Image(systemName: aset.tipe.iconName)
+                        .font(.title2)
+                        .foregroundStyle(aset.tipe.color)
+                }
             }
 
             Text("NILAI PASAR")
