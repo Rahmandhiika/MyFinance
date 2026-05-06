@@ -169,7 +169,6 @@ struct TransferInternalSheet: View {
     }
 
     @ViewBuilder
-    @ViewBuilder
     private func adminQuickPick(_ binding: Binding<Decimal>) -> some View {
         let presets: [(String, Decimal)] = [("1rb", 1_000), ("2,5rb", 2_500)]
         HStack(spacing: 6) {
