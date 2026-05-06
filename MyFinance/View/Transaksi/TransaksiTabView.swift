@@ -90,6 +90,22 @@ struct TransaksiTabView: View {
 
     private var bersih: Decimal { totalPemasukan - totalPengeluaran }
 
+    private var isCurrentMonth: Bool {
+        Calendar.current.isDate(selectedMonth, equalTo: Date(), toGranularity: .month)
+    }
+
+    /// Pengeluaran per kategori bulan ini, untuk analytics bulan lalu
+    private var pengeluaranPerKategori: [(Kategori, Decimal)] {
+        var map: [UUID: (Kategori, Decimal)] = [:]
+        for t in filteredTransaksi where t.tipe == .pengeluaran {
+            if let kat = t.kategori {
+                if let e = map[kat.id] { map[kat.id] = (kat, e.1 + t.nominal) }
+                else { map[kat.id] = (kat, t.nominal) }
+            }
+        }
+        return map.values.sorted { $0.1 > $1.1 }
+    }
+
     private var pemasukanList: [Transaksi] {
         filteredTransaksi.filter { $0.tipe == .pemasukan }.sorted { $0.tanggal > $1.tanggal }
     }
@@ -109,47 +125,59 @@ struct TransaksiTabView: View {
                     MonthNavigator(selectedMonth: $selectedMonth)
                         .padding(.top, 8)
 
-                    // Search bar
-                    HStack(spacing: 10) {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.gray)
-                        TextField("Cari transaksi...", text: $searchText)
-                            .foregroundStyle(.white)
+                    // Search bar — hanya bulan ini
+                    if isCurrentMonth {
+                        HStack(spacing: 10) {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundStyle(.gray)
+                            TextField("Cari transaksi...", text: $searchText)
+                                .foregroundStyle(.white)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Color.white.opacity(0.07))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(Color.white.opacity(0.07))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
 
                     // Summary card
                     summaryCard
                         .padding(.horizontal, 16)
                         .padding(.top, 14)
 
-                    // List
-                    if groupedItems.isEmpty {
-                        Spacer()
-                        Text("Belum ada transaksi")
-                            .foregroundStyle(.gray)
-                            .font(.subheadline)
-                        Spacer()
-                    } else {
-                        ScrollView {
-                            LazyVStack(spacing: 0, pinnedViews: .sectionHeaders) {
-                                ForEach(groupedItems, id: \.0) { day, items in
-                                    Section {
-                                        ForEach(items) { item in
-                                            TransaksiRowView(item: item)
-                                                .onTapGesture { selectedItem = item }
+                    if isCurrentMonth {
+                        // List transaksi — hanya bulan ini
+                        if groupedItems.isEmpty {
+                            Spacer()
+                            Text("Belum ada transaksi")
+                                .foregroundStyle(.gray)
+                                .font(.subheadline)
+                            Spacer()
+                        } else {
+                            ScrollView {
+                                LazyVStack(spacing: 0, pinnedViews: .sectionHeaders) {
+                                    ForEach(groupedItems, id: \.0) { day, items in
+                                        Section {
+                                            ForEach(items) { item in
+                                                TransaksiRowView(item: item)
+                                                    .onTapGesture { selectedItem = item }
+                                            }
+                                        } header: {
+                                            DaySectionHeader(date: day)
                                         }
-                                    } header: {
-                                        DaySectionHeader(date: day)
                                     }
                                 }
+                                .padding(.top, 4)
                             }
-                            .padding(.top, 4)
+                        }
+                    } else {
+                        // Analytics bulan lalu — per kategori
+                        ScrollView {
+                            pastMonthAnalytics
+                                .padding(.horizontal, 16)
+                                .padding(.top, 14)
+                                .padding(.bottom, 32)
                         }
                     }
                 }
@@ -210,6 +238,71 @@ struct TransaksiTabView: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    // MARK: - Past Month Analytics
+
+    private var pastMonthAnalytics: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 6) {
+                Image(systemName: "chart.pie.fill")
+                    .font(.caption)
+                    .foregroundStyle(Color(hex: "#22C55E"))
+                Text("PENGELUARAN PER KATEGORI")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.gray)
+                    .tracking(0.5)
+            }
+
+            if pengeluaranPerKategori.isEmpty {
+                Text("Tidak ada pengeluaran di bulan ini")
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 24)
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(Array(pengeluaranPerKategori.enumerated()), id: \.offset) { _, pair in
+                        let (kat, amount) = pair
+                        let pct = totalPengeluaran > 0
+                            ? Double(truncating: (amount / totalPengeluaran) as NSDecimalNumber)
+                            : 0
+                        VStack(spacing: 4) {
+                            HStack(spacing: 10) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color(hex: kat.warna).opacity(0.2))
+                                        .frame(width: 34, height: 34)
+                                    if let emoji = kat.ikonCustom, !emoji.isEmpty {
+                                        Text(emoji).font(.system(size: 14))
+                                    } else {
+                                        Image(systemName: kat.ikon)
+                                            .foregroundStyle(Color(hex: kat.warna))
+                                            .font(.system(size: 13))
+                                    }
+                                }
+                                Text(kat.nama)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.white)
+                                Spacer()
+                                VStack(alignment: .trailing, spacing: 1) {
+                                    Text(amount.idrFormatted)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.red)
+                                    Text(String(format: "%.0f%%", pct * 100))
+                                        .font(.caption2)
+                                        .foregroundStyle(.gray)
+                                }
+                            }
+                            ProgressBarView(progress: pct, color: Color(hex: kat.warna), height: 3)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(Color.white.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     // MARK: - Summary card
