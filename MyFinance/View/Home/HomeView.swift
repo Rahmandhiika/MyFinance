@@ -35,6 +35,7 @@ struct HomeView: View {
         var kebutuhanPokok: Decimal = 0
         var gayaHidup: Decimal = 0
         var kategoriTeratas: [(Kategori, Decimal)] = []
+        var semuaKategori: [(Kategori, Decimal)] = []   // untuk tampilan bulan lalu
         var terbaru: [Transaksi] = []
         var txList: [Transaksi] = []    // semua transaksi bulan ini, untuk terpakai(for:)
 
@@ -87,9 +88,15 @@ struct HomeView: View {
             }
         }
 
-        s.kategoriTeratas = katMap.values.sorted { $0.1 > $1.1 }.prefix(3).map { $0 }
+        let sorted = katMap.values.sorted { $0.1 > $1.1 }
+        s.kategoriTeratas = Array(sorted.prefix(3))
+        s.semuaKategori   = sorted
         s.terbaru = Array(s.txList.prefix(5))
         return s
+    }
+
+    private var isCurrentMonth: Bool {
+        Calendar.current.isDate(selectedMonth, equalTo: Date(), toGranularity: .month)
     }
 
     // MARK: - Kekayaan Computed (non-tx, kept as individual props)
@@ -158,11 +165,19 @@ struct HomeView: View {
                         }
                         LanggananBulanIniCard()
                             .padding(.horizontal)
-                        if !stats.kategoriTeratas.isEmpty {
-                            kategoriTeratSection(stats)
-                        }
-                        if !stats.terbaru.isEmpty {
-                            terbarSection(stats)
+                        if isCurrentMonth {
+                            if !stats.kategoriTeratas.isEmpty {
+                                kategoriTeratSection(stats)
+                            }
+                            if !stats.terbaru.isEmpty {
+                                terbarSection(stats)
+                            }
+                        } else {
+                            if !stats.semuaKategori.isEmpty {
+                                pastMonthKategoriSection(stats)
+                            } else {
+                                emptyPastMonthSection
+                            }
                         }
                         Spacer().frame(height: 80)
                     }
@@ -781,6 +796,95 @@ struct HomeView: View {
         }
         .padding(14)
         .background(Color.white.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal)
+    }
+
+    // MARK: - Past Month: Category Analytics
+
+    private func pastMonthKategoriSection(_ stats: MonthStats) -> some View {
+        let totalPengeluaran = stats.pengeluaran
+        return VStack(alignment: .leading, spacing: 12) {
+            sectionHeader(label: "PENGELUARAN PER KATEGORI", icon: "chart.pie.fill")
+
+            // Ringkasan pemasukan / pengeluaran
+            HStack(spacing: 0) {
+                pastMonthStat(label: "PEMASUKAN", value: stats.pemasukan, color: accentGreen)
+                Divider().frame(width: 1, height: 32).background(Color.white.opacity(0.1))
+                pastMonthStat(label: "PENGELUARAN", value: stats.pengeluaran, color: accentRed)
+                Divider().frame(width: 1, height: 32).background(Color.white.opacity(0.1))
+                pastMonthStat(label: "NABUNG", value: stats.nabungBulanIni, color: accentCyan)
+            }
+            .padding(.vertical, 6)
+
+            Divider().background(Color.white.opacity(0.08))
+
+            // Semua kategori pengeluaran
+            ForEach(Array(stats.semuaKategori.enumerated()), id: \.offset) { _, pair in
+                let (kat, amount) = pair
+                let pct = totalPengeluaran > 0
+                    ? Double(truncating: (amount / totalPengeluaran) as NSDecimalNumber)
+                    : 0
+                VStack(spacing: 4) {
+                    HStack(spacing: 10) {
+                        ZStack {
+                            Circle()
+                                .fill(Color(hex: kat.warna).opacity(0.2))
+                                .frame(width: 32, height: 32)
+                            if let emoji = kat.ikonCustom {
+                                Text(emoji).font(.system(size: 14))
+                            } else {
+                                Image(systemName: kat.ikon)
+                                    .foregroundStyle(Color(hex: kat.warna))
+                                    .font(.system(size: 12))
+                            }
+                        }
+                        Text(kat.nama)
+                            .font(.subheadline)
+                            .foregroundStyle(.white)
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text(masked(amount.idrFormatted))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(accentRed)
+                            Text(String(format: "%.0f%%", pct * 100))
+                                .font(.caption2)
+                                .foregroundStyle(.gray)
+                        }
+                    }
+                    ProgressBarView(progress: pct, color: Color(hex: kat.warna), height: 3)
+                }
+            }
+        }
+        .padding(14)
+        .background(Color.white.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal)
+    }
+
+    private func pastMonthStat(label: String, value: Decimal, color: Color) -> some View {
+        VStack(spacing: 3) {
+            Text(label).font(.system(size: 8, weight: .semibold)).foregroundStyle(.gray)
+            Text(masked(value.idrFormatted))
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(color)
+                .lineLimit(1).minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var emptyPastMonthSection: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "tray")
+                .font(.system(size: 28))
+                .foregroundStyle(.gray)
+            Text("Tidak ada transaksi di bulan ini")
+                .font(.subheadline)
+                .foregroundStyle(.gray)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
+        .background(Color.white.opacity(0.04))
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .padding(.horizontal)
     }

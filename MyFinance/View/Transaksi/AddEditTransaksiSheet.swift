@@ -172,6 +172,8 @@ struct AddEditTransaksiSheet: View {
                                         .font(.caption)
                                         .foregroundStyle(Color(hex: "#F59E0B"))
                                     sectionLabel("Biaya Admin (opsional)")
+                                    Spacer()
+                                    adminQuickPick($biayaAdmin)
                                 }
                                 HStack(spacing: 8) {
                                     Text("Rp")
@@ -242,6 +244,29 @@ struct AddEditTransaksiSheet: View {
             .onAppear { populateIfEditing() }
         }
         .preferredColorScheme(.dark)
+    }
+
+    // MARK: - Admin Quick Pick
+
+    @ViewBuilder
+    private func adminQuickPick(_ binding: Binding<Decimal>) -> some View {
+        let presets: [(String, Decimal)] = [("1rb", 1_000), ("2,5rb", 2_500)]
+        HStack(spacing: 6) {
+            ForEach(presets, id: \.0) { label, amount in
+                Button {
+                    binding.wrappedValue = binding.wrappedValue == amount ? 0 : amount
+                } label: {
+                    Text(label)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(binding.wrappedValue == amount ? .black : Color(hex: "#F59E0B"))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(binding.wrappedValue == amount ? Color(hex: "#F59E0B") : Color(hex: "#F59E0B").opacity(0.15))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     // MARK: - Helpers
