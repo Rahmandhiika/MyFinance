@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MainTabView: View {
+    @Environment(\.appTheme) private var theme
     @State private var selectedTab = 0
 
     var body: some View {
@@ -25,6 +26,6 @@ struct MainTabView: View {
                 .tabItem { Label("Pengaturan", systemImage: "gearshape.fill") }
                 .tag(4)
         }
-        .tint(Color(hex: "#22C55E"))
+        .tint(theme.tabBarTint)
     }
 }

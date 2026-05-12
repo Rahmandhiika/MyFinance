@@ -5,6 +5,7 @@ import PhotosUI
 struct AddEditAsetView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     @Query(sort: \Pocket.urutan) var allPockets: [Pocket]
 
@@ -38,7 +39,8 @@ struct AddEditAsetView: View {
     // Saham AS
     @State private var asNama: String = ""
     @State private var asKode: String = ""
-    @State private var asTotalInvestasiUSD: Decimal = 0
+    @State private var asTotalDibayarUSD: Decimal = 0    // Total Amount (termasuk fee)
+    @State private var asBiayaFeeUSD: Decimal = 0         // Transaction fee + taxes USD
     @State private var asHargaBeliPerShareUSD: Decimal = 0
     @State private var asHargaSaatIniUSD: Decimal? = nil
     @State private var asKursBeliUSD: Decimal = 0
@@ -57,6 +59,10 @@ struct AddEditAsetView: View {
     @State private var emasTahunCetak: Int = Calendar.current.component(.year, from: Date())
     @State private var emasBeratGram: String = ""
     @State private var emasHargaBeliPerGram: Decimal = 0
+    @State private var emasHargaSaatIni: Decimal = 0
+    // Emas digital (Pluang): input total dibayar + pajak, gram di-auto-hitung
+    @State private var emasTotalDibayar: Decimal = 0
+    @State private var emasPajak: Decimal = 0
 
     // Deposito — diisi Phase 4
     @State private var depoPocketSumber: Pocket? = nil
@@ -74,27 +80,18 @@ struct AddEditAsetView: View {
     // Common
     @State private var catatSbgPengeluaran: Bool = false
     @State private var selectedPocket: Pocket? = nil
-    @State private var portofolio: String = ""
-    @State private var showPortofolioSuggestions: Bool = false
+    @State private var selectedPortofolio: PortofolioConfig? = nil
+    @State private var showCreateGrup = false
+    @State private var newGrupNama = ""
+    @State private var newGrupWarna = "#A78BFA"
 
     @Query private var allAset: [Aset]
+    @Query(sort: \PortofolioConfig.urutan) private var allPortofolioConfigs: [PortofolioConfig]
     @Query(sort: \Kategori.urutan) private var allKategori: [Kategori]
 
     /// Kategori nabung — otomatis dipakai saat beli/tambah aset
     private var nabungKategori: Kategori? {
         allKategori.first { $0.isNabung && $0.tipe == .pengeluaran }
-    }
-
-    /// Nama portofolio unik dari aset yang sudah ada
-    private var existingPortofolioNames: [String] {
-        let names = allAset.compactMap { $0.portofolio }.filter { !$0.isEmpty }
-        return Array(Set(names)).sorted()
-    }
-
-    /// Suggestions filtered by current input
-    private var portofolioSuggestions: [String] {
-        guard !portofolio.isEmpty else { return existingPortofolioNames }
-        return existingPortofolioNames.filter { $0.localizedCaseInsensitiveContains(portofolio) }
     }
 
     private let rdJenisList = ["Pasar Uang", "Obligasi", "Saham", "Campuran"]
@@ -105,7 +102,7 @@ struct AddEditAsetView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -124,7 +121,7 @@ struct AddEditAsetView: View {
                             }
                         }
 
-                        if selectedTipe != .deposito {
+                        if selectedTipe != .deposito && selectedTipe != .sahamAS {
                             catatPengeluaranSection
                         }
 
@@ -137,17 +134,17 @@ struct AddEditAsetView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text(navigationTitle)
                         .font(.headline)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(theme.textPrimary)
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Batal") { dismiss() }
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(theme.textSecondary)
                 }
             }
             .onAppear { populateIfEditing() }
@@ -159,7 +156,7 @@ struct AddEditAsetView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     // MARK: - Logo Picker
@@ -177,7 +174,7 @@ struct AddEditAsetView: View {
                             .overlay(Circle().stroke(selectedTipe.color, lineWidth: 2))
                     } else {
                         Circle()
-                            .fill(Color.white.opacity(0.07))
+                            .fill(theme.separator)
                             .frame(width: 72, height: 72)
                             .overlay(
                                 VStack(spacing: 4) {
@@ -233,7 +230,7 @@ struct AddEditAsetView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("TIPE ASET")
                 .font(.caption)
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(theme.textSecondary)
                 .tracking(1)
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
@@ -287,8 +284,8 @@ struct AddEditAsetView: View {
 
                 FormField(label: "HARGA BELI/LEMBAR") {
                     HStack(spacing: 8) {
-                        Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
-                        CurrencyInputField(value: $sahamHargaPerLembar, allowsDecimal: true)
+                        Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
+                        CurrencyInputField(value: $sahamHargaPerLembar)
                     }
                 }
                 .onChange(of: sahamHargaPerLembar) { _, harga in
@@ -298,8 +295,8 @@ struct AddEditAsetView: View {
 
                 FormField(label: "TOTAL MODAL") {
                     HStack(spacing: 8) {
-                        Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
-                        CurrencyInputField(value: $sahamTotalModal, allowsDecimal: true)
+                        Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
+                        CurrencyInputField(value: $sahamTotalModal)
                     }
                 }
                 .onChange(of: sahamTotalModal) { _, total in
@@ -312,9 +309,9 @@ struct AddEditAsetView: View {
                 let lotD = Decimal(string: sahamLot) ?? 0
                 if lotD > 0 && sahamHargaPerLembar > 0 {
                     HStack(spacing: 4) {
-                        Image(systemName: "info.circle").font(.caption2).foregroundStyle(.white.opacity(0.3))
-                        Text("\(NSDecimalNumber(decimal: lotD).intValue) lot × Rp\(sahamHargaPerLembar.idrDecimalFormatted)/lembar × 100")
-                            .font(.caption2).foregroundStyle(.white.opacity(0.3))
+                        Image(systemName: "info.circle").font(.caption2).foregroundStyle(theme.textSecondary.opacity(0.7))
+                        Text("\(NSDecimalNumber(decimal: lotD).intValue) lot × \(sahamHargaPerLembar.idrDecimalFormatted)/lembar × 100")
+                            .font(.caption2).foregroundStyle(theme.textSecondary.opacity(0.7))
                     }
                 }
             }
@@ -359,51 +356,75 @@ struct AddEditAsetView: View {
                     if kode.count >= 2 { Task { await fetchUSMarketPrice(kode: kode) } }
                 }
 
-                FormField(label: "TOTAL INVESTASI (USD)") {
+                // Total Dibayar + Fee → Amount auto-hitung
+                FormField(label: "TOTAL DIBAYAR (USD)") {
                     HStack(spacing: 8) {
-                        Text("$").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
-                        CurrencyInputField(value: $asTotalInvestasiUSD, allowsDecimal: true)
+                        Text("$").foregroundStyle(theme.textSecondary).font(.subheadline)
+                        CurrencyInputField(value: $asTotalDibayarUSD)
                     }
+                }
+
+                FormField(label: "FEE + PAJAK (USD)") {
+                    HStack(spacing: 8) {
+                        Text("$").foregroundStyle(theme.textSecondary).font(.subheadline)
+                        CurrencyInputField(value: $asBiayaFeeUSD)
+                    }
+                    Text("Transaction fee + taxes dari receipt Pluang.")
+                        .font(.caption2).foregroundStyle(theme.textSecondary.opacity(0.7))
+                        .padding(.top, 2)
                 }
 
                 FormField(label: "HARGA BELI/SHARE (USD)") {
                     HStack(spacing: 8) {
-                        Text("$").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
-                        CurrencyInputField(value: $asHargaBeliPerShareUSD, allowsDecimal: true)
+                        Text("$").foregroundStyle(theme.textSecondary).font(.subheadline)
+                        CurrencyInputField(value: $asHargaBeliPerShareUSD)
                     }
                 }
 
-                HStack(spacing: 12) {
-                    FormField(label: "KURS BELI (IDR/USD)") {
-                        HStack(spacing: 4) {
-                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.caption)
-                            CurrencyInputField(value: $asKursBeliUSD, allowsDecimal: true)
-                        }
-                    }
-                    FormField(label: "KURS SAAT INI") {
-                        HStack(spacing: 4) {
-                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.caption)
-                            CurrencyInputField(value: $asKursSaatIniUSD, allowsDecimal: true)
-                        }
-                    }
-                }
-
-                // Estimated shares
-                if asTotalInvestasiUSD > 0 && asHargaBeliPerShareUSD > 0 {
-                    let shares = asTotalInvestasiUSD / asHargaBeliPerShareUSD
+                // Estimasi shares
+                let amountUSD = asTotalDibayarUSD - asBiayaFeeUSD
+                if asTotalDibayarUSD > 0 && asHargaBeliPerShareUSD > 0 {
+                    let sharesEstimasi = amountUSD / asHargaBeliPerShareUSD
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("ESTIMASI SHARES").font(.caption).foregroundStyle(.white.opacity(0.4)).tracking(0.8)
-                        Text("\(shares.unitFormatted(4)) share")
-                            .font(.title3.weight(.bold)).foregroundStyle(.white)
-                        if asKursBeliUSD > 0 {
-                            Text("≈ \((asTotalInvestasiUSD * asKursBeliUSD).idrDecimalFormatted)")
-                                .font(.caption).foregroundStyle(.white.opacity(0.4))
-                        }
+                        Text("ESTIMASI SHARES").font(.caption).foregroundStyle(theme.textSecondary.opacity(0.7)).tracking(0.8)
+                        Text("\(sharesEstimasi.unitFormatted(9)) share")
+                            .font(.title3.weight(.bold)).foregroundStyle(theme.textPrimary)
+                        Text("$\(amountUSD.unitFormatted(2)) ($\(asTotalDibayarUSD.unitFormatted(2)) − fee $\(asBiayaFeeUSD.unitFormatted(2))) ÷ $\(asHargaBeliPerShareUSD.unitFormatted(2))/share")
+                            .font(.caption2).foregroundStyle(theme.textSecondary.opacity(0.7))
                     }
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color(hex: "#F97316").opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+
+                // Pocket picker hanya muncul saat tambah baru (bukan edit)
+                if existingAset == nil {
+                    Divider().background(theme.separator)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("POCKET SUMBER (USD)").font(.caption).foregroundStyle(theme.textSecondary).tracking(0.8)
+                        let usdPockets = allPockets.filter { $0.isAktif && $0.saldoUSD > 0 }
+                        if usdPockets.isEmpty {
+                            Text("⚠ Belum ada pocket dengan saldo USD. Konversi IDR → USD di pocket terlebih dahulu.")
+                                .font(.caption2).foregroundStyle(Color(hex: "#EF4444"))
+                        } else {
+                            PocketChipPicker(pockets: usdPockets, selected: $selectedPocket)
+                            if let pocket = selectedPocket {
+                                if asTotalDibayarUSD > 0 && pocket.saldoUSD < asTotalDibayarUSD {
+                                    Text("⚠ Saldo USD tidak cukup. Tersedia: $\(pocket.saldoUSD.unitFormatted(2))")
+                                        .font(.caption2).foregroundStyle(Color(hex: "#EF4444"))
+                                } else if asTotalDibayarUSD > 0 {
+                                    let sisa = pocket.saldoUSD - asTotalDibayarUSD
+                                    Text("Tersedia: $\(pocket.saldoUSD.unitFormatted(2)) → sisa $\(sisa.unitFormatted(2)) setelah beli")
+                                        .font(.caption2).foregroundStyle(Color(hex: "#22C55E"))
+                                } else {
+                                    Text("Saldo USD: $\(pocket.saldoUSD.unitFormatted(2))")
+                                        .font(.caption2).foregroundStyle(theme.textSecondary.opacity(0.7))
+                                }
+                            }
+                        }
+                    }
                 }
             }
             .padding(16)
@@ -459,10 +480,10 @@ struct AddEditAsetView: View {
                     FormField(label: "CARI PRODUK") {
                         HStack(spacing: 8) {
                             Image(systemName: "magnifyingglass")
-                                .foregroundStyle(.white.opacity(0.4))
+                                .foregroundStyle(theme.textSecondary)
                                 .font(.subheadline)
                             TextField("Ketik nama atau manajer investasi...", text: $rdSearchQuery)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                                 .autocorrectionDisabled()
                             if !rdSearchQuery.isEmpty {
                                 Button {
@@ -472,12 +493,12 @@ struct AddEditAsetView: View {
                                     rdShowResults = false
                                 } label: {
                                     Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.white.opacity(0.4))
+                                        .foregroundStyle(theme.textSecondary)
                                 }
                             }
                         }
                         .padding(12)
-                        .background(Color.white.opacity(0.08))
+                        .background(theme.separator)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                         .onChange(of: rdSearchQuery) { _, query in
                             rdNama = query.trimmingCharacters(in: .whitespaces)
@@ -494,7 +515,7 @@ struct AddEditAsetView: View {
                                 .font(.caption)
                             Text(rdNama)
                                 .font(.caption.weight(.medium))
-                                .foregroundStyle(.white.opacity(0.8))
+                                .foregroundStyle(theme.textPrimary)
                                 .lineLimit(1)
                             Spacer()
                             if !rdJenis.isEmpty {
@@ -531,28 +552,28 @@ struct AddEditAsetView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     FormField(label: "TOTAL INVESTASI") {
                         HStack(spacing: 8) {
-                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
-                            CurrencyInputField(value: $rdTotalInvestasi, allowsDecimal: true)
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
+                            CurrencyInputField(value: $rdTotalInvestasi)
                         }
                     }
 
                     FormField(label: "NAV SAAT BELI/UNIT") {
                         HStack(spacing: 8) {
-                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
-                            CurrencyInputField(value: $rdHargaBeliPerUnit, allowsDecimal: true)
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
+                            CurrencyInputField(value: $rdHargaBeliPerUnit)
                         }
                     }
 
                     FormField(label: "NAV SAAT INI/UNIT") {
                         HStack(spacing: 8) {
-                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
-                            CurrencyInputField(value: $rdNavSaatIni, allowsDecimal: true)
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
+                            CurrencyInputField(value: $rdNavSaatIni)
                         }
                     }
 
                     // Unit aktual — bisa di-override manual
                     FormField(label: "JUMLAH UNIT AKTUAL (OPSIONAL)") {
-                        CurrencyInputField(value: $rdJumlahUnit, allowsDecimal: true)
+                        CurrencyInputField(value: $rdJumlahUnit)
                     }
                     Text(rdJumlahUnit > 0
                         ? "Unit ini dipakai langsung untuk hitung nilai aset."
@@ -560,18 +581,18 @@ struct AddEditAsetView: View {
                         .font(.caption2)
                         .foregroundStyle(rdJumlahUnit > 0
                             ? Color(hex: "#3B82F6").opacity(0.8)
-                            : .white.opacity(0.35))
+                            : theme.textSecondary.opacity(0.7))
 
                     let calcUnits: Decimal = rdHargaBeliPerUnit > 0 ? rdTotalInvestasi / rdHargaBeliPerUnit : 0
                     let effectiveUnits: Decimal = rdJumlahUnit > 0 ? rdJumlahUnit : calcUnits
                     if effectiveUnits > 0 {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(rdJumlahUnit > 0 ? "UNIT AKTUAL" : "ESTIMASI UNIT")
-                                .font(.caption).foregroundStyle(.white.opacity(0.4)).tracking(0.8)
+                                .font(.caption).foregroundStyle(theme.textSecondary.opacity(0.7)).tracking(0.8)
                             Text("\(effectiveUnits.unitFormatted(4)) unit")
-                                .font(.title3.weight(.bold)).foregroundStyle(.white)
+                                .font(.title3.weight(.bold)).foregroundStyle(theme.textPrimary)
                             Text(rdJumlahUnit > 0 ? "Input manual" : "Modal ÷ NAV beli per unit")
-                                .font(.caption).foregroundStyle(.white.opacity(0.4))
+                                .font(.caption).foregroundStyle(theme.textSecondary.opacity(0.7))
                         }
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -591,7 +612,7 @@ struct AddEditAsetView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("HASIL PENCARIAN (\(rdSearchResults.count))")
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(.white.opacity(0.35))
+                .foregroundStyle(theme.textSecondary.opacity(0.7))
                 .tracking(1)
             VStack(spacing: 0) {
                 ForEach(rdSearchResults) { item in
@@ -604,13 +625,13 @@ struct AddEditAsetView: View {
                         rdFundRow(item)
                     }
                     if item.id != rdSearchResults.last?.id {
-                        Divider().background(Color.white.opacity(0.06))
+                        Divider().background(theme.separator)
                     }
                 }
             }
             .background(Color(hex: "#1A1A1A"))
             .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.cardBorder, lineWidth: 1))
         }
     }
 
@@ -619,7 +640,7 @@ struct AddEditAsetView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("POPULER")
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(.white.opacity(0.35))
+                .foregroundStyle(theme.textSecondary.opacity(0.7))
                 .tracking(1)
             VStack(spacing: 0) {
                 ForEach(featured) { item in
@@ -631,13 +652,13 @@ struct AddEditAsetView: View {
                         rdFundRow(item)
                     }
                     if item.id != featured.last?.id {
-                        Divider().background(Color.white.opacity(0.06))
+                        Divider().background(theme.separator)
                     }
                 }
             }
             .background(Color(hex: "#1A1A1A"))
             .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.cardBorder, lineWidth: 1))
         }
     }
 
@@ -647,11 +668,11 @@ struct AddEditAsetView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.nama)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
                     .multilineTextAlignment(.leading)
                 Text(item.manajer)
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(theme.textSecondary)
             }
             Spacer()
             Text(item.jenis)
@@ -671,7 +692,7 @@ struct AddEditAsetView: View {
         case "Obligasi":   return Color(hex: "#F59E0B")
         case "Saham":      return Color(hex: "#3B82F6")
         case "Campuran":   return Color(hex: "#A78BFA")
-        default:           return Color.white.opacity(0.5)
+        default:           return theme.textSecondary
         }
     }
 
@@ -692,7 +713,7 @@ struct AddEditAsetView: View {
                                 VStack(spacing: 2) {
                                     Text(mu.flag).font(.title3)
                                     Text(mu.rawValue).font(.caption2.weight(.bold))
-                                        .foregroundStyle(valasMataUang == mu ? .black : .white.opacity(0.6))
+                                        .foregroundStyle(valasMataUang == mu ? .black : theme.textSecondary)
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
@@ -700,15 +721,15 @@ struct AddEditAsetView: View {
                             }
                         }
                     }
-                    .background(Color.white.opacity(0.08))
+                    .background(theme.separator)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
 
                 HStack(spacing: 12) {
                     FormField(label: "KURS SAAT INI") {
                         HStack(spacing: 4) {
-                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.caption)
-                            CurrencyInputField(value: $valasKursSaatIni, allowsDecimal: true)
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.caption)
+                            CurrencyInputField(value: $valasKursSaatIni)
                             if isFetchingKurs {
                                 ProgressView().tint(.white).scaleEffect(0.7)
                             }
@@ -716,14 +737,14 @@ struct AddEditAsetView: View {
                     }
                     FormField(label: "KURS BELI") {
                         HStack(spacing: 4) {
-                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.caption)
-                            CurrencyInputField(value: $valasKursBeli, allowsDecimal: true)
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.caption)
+                            CurrencyInputField(value: $valasKursBeli)
                         }
                     }
                 }
 
                 FormField(label: "JUMLAH \(valasMataUang.rawValue)") {
-                    CurrencyInputField(value: $valasJumlah, allowsDecimal: true)
+                    CurrencyInputField(value: $valasJumlah)
                 }
 
                 if valasJumlah > 0 && valasKursBeli > 0 {
@@ -767,8 +788,91 @@ struct AddEditAsetView: View {
                     }
                 }
 
-                // Tahun cetak hanya untuk emas fisik
-                if !emasJenis.isDigital {
+                if emasJenis.isDigital {
+                    // ── Emas Digital (Pluang) ──
+                    // Total dibayar → pajak/spread → gram otomatis
+                    FormField(label: "TOTAL DIBAYAR (IDR)") {
+                        HStack(spacing: 8) {
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
+                            CurrencyInputField(value: $emasTotalDibayar)
+                        }
+                    }
+
+                    FormField(label: "PAJAK / SPREAD (IDR)") {
+                        HStack(spacing: 8) {
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
+                            CurrencyInputField(value: $emasPajak)
+                        }
+                        Text("Selisih antara yang kamu bayar dan nilai emas yang diterima.")
+                            .font(.caption2).foregroundStyle(theme.textSecondary.opacity(0.7))
+                            .padding(.top, 2)
+                    }
+
+                    FormField(label: "HARGA BELI/GRAM (IDR)") {
+                        HStack(spacing: 8) {
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
+                            CurrencyInputField(value: $emasHargaBeliPerGram)
+                        }
+                    }
+
+                    // Auto-hitung gram
+                    if emasTotalDibayar > 0 && emasHargaBeliPerGram > 0 {
+                        let nilaiEmas = emasTotalDibayar - emasPajak
+                        let gramHitung = nilaiEmas / emasHargaBeliPerGram
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("ESTIMASI GRAM").font(.caption).foregroundStyle(theme.textSecondary.opacity(0.7)).tracking(0.8)
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                Text("\(gramHitung.unitFormatted(4))g")
+                                    .font(.title3.weight(.bold)).foregroundStyle(theme.textPrimary)
+                                Text("emas")
+                                    .font(.caption).foregroundStyle(theme.textSecondary.opacity(0.7))
+                            }
+                            Text("(\(emasTotalDibayar.idrFormatted) − pajak \(emasPajak.idrFormatted)) ÷ \(emasHargaBeliPerGram.idrFormatted)/g")
+                                .font(.caption2).foregroundStyle(theme.textSecondary.opacity(0.7))
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(hex: "#EAB308").opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+
+                    FormField(label: "HARGA SAAT INI/GRAM (IDR)") {
+                        HStack(spacing: 8) {
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
+                            CurrencyInputField(value: $emasHargaSaatIni)
+                        }
+                        Text("Update manual saat harga buyback berubah.")
+                            .font(.caption2).foregroundStyle(theme.textSecondary.opacity(0.7))
+                            .padding(.top, 2)
+                    }
+
+                    // Live P&L preview
+                    if emasHargaSaatIni > 0 && emasHargaBeliPerGram > 0 && emasTotalDibayar > 0 {
+                        let nilaiEmas = emasTotalDibayar - emasPajak
+                        let berat = emasHargaBeliPerGram > 0 ? nilaiEmas / emasHargaBeliPerGram : 0
+                        let nilaiSkrg = berat * emasHargaSaatIni
+                        let modal = emasTotalDibayar
+                        let pnl = nilaiSkrg - modal
+                        let pnlColor: Color = pnl >= 0 ? .green : .red
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("NILAI SAAT INI").font(.caption2).foregroundStyle(theme.textSecondary.opacity(0.7)).tracking(0.8)
+                                Text(nilaiSkrg.idrFormatted).font(.subheadline.weight(.bold)).foregroundStyle(theme.textPrimary)
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("P&L").font(.caption2).foregroundStyle(theme.textSecondary.opacity(0.7)).tracking(0.8)
+                                Text("\(pnl >= 0 ? "+" : "")\(pnl.idrFormatted)")
+                                    .font(.subheadline.weight(.bold)).foregroundStyle(pnlColor)
+                            }
+                        }
+                        .padding(12)
+                        .background(pnlColor.opacity(0.07))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+
+                } else {
+                    // ── Emas Fisik ──
                     FormField(label: "TAHUN CETAK") {
                         let years = Array(2010...Calendar.current.component(.year, from: Date()))
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -781,16 +885,26 @@ struct AddEditAsetView: View {
                             }.padding(.horizontal, 1)
                         }
                     }
-                }
 
-                FormField(label: "BERAT (GRAM)") {
-                    TextField("Contoh: 1,5", text: $emasBeratGram).keyboardType(.decimalPad).styledInput()
-                }
+                    FormField(label: "BERAT (GRAM)") {
+                        TextField("Contoh: 1,5", text: $emasBeratGram).keyboardType(.decimalPad).styledInput()
+                    }
 
-                FormField(label: "HARGA BELI/GRAM") {
-                    HStack(spacing: 8) {
-                        Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
-                        CurrencyInputField(value: $emasHargaBeliPerGram, allowsDecimal: true)
+                    FormField(label: "HARGA BELI/GRAM") {
+                        HStack(spacing: 8) {
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
+                            CurrencyInputField(value: $emasHargaBeliPerGram)
+                        }
+                    }
+
+                    FormField(label: "HARGA SAAT INI/GRAM (IDR)") {
+                        HStack(spacing: 8) {
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
+                            CurrencyInputField(value: $emasHargaSaatIni)
+                        }
+                        Text("Update manual saat harga berubah.")
+                            .font(.caption2).foregroundStyle(theme.textSecondary.opacity(0.7))
+                            .padding(.top, 2)
                     }
                 }
             }
@@ -815,17 +929,17 @@ struct AddEditAsetView: View {
 
                     FormField(label: "NOMINAL / POKOK") {
                         HStack(spacing: 8) {
-                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
                             CurrencyInputField(value: $depoNominal)
                         }
                     }
 
                     HStack(spacing: 12) {
                         FormField(label: "BUNGA P.A. (%)") {
-                            CurrencyInputField(value: $depoBungaPA, allowsDecimal: true)
+                            CurrencyInputField(value: $depoBungaPA)
                         }
                         FormField(label: "PPH FINAL (%)") {
-                            CurrencyInputField(value: $depoPPH, allowsDecimal: true)
+                            CurrencyInputField(value: $depoPPH)
                         }
                     }
 
@@ -837,9 +951,9 @@ struct AddEditAsetView: View {
                         }
                         .pickerStyle(.menu)
                         .padding(10)
-                        .background(Color.white.opacity(0.08))
+                        .background(theme.separator)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .tint(.white)
+                        .tint(theme.textPrimary)
                     }
 
                     FormField(label: "TANGGAL MULAI") {
@@ -852,21 +966,21 @@ struct AddEditAsetView: View {
                     // Jatuh tempo (read-only)
                     let jatuhTempo = Calendar.current.date(byAdding: .month, value: depoTenor, to: depoTanggalMulai) ?? depoTanggalMulai
                     HStack {
-                        Text("Jatuh Tempo").font(.subheadline).foregroundStyle(.white.opacity(0.5))
+                        Text("Jatuh Tempo").font(.subheadline).foregroundStyle(theme.textSecondary)
                         Spacer()
                         Text(jatuhTempo.formatted(date: .abbreviated, time: .omitted))
-                            .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                            .font(.subheadline.weight(.semibold)).foregroundStyle(theme.textPrimary)
                     }
                     .padding(12)
-                    .background(Color.white.opacity(0.04))
+                    .background(theme.bgCard)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
 
                     Toggle(isOn: $depoARO) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Auto Roll Over (ARO)")
-                                .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                                .font(.subheadline.weight(.semibold)).foregroundStyle(theme.textPrimary)
                             Text("Perpanjang otomatis saat jatuh tempo")
-                                .font(.caption).foregroundStyle(.white.opacity(0.5))
+                                .font(.caption).foregroundStyle(theme.textSecondary)
                         }
                     }
                     .tint(Color(hex: "#A78BFA"))
@@ -879,9 +993,9 @@ struct AddEditAsetView: View {
                 Toggle(isOn: $catatSbgPengeluaran) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Catat Sebagai Pengeluaran")
-                            .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                            .font(.subheadline.weight(.semibold)).foregroundStyle(theme.textPrimary)
                         Text("Otomatis memotong saldo pocket sumber")
-                            .font(.caption).foregroundStyle(.white.opacity(0.5))
+                            .font(.caption).foregroundStyle(theme.textSecondary)
                     }
                 }
                 .tint(Color(hex: "#A78BFA"))
@@ -898,9 +1012,9 @@ struct AddEditAsetView: View {
                 Toggle(isOn: $catatSbgPengeluaran) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Catat Sebagai Pengeluaran")
-                            .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                            .font(.subheadline.weight(.semibold)).foregroundStyle(theme.textPrimary)
                         Text("Otomatis memotong saldo kas kamu")
-                            .font(.caption).foregroundStyle(.white.opacity(0.5))
+                            .font(.caption).foregroundStyle(theme.textSecondary)
                     }
                 }
                 .tint(selectedTipe.color)
@@ -908,7 +1022,7 @@ struct AddEditAsetView: View {
                 if catatSbgPengeluaran {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("PILIH POCKET SUMBER")
-                            .font(.caption).foregroundStyle(.white.opacity(0.5)).tracking(1)
+                            .font(.caption).foregroundStyle(theme.textSecondary).tracking(1)
                         PocketChipPicker(
                             pockets: allPockets.filter { $0.isAktif && $0.kelompokPocket == .biasa },
                             selected: $selectedPocket
@@ -920,77 +1034,161 @@ struct AddEditAsetView: View {
         }
     }
 
-    // MARK: - Portfolio / Bucket Section
+    // MARK: - Grup Aset Section
 
     private var portofolioSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            FormCard {
-                VStack(alignment: .leading, spacing: 10) {
-                    FormField(label: "PORTOFOLIO / BUCKET (OPSIONAL)") {
-                        HStack(spacing: 8) {
-                            Image(systemName: "folder.fill")
-                                .foregroundStyle(Color(hex: "#A78BFA").opacity(0.7))
-                                .font(.subheadline)
-                            TextField("Contoh: Dana Pensiun, Nabung Nikah...", text: $portofolio)
-                                .foregroundStyle(.white)
-                                .autocorrectionDisabled()
-                                .onChange(of: portofolio) { _, _ in
-                                    showPortofolioSuggestions = true
-                                }
-                            if !portofolio.isEmpty {
-                                Button {
-                                    portofolio = ""
-                                    showPortofolioSuggestions = false
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.white.opacity(0.4))
-                                }
-                            }
-                        }
-                        .padding(12)
-                        .background(Color.white.opacity(0.08))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                    }
-                    Text("Kelompokkan beberapa aset ke dalam satu tujuan investasi (mis. Dana Pensiun).")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.35))
-                }
-                .padding(16)
-            }
+        FormCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("GRUP ASET (OPSIONAL)").font(.caption).foregroundStyle(theme.textSecondary).tracking(0.8)
 
-            // Suggestions — outside FormCard so they aren't clipped
-            if showPortofolioSuggestions && !portofolioSuggestions.isEmpty {
-                VStack(spacing: 0) {
-                    ForEach(portofolioSuggestions, id: \.self) { name in
-                        Button {
-                            portofolio = name
-                            showPortofolioSuggestions = false
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "folder.fill")
-                                    .font(.caption)
-                                    .foregroundStyle(Color(hex: "#A78BFA"))
-                                Text(name)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.white)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                Image(systemName: "arrow.up.left")
-                                    .font(.caption2)
-                                    .foregroundStyle(.white.opacity(0.3))
-                            }
-                            .padding(.horizontal, 12).padding(.vertical, 10)
-                            .contentShape(Rectangle())
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        // None
+                        Button { selectedPortofolio = nil } label: {
+                            Text("Tanpa Grup")
+                                .font(.caption.weight(selectedPortofolio == nil ? .bold : .regular))
+                                .foregroundStyle(selectedPortofolio == nil ? .black : theme.textSecondary)
+                                .padding(.horizontal, 12).padding(.vertical, 7)
+                                .background(selectedPortofolio == nil ? Color.white : theme.separator)
+                                .clipShape(Capsule())
                         }
-                        if name != portofolioSuggestions.last {
-                            Divider().background(Color.white.opacity(0.06))
+
+                        // Existing groups
+                        ForEach(allPortofolioConfigs) { config in
+                            Button { selectedPortofolio = config } label: {
+                                HStack(spacing: 5) {
+                                    Circle().fill(Color(hex: config.warna)).frame(width: 8, height: 8)
+                                    Text(config.nama)
+                                        .font(.caption.weight(selectedPortofolio?.id == config.id ? .bold : .regular))
+                                        .foregroundStyle(selectedPortofolio?.id == config.id ? .black : theme.textSecondary)
+                                }
+                                .padding(.horizontal, 12).padding(.vertical, 7)
+                                .background(selectedPortofolio?.id == config.id ? Color(hex: config.warna) : theme.separator)
+                                .clipShape(Capsule())
+                            }
+                        }
+
+                        // Create new group
+                        Button { showCreateGrup = true } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "plus").font(.caption.weight(.bold))
+                                Text("Buat Grup Baru").font(.caption.weight(.semibold))
+                            }
+                            .foregroundStyle(Color(hex: "#A78BFA"))
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .background(Color(hex: "#A78BFA").opacity(0.12))
+                            .clipShape(Capsule())
+                            .overlay(Capsule().stroke(Color(hex: "#A78BFA").opacity(0.3), lineWidth: 1))
                         }
                     }
+                    .padding(.horizontal, 1)
                 }
-                .background(Color(hex: "#1A1A1A"))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
+
+                if let g = selectedPortofolio {
+                    HStack(spacing: 6) {
+                        Circle().fill(Color(hex: g.warna)).frame(width: 8, height: 8)
+                        Text("Aset ini akan masuk grup \"\(g.nama)\"")
+                            .font(.caption2).foregroundStyle(Color(hex: g.warna))
+                    }
+                }
+            }
+            .padding(16)
+        }
+        .sheet(isPresented: $showCreateGrup) {
+            createGrupSheet
+        }
+    }
+
+    // MARK: - Create Grup Sheet
+
+    private var createGrupSheet: some View {
+        let warnaOptions: [(String, String)] = [
+            ("Ungu", "#A78BFA"), ("Biru", "#3B82F6"), ("Hijau", "#22C55E"),
+            ("Kuning", "#EAB308"), ("Oranye", "#F97316"), ("Merah", "#EF4444"),
+            ("Pink", "#EC4899"), ("Cyan", "#06B6D4"), ("Abu", "#6B7280"),
+        ]
+        return NavigationStack {
+            ZStack {
+                theme.bgApp.ignoresSafeArea()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Preview
+                        HStack(spacing: 10) {
+                            Circle().fill(Color(hex: newGrupWarna)).frame(width: 12, height: 12)
+                            Text(newGrupNama.isEmpty ? "Nama Grup" : newGrupNama)
+                                .font(.headline)
+                                .foregroundStyle(newGrupNama.isEmpty ? theme.textSecondary.opacity(0.7) : theme.textPrimary)
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(hex: newGrupWarna).opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: newGrupWarna).opacity(0.3), lineWidth: 1))
+
+                        // Nama
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("NAMA GRUP").font(.caption.weight(.semibold)).foregroundStyle(theme.textSecondary).tracking(0.5)
+                            TextField("Contoh: Dana Pensiun, Growth...", text: $newGrupNama)
+                                .foregroundStyle(theme.textPrimary)
+                                .padding(12)
+                                .background(theme.separator)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+
+                        // Warna
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("WARNA").font(.caption.weight(.semibold)).foregroundStyle(theme.textSecondary).tracking(0.5)
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+                                ForEach(warnaOptions, id: \.0) { label, hex in
+                                    Button { newGrupWarna = hex } label: {
+                                        HStack(spacing: 8) {
+                                            Circle().fill(Color(hex: hex)).frame(width: 14, height: 14)
+                                            Text(label).font(.caption.weight(.medium))
+                                                .foregroundStyle(newGrupWarna == hex ? .black : theme.textPrimary)
+                                        }
+                                        .frame(maxWidth: .infinity).padding(.vertical, 10)
+                                        .background(newGrupWarna == hex ? Color(hex: hex) : theme.separator)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(20)
+                }
+            }
+            .navigationTitle("Buat Grup Baru")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Batal") {
+                        newGrupNama = ""
+                        newGrupWarna = "#A78BFA"
+                        showCreateGrup = false
+                    }.foregroundStyle(theme.textSecondary)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Simpan") {
+                        let trimmed = newGrupNama.trimmingCharacters(in: .whitespaces)
+                        guard !trimmed.isEmpty else { return }
+                        let urutan = (allPortofolioConfigs.map { $0.urutan }.max() ?? -1) + 1
+                        let baru = PortofolioConfig(nama: trimmed, warna: newGrupWarna, urutan: urutan)
+                        modelContext.insert(baru)
+                        try? modelContext.save()
+                        selectedPortofolio = baru
+                        newGrupNama = ""
+                        newGrupWarna = "#A78BFA"
+                        showCreateGrup = false
+                    }
+                    .fontWeight(.semibold)
+                    .foregroundStyle(!newGrupNama.trimmingCharacters(in: .whitespaces).isEmpty ? Color(hex: "#A78BFA") : .gray)
+                    .disabled(newGrupNama.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
             }
         }
+        .preferredColorScheme(theme.colorScheme)
     }
 
     // MARK: - CTA
@@ -1012,10 +1210,20 @@ struct AddEditAsetView: View {
     private var isFormValid: Bool {
         switch selectedTipe {
         case .saham:     return !sahamNama.isEmpty && !sahamLot.isEmpty && sahamHargaPerLembar > 0
-        case .sahamAS:   return !asKode.isEmpty && asTotalInvestasiUSD > 0 && asHargaBeliPerShareUSD > 0 && asKursBeliUSD > 0
+        case .sahamAS:
+            guard !asKode.isEmpty, asTotalDibayarUSD > 0, asHargaBeliPerShareUSD > 0 else { return false }
+            // Cek saldo USD hanya saat tambah baru — saat edit tidak ada deduction
+            if existingAset == nil {
+                guard let pocket = selectedPocket, pocket.saldoUSD >= asTotalDibayarUSD else { return false }
+            }
+            return true
         case .reksadana: return !rdNama.isEmpty && rdTotalInvestasi > 0 && rdHargaBeliPerUnit > 0
         case .valas:     return valasJumlah > 0 && valasKursBeli > 0
-        case .emas:      return !emasBeratGram.isEmpty && emasHargaBeliPerGram > 0
+        case .emas:
+            if emasJenis.isDigital {
+                return emasTotalDibayar > 0 && emasHargaBeliPerGram > 0
+            }
+            return !emasBeratGram.isEmpty && emasHargaBeliPerGram > 0
         case .deposito:  return depoNominal > 0 && depoBungaPA > 0
         }
     }
@@ -1042,16 +1250,19 @@ struct AddEditAsetView: View {
             aset.nilaiSaatIni = (Decimal(string: sahamLot) ?? 0) * sahamHargaPerLembar * 100
 
         case .sahamAS:
+            let amountUSD = asTotalDibayarUSD - asBiayaFeeUSD   // Amount aktual beli saham
             aset.nama = asNama.isEmpty ? asKode.uppercased() : asNama
             aset.kode = asKode.uppercased()
-            aset.totalInvestasiUSD = asTotalInvestasiUSD
+            aset.totalInvestasiUSD = amountUSD                   // Amount (pre-fee) — untuk hitung shares
+            aset.biayaFeeUSD = asBiayaFeeUSD > 0 ? asBiayaFeeUSD : nil
             aset.hargaBeliPerShareUSD = asHargaBeliPerShareUSD
             aset.hargaSaatIniUSD = asHargaSaatIniUSD ?? asHargaBeliPerShareUSD
-            aset.kursBeliUSD = asKursBeliUSD
-            aset.kursSaatIniUSD = asKursSaatIniUSD > 0 ? asKursSaatIniUSD : asKursBeliUSD
-            // Initial nilai = total investasi * kurs (price service will update with live price)
+            // Kurs disimpan dari auto-fetch (tidak ditampilkan di form)
+            aset.kursBeliUSD = asKursBeliUSD > 0 ? asKursBeliUSD : nil
+            aset.kursSaatIniUSD = asKursSaatIniUSD > 0 ? asKursSaatIniUSD : nil
+            // Initial nilai: pakai kurs jika ada, fallback ke 0 (price service update nanti)
             let kursInit = asKursSaatIniUSD > 0 ? asKursSaatIniUSD : asKursBeliUSD
-            aset.nilaiSaatIni = asTotalInvestasiUSD * kursInit
+            aset.nilaiSaatIni = kursInit > 0 ? amountUSD * kursInit : 0
 
         case .reksadana:
             aset.nama = rdNama
@@ -1075,13 +1286,37 @@ struct AddEditAsetView: View {
             aset.nilaiSaatIni = valasJumlah * (valasKursSaatIni > 0 ? valasKursSaatIni : valasKursBeli)
 
         case .emas:
-            let berat = Decimal(string: emasBeratGram.replacingOccurrences(of: ",", with: ".")) ?? 0
-            aset.nama = "\(emasJenis.displayName) \(emasBeratGram)g"
             aset.jenisEmas = emasJenis
-            aset.tahunCetak = emasJenis.isDigital ? nil : emasTahunCetak
-            aset.beratGram = berat
             aset.hargaBeliPerGram = emasHargaBeliPerGram
-            aset.nilaiSaatIni = berat * emasHargaBeliPerGram
+            aset.hargaSaatIniEmasPerGram = emasHargaSaatIni > 0 ? emasHargaSaatIni : nil
+            if emasJenis.isDigital {
+                // Gram = (totalDibayar - pajak) / hargaPerGram
+                let nilaiEmas = emasTotalDibayar - emasPajak
+                let berat = emasHargaBeliPerGram > 0 ? nilaiEmas / emasHargaBeliPerGram : 0
+                aset.beratGram = berat
+                aset.pajakBeliEmas = emasPajak > 0 ? emasPajak : nil
+                aset.tahunCetak = nil
+                let gramStr = String(format: "%.4f", Double(truncating: berat as NSDecimalNumber))
+                aset.nama = "\(emasJenis.displayName) \(gramStr)g"
+                // nilaiSaatIni = harga saat ini jika ada, fallback ke nilai beli bersih
+                if emasHargaSaatIni > 0 {
+                    aset.nilaiSaatIni = berat * emasHargaSaatIni
+                } else {
+                    aset.nilaiSaatIni = nilaiEmas
+                }
+            } else {
+                let berat = Decimal(string: emasBeratGram.replacingOccurrences(of: ",", with: ".")) ?? 0
+                aset.beratGram = berat
+                aset.pajakBeliEmas = nil
+                aset.tahunCetak = emasTahunCetak
+                aset.nama = "\(emasJenis.displayName) \(emasBeratGram)g"
+                // nilaiSaatIni = harga saat ini × gram jika ada, fallback ke harga beli × gram
+                if emasHargaSaatIni > 0 {
+                    aset.nilaiSaatIni = berat * emasHargaSaatIni
+                } else {
+                    aset.nilaiSaatIni = berat * emasHargaBeliPerGram
+                }
+            }
 
         case .deposito:
             let bungaInt = NSDecimalNumber(decimal: depoBungaPA).intValue
@@ -1096,36 +1331,59 @@ struct AddEditAsetView: View {
             aset.pocketSumber = depoPocketSumber
         }
 
-        // Portofolio / bucket
-        let portofolioTrimmed = portofolio.trimmingCharacters(in: .whitespaces)
-        aset.portofolio = portofolioTrimmed.isEmpty ? nil : portofolioTrimmed
+        // Grup aset
+        aset.portofolio = selectedPortofolio?.nama
 
         // Logo custom
         aset.logoData = logoData
 
         // Catat pengeluaran untuk non-deposito
-        if selectedTipe != .deposito {
+        if selectedTipe == .sahamAS {
+            // sahamAS: selalu wajib deduct dari saldoUSD pocket yang dipilih
+            aset.catatSbgPengeluaran = true
+            aset.pocketSumber = selectedPocket
+        } else if selectedTipe != .deposito {
             aset.catatSbgPengeluaran = catatSbgPengeluaran
             aset.pocketSumber = catatSbgPengeluaran ? selectedPocket : nil
         } else {
             aset.catatSbgPengeluaran = catatSbgPengeluaran
         }
 
-        if catatSbgPengeluaran, existingAset == nil {
-            let pocket = selectedTipe == .deposito ? depoPocketSumber : selectedPocket
-            if let pocket {
-                let modalValue = aset.modal
-                pocket.saldo -= modalValue
-                let transaksi = Transaksi(
-                    tanggal: depoTanggalMulai,
-                    nominal: modalValue,
-                    tipe: .pengeluaran,
-                    subTipe: .normal,
-                    pocket: pocket,
-                    catatan: "Aset: \(aset.nama)"
-                )
-                transaksi.kategori = nabungKategori
-                modelContext.insert(transaksi)
+        if existingAset == nil {
+            if selectedTipe == .sahamAS, let pocket = selectedPocket {
+                // Deduct total dibayar (amount + fee) dari saldoUSD
+                pocket.saldoUSD -= asTotalDibayarUSD
+                // Catat transaksi IDR pakai kurs auto-fetch (untuk nabung tracking)
+                let kurs = asKursBeliUSD > 0 ? asKursBeliUSD : asKursSaatIniUSD
+                if kurs > 0 {
+                    let nominalIDR = asTotalDibayarUSD * kurs
+                    let transaksi = Transaksi(
+                        tanggal: Date(),
+                        nominal: nominalIDR,
+                        tipe: .pengeluaran,
+                        subTipe: .normal,
+                        pocket: pocket,
+                        catatan: "Beli \(aset.nama) ($\(asTotalDibayarUSD.unitFormatted(2)))"
+                    )
+                    transaksi.kategori = nabungKategori
+                    modelContext.insert(transaksi)
+                }
+            } else if catatSbgPengeluaran {
+                let pocket = selectedTipe == .deposito ? depoPocketSumber : selectedPocket
+                if let pocket {
+                    let modalValue = aset.modal
+                    pocket.saldo -= modalValue
+                    let transaksi = Transaksi(
+                        tanggal: selectedTipe == .deposito ? depoTanggalMulai : Date(),
+                        nominal: modalValue,
+                        tipe: .pengeluaran,
+                        subTipe: .normal,
+                        pocket: pocket,
+                        catatan: "Aset: \(aset.nama)"
+                    )
+                    transaksi.kategori = nabungKategori
+                    modelContext.insert(transaksi)
+                }
             }
         }
 
@@ -1150,7 +1408,10 @@ struct AddEditAsetView: View {
         case .sahamAS:
             asNama = a.nama
             asKode = a.kode ?? ""
-            asTotalInvestasiUSD = a.totalInvestasiUSD ?? 0
+            asBiayaFeeUSD = a.biayaFeeUSD ?? 0
+            let totalUSD = a.totalInvestasiUSD ?? 0
+            // Hitung balik: totalDibayar = amount + fee
+            asTotalDibayarUSD = totalUSD + asBiayaFeeUSD
             asHargaBeliPerShareUSD = a.hargaBeliPerShareUSD ?? 0
             asHargaSaatIniUSD = a.hargaSaatIniUSD
             asKursBeliUSD = a.kursBeliUSD ?? 0
@@ -1174,8 +1435,18 @@ struct AddEditAsetView: View {
         case .emas:
             emasJenis = a.jenisEmas ?? .lmAntam
             emasTahunCetak = a.tahunCetak ?? Calendar.current.component(.year, from: Date())
-            emasBeratGram = a.beratGram.map { String(format: "%.2f", Double(truncating: $0 as NSDecimalNumber)) } ?? ""
             emasHargaBeliPerGram = a.hargaBeliPerGram ?? 0
+            emasHargaSaatIni = a.hargaSaatIniEmasPerGram ?? 0
+            if (a.jenisEmas ?? .lmAntam).isDigital {
+                emasPajak = a.pajakBeliEmas ?? 0
+                let berat = a.beratGram ?? 0
+                // Hitung balik: totalDibayar = (berat * hargaPerGram) + pajak
+                emasTotalDibayar = berat * emasHargaBeliPerGram + emasPajak
+            } else {
+                emasBeratGram = a.beratGram.map { String(format: "%.2f", Double(truncating: $0 as NSDecimalNumber)) } ?? ""
+                emasPajak = 0
+                emasTotalDibayar = 0
+            }
 
         case .deposito:
             depoNominal = a.nominalDeposito ?? 0
@@ -1189,7 +1460,7 @@ struct AddEditAsetView: View {
 
         catatSbgPengeluaran = a.catatSbgPengeluaran
         selectedPocket = a.pocketSumber
-        portofolio = a.portofolio ?? ""
+        selectedPortofolio = allPortofolioConfigs.first { $0.nama == a.portofolio }
         logoData = a.logoData
     }
 
@@ -1218,6 +1489,7 @@ struct AddEditAsetView: View {
 // MARK: - TipeAset Button
 
 private struct TipeAsetButton: View {
+    @Environment(\.appTheme) private var theme
     let tipe: TipeAset
     let isSelected: Bool
 
@@ -1225,15 +1497,15 @@ private struct TipeAsetButton: View {
         VStack(spacing: 6) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? tipe.color.opacity(0.2) : Color.white.opacity(0.06))
+                    .fill(isSelected ? tipe.color.opacity(0.2) : theme.separator)
                     .frame(height: 44)
                 Image(systemName: tipe.iconName)
                     .font(.system(size: 18))
-                    .foregroundStyle(isSelected ? tipe.color : .white.opacity(0.4))
+                    .foregroundStyle(isSelected ? tipe.color : theme.textSecondary.opacity(0.7))
             }
             Text(tipe.displayName)
                 .font(.caption2.weight(isSelected ? .bold : .regular))
-                .foregroundStyle(isSelected ? tipe.color : .white.opacity(0.5))
+                .foregroundStyle(isSelected ? tipe.color : theme.textSecondary)
                 .lineLimit(1)
         }
         .padding(.vertical, 6)
@@ -1241,7 +1513,7 @@ private struct TipeAsetButton: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(isSelected ? tipe.color.opacity(0.5) : Color.white.opacity(0.08), lineWidth: 1)
+                .stroke(isSelected ? tipe.color.opacity(0.5) : theme.separator, lineWidth: 1)
         )
     }
 }
@@ -1249,6 +1521,7 @@ private struct TipeAsetButton: View {
 // MARK: - Shared Components
 
 struct ChipButton: View {
+    @Environment(\.appTheme) private var theme
     let label: String
     let isSelected: Bool
     let color: Color
@@ -1258,44 +1531,65 @@ struct ChipButton: View {
         Button(action: action) {
             Text(label)
                 .font(.caption.weight(isSelected ? .bold : .regular))
-                .foregroundStyle(isSelected ? .black : .white.opacity(0.7))
+                .foregroundStyle(isSelected ? .black : theme.textSecondary)
                 .padding(.horizontal, 12).padding(.vertical, 7)
-                .background(isSelected ? color : Color.white.opacity(0.08))
+                .background(isSelected ? color : theme.separator)
                 .clipShape(Capsule())
         }
     }
 }
 
 struct FormCard<Content: View>: View {
+    @Environment(\.appTheme) private var theme
     @ViewBuilder let content: Content
     var body: some View {
         content
-            .background(Color.white.opacity(0.05))
+            .background(theme.bgCard)
             .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 
 struct FormField<Content: View>: View {
+    @Environment(\.appTheme) private var theme
     let label: String
     @ViewBuilder let content: Content
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.caption).foregroundStyle(.white.opacity(0.5)).tracking(0.8)
+            Text(label).font(.caption).foregroundStyle(theme.textSecondary).tracking(0.8)
             content
         }
     }
 }
 
+private struct StyledInputModifier: ViewModifier {
+    @Environment(\.appTheme) private var theme
+    func body(content: Content) -> some View {
+        content
+            .foregroundStyle(theme.textPrimary)
+            .padding(12)
+            .background(theme.separator)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+private struct FormSectionLabelModifier: ViewModifier {
+    @Environment(\.appTheme) private var theme
+    func body(content: Content) -> some View {
+        content
+            .font(.caption)
+            .foregroundStyle(theme.textSecondary)
+            .tracking(1)
+    }
+}
+
 extension View {
     func styledInput() -> some View {
-        self.foregroundStyle(.white).padding(12)
-            .background(Color.white.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+        self.modifier(StyledInputModifier())
     }
 }
 
 extension Text {
     func formSectionLabel() -> some View {
-        self.font(.caption).foregroundStyle(.white.opacity(0.5)).tracking(1)
+        self.modifier(FormSectionLabelModifier())
     }
 }

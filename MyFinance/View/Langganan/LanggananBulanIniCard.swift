@@ -3,6 +3,7 @@ import SwiftData
 
 struct LanggananBulanIniCard: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.appTheme) private var theme
     @Query(sort: \Langganan.urutan) private var allLangganan: [Langganan]
     @Query(sort: \Pocket.urutan) private var allPocket: [Pocket]
     @Query private var allPembayaran: [PembayaranLangganan]
@@ -63,7 +64,7 @@ struct LanggananBulanIniCard: View {
                         HStack(alignment: .firstTextBaseline, spacing: 4) {
                             Text(totalSudahBayar.shortFormatted)
                                 .font(.subheadline.weight(.bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                             Text("/ \(totalBulanan.shortFormatted)")
                                 .font(.caption)
                                 .foregroundStyle(.gray)
@@ -86,7 +87,7 @@ struct LanggananBulanIniCard: View {
                 .padding(.top, 14)
                 .padding(.bottom, 12)
 
-                Divider().background(Color.white.opacity(0.06))
+                Divider().background(theme.separator)
 
                 // List items
                 ForEach(aktifLangganan) { l in
@@ -106,11 +107,11 @@ struct LanggananBulanIniCard: View {
                     .buttonStyle(.plain)
 
                     if l.id != aktifLangganan.last?.id {
-                        Divider().background(Color.white.opacity(0.05)).padding(.leading, 56)
+                        Divider().background(theme.separator).padding(.leading, 56)
                     }
                 }
             }
-            .background(Color.white.opacity(0.05))
+            .background(theme.bgCard)
             .clipShape(RoundedRectangle(cornerRadius: 16))
             // Pocket sheet
             .sheet(isPresented: $showPocketSheet) {
@@ -160,22 +161,22 @@ struct LanggananBulanIniCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(l.nama)
                     .font(.subheadline.weight(paid ? .bold : .medium))
-                    .foregroundStyle(paid ? .white : .white.opacity(0.85))
+                    .foregroundStyle(paid ? theme.textPrimary : theme.textPrimary.opacity(0.85))
                 Text("Tgl \(l.tanggalTagih)")
                     .font(.caption2)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(theme.textSecondary)
             }
 
             Spacer()
 
             Text(l.nominal.idrFormatted)
                 .font(.subheadline.weight(paid ? .bold : .regular))
-                .foregroundStyle(paid ? .white : .white.opacity(0.7))
+                .foregroundStyle(paid ? theme.textPrimary : theme.textPrimary.opacity(0.7))
 
             // Checkbox
             ZStack {
                 RoundedRectangle(cornerRadius: 6)
-                    .stroke(paid ? accentGreen : Color.white.opacity(0.2), lineWidth: 1.5)
+                    .stroke(paid ? accentGreen : theme.separator, lineWidth: 1.5)
                     .frame(width: 22, height: 22)
                 if paid {
                     RoundedRectangle(cornerRadius: 6)
@@ -202,7 +203,7 @@ struct LanggananBulanIniCard: View {
     private var pocketPickerSheet: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
                 VStack(spacing: 0) {
                     if let l = pendingLangganan {
                         // Summary
@@ -225,7 +226,7 @@ struct LanggananBulanIniCard: View {
                             }
                             Text(l.nama)
                                 .font(.headline)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                             Text(l.nominal.idrFormatted)
                                 .font(.title3.weight(.bold))
                                 .foregroundStyle(accentGreen)
@@ -234,7 +235,7 @@ struct LanggananBulanIniCard: View {
                         .padding(.vertical, 20)
                     }
 
-                    Divider().background(Color.white.opacity(0.08))
+                    Divider().background(theme.separator)
 
                     Text("BAYAR DARI POCKET")
                         .font(.caption.weight(.semibold))
@@ -271,7 +272,7 @@ struct LanggananBulanIniCard: View {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(p.nama)
                                                 .font(.subheadline.weight(.medium))
-                                                .foregroundStyle(.white)
+                                                .foregroundStyle(theme.textPrimary)
                                             Text(p.saldo.idrDecimalFormatted)
                                                 .font(.caption)
                                                 .foregroundStyle(.gray)
@@ -286,7 +287,7 @@ struct LanggananBulanIniCard: View {
                                     .padding(.vertical, 12)
                                     .background(selectedPocket?.id == p.id
                                                 ? accentGreen.opacity(0.06)
-                                                : Color.white.opacity(0.05))
+                                                : theme.bgCard)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -317,20 +318,20 @@ struct LanggananBulanIniCard: View {
             }
             .navigationTitle("Bayar Bill")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Batal") {
                         showPocketSheet = false
                         pendingLangganan = nil
                     }
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(theme.textSecondary)
                 }
             }
         }
         .presentationDetents([.medium, .large])
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     // MARK: - Actions

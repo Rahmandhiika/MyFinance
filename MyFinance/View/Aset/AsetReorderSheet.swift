@@ -4,6 +4,7 @@ import SwiftData
 struct AsetReorderSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     @Query(sort: [SortDescriptor(\Aset.urutan), SortDescriptor(\Aset.createdAt)])
     private var allAset: [Aset]
@@ -25,7 +26,7 @@ struct AsetReorderSheet: View {
                         Section {
                             ForEach(group) { aset in
                                 asetRow(aset: aset, tipe: tipe)
-                                    .listRowBackground(Color.white.opacity(0.05))
+                                    .listRowBackground(theme.bgCard)
                             }
                             .onMove { from, to in
                                 var mutable = group
@@ -42,7 +43,7 @@ struct AsetReorderSheet: View {
                                     .foregroundStyle(tipe.color)
                                 Text(tipe.displayName.uppercased())
                                     .font(.caption.weight(.bold))
-                                    .foregroundStyle(.white.opacity(0.5))
+                                    .foregroundStyle(theme.textSecondary)
                                     .tracking(0.8)
                             }
                         }
@@ -79,21 +80,21 @@ struct AsetReorderSheet: View {
             }
             .environment(\.editMode, .constant(.active))
             .scrollContentBackground(.hidden)
-            .background(Color(hex: "#0D0D0D"))
+            .background(theme.bgApp)
             .listStyle(.insetGrouped)
             .navigationTitle("Atur Urutan Aset")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Selesai") { dismiss() }
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(theme.textPrimary)
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     @ViewBuilder
@@ -109,7 +110,7 @@ struct AsetReorderSheet: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(aset.nama)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
                     .font(.subheadline)
                 if showTargetLabel, let targetNama = aset.linkedTarget?.nama {
                     HStack(spacing: 3) {
@@ -125,7 +126,7 @@ struct AsetReorderSheet: View {
             if let kode = aset.kode, !kode.isEmpty {
                 Text(kode.uppercased())
                     .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(theme.textSecondary.opacity(0.7))
             }
         }
     }

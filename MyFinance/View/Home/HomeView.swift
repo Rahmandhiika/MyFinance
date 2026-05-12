@@ -10,18 +10,31 @@ struct HomeView: View {
     @Query private var allAnggaran: [Anggaran]
     @Query private var profiles: [UserProfile]
 
+    // MARK: - Theme
+    @Environment(\.appTheme) private var theme
+    @Environment(\.modelContext) private var modelContext
+
     // MARK: - State
     @State private var selectedMonth: Date = Date()
     @State private var showAddTransaksi = false
     @AppStorage("hideBalance") private var hideBalance: Bool = false
 
-    // MARK: - Colors
-    private let bgColor = Color(hex: "#0D0D0D")
-    private let cardGreen1 = Color(hex: "#0A2A1A")
-    private let cardGreen2 = Color(hex: "#0D1A12")
-    private let accentGreen = Color(hex: "#22C55E")
+    // MARK: - Computed card backgrounds
+    private var cardBg1: Color {
+        switch theme.id {
+        case "dark_neon": return Color(hex: "#0A2A1A")
+        case "cerah":     return Color(hex: "#00C4A6").opacity(0.14)
+        default:          return theme.accent.opacity(0.10)
+        }
+    }
+    private var cardBg2: Color {
+        switch theme.id {
+        case "dark_neon": return Color(hex: "#0D1A12")
+        case "cerah":     return Color(hex: "#00927B").opacity(0.07)
+        default:          return theme.accentDark.opacity(0.06)
+        }
+    }
     private let accentCyan = Color(hex: "#06B6D4")
-    private let accentRed = Color(hex: "#F43F5E")
 
     // MARK: - Profile
     private var profile: UserProfile? { profiles.first }
@@ -106,14 +119,18 @@ struct HomeView: View {
     private var cash: Decimal {
         allPockets.filter { $0.kelompokPocket == .biasa }.reduce(0) { $0 + $1.saldo }
     }
+    /// Saldo pocket yang ikut dihitung sebagai "uang bisa dipakai"
+    private var cashAktifBelanja: Decimal {
+        allPockets.filter { $0.kelompokPocket == .biasa && $0.ikutHitungSisa }.reduce(0) { $0 + $1.saldo }
+    }
     /// Dana yang sudah disisihkan ke target biasa (masih ada di pocket, tapi sudah "dipesan")
     private var danaTersisihkanTarget: Decimal {
         allTargets
             .filter { $0.jenisTarget == .biasa }
             .reduce(0) { $0 + $1.tersimpan }
     }
-    /// Uang yang benar-benar bebas dipakai = saldo pocket - yang sudah ke target
-    private var sisaPocket: Decimal { max(cash - danaTersisihkanTarget, 0) }
+    /// Uang yang benar-benar bebas dipakai = saldo pocket aktif belanja - yang sudah ke target
+    private var sisaPocket: Decimal { max(cashAktifBelanja - danaTersisihkanTarget, 0) }
 
     private var hutang: Decimal { allPockets.filter { $0.kelompokPocket == .utang }.reduce(0) { $0 + $1.saldo } }
     private var totalAset: Decimal { allAset.filter { $0.linkedTarget == nil }.reduce(0) { $0 + $1.nilaiEfektif } }
@@ -146,7 +163,7 @@ struct HomeView: View {
 
         return NavigationStack {
             ZStack(alignment: .bottomTrailing) {
-                bgColor.ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
 
                 ScrollView {
                     LazyVStack(spacing: 16) {
@@ -156,6 +173,13 @@ struct HomeView: View {
                         cashflowCard(stats)
                         shortcutRow
                         totalKekayaanCard
+                        NetWorthChartCard(
+                            currentKekayaan: totalKekayaan,
+                            currentCash: cash,
+                            currentAset: totalAset,
+                            currentHutang: hutang,
+                            currentDanaTersimpan: danaTersimpan
+                        )
                         rincianBiayaCard(stats)
                         if !angg.isEmpty {
                             anggaranSection(angg, stats: stats, totalAnggaran: totalAngg, totalTerpakai: totalTerp)
@@ -164,6 +188,8 @@ struct HomeView: View {
                             goalsSection
                         }
                         LanggananBulanIniCard()
+                            .padding(.horizontal)
+                        UpcomingCard()
                             .padding(.horizontal)
                         if isCurrentMonth {
                             if !stats.kategoriTeratas.isEmpty {
@@ -190,11 +216,11 @@ struct HomeView: View {
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(.black)
+                        .foregroundStyle(theme.textOnColor)
                         .frame(width: 56, height: 56)
-                        .background(accentGreen)
+                        .background(theme.accent)
                         .clipShape(Circle())
-                        .shadow(color: accentGreen.opacity(0.4), radius: 10, x: 0, y: 4)
+                        .shadow(color: theme.accent.opacity(0.4), radius: 10, x: 0, y: 4)
                 }
                 .padding(.trailing, 20)
                 .padding(.bottom, 24)
@@ -204,6 +230,57 @@ struct HomeView: View {
         .sheet(isPresented: $showAddTransaksi) {
             AddEditTransaksiSheet()
         }
+        .task {
+            autoSnapshot()
+        }
+    }
+
+    // MARK: - Auto Snapshot
+
+    /// Tiap buka Home, upsert snapshot bulan INI dengan data terkini.
+    /// Bulan-bulan sebelumnya otomatis "membeku" karena kita hanya update bulan aktif.
+    /// Contoh: selama Mei, snapshot Mei terus di-update. Saat Juni tiba, Mei sudah membeku.
+    private func autoSnapshot() {
+        let cal = Calendar.current
+        let now = Date()
+        let currentMonth = cal.component(.month, from: now)
+        let currentYear  = cal.component(.year,  from: now)
+
+        // Hapus snapshot bulan-bulan di masa depan (artefak bug lama)
+        let allSnaps = (try? modelContext.fetch(FetchDescriptor<NetWorthSnapshot>())) ?? []
+        for snap in allSnaps {
+            let snapDate = DateComponents(calendar: cal, year: snap.tahun, month: snap.bulan).date ?? now
+            if snapDate > now {
+                modelContext.delete(snap)
+            }
+        }
+
+        var descriptor = FetchDescriptor<NetWorthSnapshot>(
+            predicate: #Predicate { $0.bulan == currentMonth && $0.tahun == currentYear }
+        )
+        descriptor.fetchLimit = 1
+        let existing = (try? modelContext.fetch(descriptor)) ?? []
+
+        if let snapshot = existing.first {
+            // Update snapshot bulan ini dengan nilai terbaru
+            snapshot.cash          = cash
+            snapshot.totalAset     = totalAset
+            snapshot.hutang        = hutang
+            snapshot.danaTersimpan = danaTersimpan
+            snapshot.totalKekayaan = cash + totalAset + danaTersimpan - hutang
+        } else {
+            // Bulan baru — buat snapshot fresh
+            let snapshot = NetWorthSnapshot(
+                bulan: currentMonth,
+                tahun: currentYear,
+                cash: cash,
+                totalAset: totalAset,
+                hutang: hutang,
+                danaTersimpan: danaTersimpan
+            )
+            modelContext.insert(snapshot)
+        }
+        try? modelContext.save()
     }
 
     // MARK: - Balance Mask Helper
@@ -224,13 +301,14 @@ struct HomeView: View {
                         .frame(width: 40, height: 40)
                         .clipShape(Circle())
                 } else {
+                    let isCerah = theme.id == "cerah"
                     Circle()
-                        .fill(accentGreen.opacity(0.3))
+                        .fill(isCerah ? theme.accent : theme.accent.opacity(0.3))
                         .frame(width: 40, height: 40)
                         .overlay(
                             Text(profile?.nama.prefix(1).uppercased() ?? "U")
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundStyle(accentGreen)
+                                .foregroundStyle(isCerah ? .white : theme.accent)
                         )
                 }
             }
@@ -238,10 +316,10 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(profile?.greetingText ?? "Halo")
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(theme.textSecondary)
                 Text(profile?.nama ?? "—")
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
             }
 
             Spacer()
@@ -254,9 +332,9 @@ struct HomeView: View {
             } label: {
                 Image(systemName: hideBalance ? "eye.slash.fill" : "eye.fill")
                     .font(.system(size: 16))
-                    .foregroundStyle(hideBalance ? .gray : .white.opacity(0.6))
+                    .foregroundStyle(hideBalance ? theme.textSecondary : theme.textPrimary.opacity(0.6))
                     .frame(width: 36, height: 36)
-                    .background(Color.white.opacity(0.07))
+                    .background(theme.separator)
                     .clipShape(Circle())
             }
         }
@@ -265,38 +343,50 @@ struct HomeView: View {
 
     // MARK: - Cashflow Card
     private func cashflowCard(_ stats: MonthStats) -> some View {
-        let activePocketCount = allPockets.filter { $0.isAktif && $0.kelompokPocket == .biasa }.count
+        let hitungCount = allPockets.filter { $0.isAktif && $0.kelompokPocket == .biasa && $0.ikutHitungSisa }.count
+        let totalBiasaCount = allPockets.filter { $0.isAktif && $0.kelompokPocket == .biasa }.count
+        let adaYangDinonaktifkan = hitungCount < totalBiasaCount
         return VStack(alignment: .leading, spacing: 12) {
             Text("SISA POCKET")
                 .font(.caption)
                 .fontWeight(.semibold)
-                .foregroundStyle(.gray)
+                .foregroundStyle(theme.textSecondary)
 
             Text(masked(sisaPocket.idrFormatted))
                 .font(.system(size: 30, weight: .bold))
-                .foregroundStyle(accentGreen)
+                .foregroundStyle(theme.accent)
 
-            Text("dari \(activePocketCount) pocket aktif · target sudah dikurangi")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.5))
+            HStack(spacing: 4) {
+                Text("dari \(hitungCount) pocket")
+                    .font(.caption)
+                    .foregroundStyle(theme.textSecondary.opacity(0.7))
+                if adaYangDinonaktifkan {
+                    Text("· \(totalBiasaCount - hitungCount) tidak dihitung")
+                        .font(.caption)
+                        .foregroundStyle(theme.textSecondary.opacity(0.5))
+                }
+                Text("· target dikurangi")
+                    .font(.caption)
+                    .foregroundStyle(theme.textSecondary.opacity(0.7))
+            }
 
-            Divider().background(Color.white.opacity(0.1))
+            Divider().background(theme.separator)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                cashflowGridItem(label: "PEMASUKAN", icon: "arrow.down.circle.fill", iconColor: accentGreen, amount: stats.pemasukan, amountColor: accentGreen)
-                cashflowGridItem(label: "PENGELUARAN", icon: "arrow.up.circle.fill", iconColor: accentRed, amount: stats.pengeluaran, amountColor: accentRed)
+                cashflowGridItem(label: "PEMASUKAN", icon: "arrow.down.circle.fill", iconColor: theme.pemasukan, amount: stats.pemasukan, amountColor: theme.pemasukan)
+                cashflowGridItem(label: "PENGELUARAN", icon: "arrow.up.circle.fill", iconColor: theme.pengeluaran, amount: stats.pengeluaran, amountColor: theme.pengeluaran)
                 cashflowGridItem(label: "NABUNG BULAN INI", icon: "arrow.down.to.line.circle.fill", iconColor: accentCyan, amount: stats.nabungBulanIni, amountColor: accentCyan)
                 cashflowGridItem(label: "TOTAL TABUNGAN", icon: "banknote.fill", iconColor: accentCyan, amount: danaTersimpan + totalAset, amountColor: accentCyan)
             }
         }
         .padding(16)
         .background(
-            LinearGradient(colors: [cardGreen1, cardGreen2], startPoint: .topLeading, endPoint: .bottomTrailing)
+            LinearGradient(colors: [cardBg1, cardBg2], startPoint: .topLeading, endPoint: .bottomTrailing)
         )
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(accentGreen.opacity(0.2), lineWidth: 1)
+                .stroke(theme.accent.opacity(0.2), lineWidth: 1)
         )
         .padding(.horizontal)
     }
@@ -309,7 +399,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(theme.textSecondary)
                 Text(masked(amount.idrFormatted))
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(amountColor)
@@ -327,7 +417,7 @@ struct HomeView: View {
                 shortcutCard(label: "Analitik", icon: "chart.bar.fill", color: Color(hex: "#A78BFA"))
             }
             NavigationLink(destination: TargetListView()) {
-                shortcutCard(label: "Target", icon: "target", color: accentGreen)
+                shortcutCard(label: "Target", icon: "target", color: theme.accent)
             }
             NavigationLink(destination: AsetListView()) {
                 shortcutCard(label: "Aset", icon: "briefcase.fill", color: Color(hex: "#F59E0B"))
@@ -349,12 +439,16 @@ struct HomeView: View {
             Text(label)
                 .font(.caption)
                 .fontWeight(.medium)
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
-        .background(Color.white.opacity(0.05))
+        .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(theme.cardBorder, lineWidth: 1)
+        )
     }
 
     // MARK: - Total Kekayaan Card
@@ -362,35 +456,39 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
                 Image(systemName: "building.columns.fill")
-                    .foregroundStyle(accentGreen)
+                    .foregroundStyle(theme.accent)
                     .font(.caption)
                 Text("TOTAL KEKAYAAN")
                     .font(.caption)
                     .fontWeight(.semibold)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(theme.textSecondary)
             }
 
             Text(masked(totalKekayaan.idrFormatted))
                 .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
 
-            Divider().background(Color.white.opacity(0.1))
+            Divider().background(theme.separator)
 
             HStack(spacing: 0) {
-                kekayaanColumn(label: "CASH", value: cash, color: accentGreen)
+                kekayaanColumn(label: "CASH", value: cash, color: theme.accent)
                 Divider()
                     .frame(width: 1, height: 36)
-                    .background(Color.white.opacity(0.15))
+                    .background(theme.separator)
                 kekayaanColumn(label: "DANA TERSIMPAN", value: danaTersimpan, color: accentCyan)
                 Divider()
                     .frame(width: 1, height: 36)
-                    .background(Color.white.opacity(0.15))
+                    .background(theme.separator)
                 kekayaanColumn(label: "ASET", value: totalAset, color: Color(hex: "#3B82F6"))
             }
         }
         .padding(16)
-        .background(Color.white.opacity(0.05))
+        .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(theme.cardBorder, lineWidth: 1)
+        )
         .padding(.horizontal)
     }
 
@@ -398,7 +496,7 @@ struct HomeView: View {
         VStack(alignment: .center, spacing: 4) {
             Text(label)
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.gray)
+                .foregroundStyle(theme.textSecondary)
                 .multilineTextAlignment(.center)
             Text(masked(value.shortFormatted))
                 .font(.system(size: 13, weight: .bold))
@@ -412,12 +510,12 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
                 Image(systemName: "chart.pie.fill")
-                    .foregroundStyle(accentGreen)
+                    .foregroundStyle(theme.accent)
                     .font(.caption)
                 Text("RINCIAN BIAYA")
                     .font(.caption)
                     .fontWeight(.semibold)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(theme.textSecondary)
             }
 
             rincianRow(label: "Kebutuhan Pokok", pct: stats.kebutuhanPokokPct, color: Color(hex: "#F59E0B"))
@@ -425,8 +523,12 @@ struct HomeView: View {
             rincianRow(label: "Dana Tersimpan", pct: stats.danaTersimpanPct, color: accentCyan)
         }
         .padding(16)
-        .background(Color.white.opacity(0.05))
+        .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(theme.cardBorder, lineWidth: 1)
+        )
         .padding(.horizontal)
     }
 
@@ -435,7 +537,7 @@ struct HomeView: View {
             HStack {
                 Text(label)
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(theme.textPrimary.opacity(0.8))
                 Spacer()
                 Text(String(format: "%.0f%%", pct))
                     .font(.caption)
@@ -459,7 +561,7 @@ struct HomeView: View {
         let progress = totalAnggaran > 0
             ? min(Double(truncating: (totalTerpakai / totalAnggaran) as NSDecimalNumber), 1.0)
             : 0.0
-        let barColor = overBudget ? accentRed : (progress > 0.8 ? Color(hex: "#F59E0B") : Color(hex: "#FBBF24"))
+        let barColor = overBudget ? theme.danger : (progress > 0.8 ? Color(hex: "#F59E0B") : Color(hex: "#FBBF24"))
 
         return VStack(alignment: .leading, spacing: 10) {
             sectionHeader(label: "ANGGARAN BULAN INI", icon: "chart.bar.doc.horizontal.fill")
@@ -469,18 +571,18 @@ struct HomeView: View {
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("TERPAKAI")
-                            .font(.caption2).foregroundStyle(.gray).tracking(0.5)
+                            .font(.caption2).foregroundStyle(theme.textSecondary).tracking(0.5)
                         Text(masked(totalTerpakai.idrFormatted))
                             .font(.title3.weight(.bold))
-                            .foregroundStyle(overBudget ? accentRed : .white)
+                            .foregroundStyle(overBudget ? theme.danger : theme.textPrimary)
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("TOTAL")
-                            .font(.caption2).foregroundStyle(.gray).tracking(0.5)
+                            .font(.caption2).foregroundStyle(theme.textSecondary).tracking(0.5)
                         Text(masked(totalAnggaran.idrFormatted))
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.7))
+                            .foregroundStyle(theme.textPrimary.opacity(0.7))
                     }
                 }
 
@@ -490,17 +592,17 @@ struct HomeView: View {
                     HStack {
                         Text(masked(overBudget ? "Over \(abs(sisa).idrFormatted)" : "Sisa \(sisa.idrFormatted)"))
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(overBudget ? accentRed : Color(hex: "#22C55E"))
+                            .foregroundStyle(overBudget ? theme.danger : theme.accent)
                         Spacer()
                         Text(String(format: "%.0f%% terpakai", progress * 100))
                             .font(.caption2)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(theme.textSecondary)
                     }
                 }
 
                 // Per-kategori rows (max 4, sisanya lipat)
                 if angg.count > 1 {
-                    Divider().background(Color.white.opacity(0.06))
+                    Divider().background(theme.separator)
                     VStack(spacing: 8) {
                         ForEach(Array(angg.prefix(4))) { anggaran in
                             anggaranRow(anggaran, stats: stats)
@@ -508,18 +610,18 @@ struct HomeView: View {
                         if angg.count > 4 {
                             Text("+\(angg.count - 4) anggaran lainnya")
                                 .font(.caption2)
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(theme.textSecondary)
                                 .frame(maxWidth: .infinity, alignment: .center)
                         }
                     }
                 }
             }
             .padding(14)
-            .background(Color.white.opacity(0.05))
+            .background(theme.bgCard)
             .clipShape(RoundedRectangle(cornerRadius: 14))
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
-                    .stroke(overBudget ? accentRed.opacity(0.3) : Color.clear, lineWidth: 1)
+                    .stroke(overBudget ? theme.danger.opacity(0.3) : theme.cardBorder, lineWidth: 1)
             )
         }
         .padding(.horizontal)
@@ -531,7 +633,7 @@ struct HomeView: View {
             ? min(Double(truncating: (pakai / anggaran.nominal) as NSDecimalNumber), 1.0)
             : 0.0
         let over = pakai > anggaran.nominal
-        let rowColor = over ? accentRed : (prog > 0.8 ? Color(hex: "#F59E0B") : Color(hex: "#FBBF24"))
+        let rowColor = over ? theme.danger : (prog > 0.8 ? Color(hex: "#F59E0B") : Color(hex: "#FBBF24"))
 
         return VStack(spacing: 4) {
             HStack {
@@ -557,14 +659,14 @@ struct HomeView: View {
 
                 Text(anggaran.kategori?.nama ?? "Semua Kategori")
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
                     .lineLimit(1)
 
                 Spacer()
 
                 Text(masked("\(pakai.shortFormatted) / \(anggaran.nominal.shortFormatted)"))
                     .font(.caption2)
-                    .foregroundStyle(over ? accentRed : .gray)
+                    .foregroundStyle(over ? theme.danger : theme.textSecondary)
             }
 
             ProgressBarView(progress: prog, color: rowColor, height: 4)
@@ -598,7 +700,7 @@ struct HomeView: View {
                     .frame(minHeight: 140)
                     .clipped()
             } else {
-                Color.white.opacity(0.05)
+                theme.bgCard
             }
 
             // Gradient overlay kalau ada foto
@@ -629,7 +731,7 @@ struct HomeView: View {
                     HStack(alignment: .center, spacing: 6) {
                         Text(target.nama)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(hasFoto ? .white : theme.textPrimary)
                             .lineLimit(1)
                             .shadow(color: hasFoto ? .black.opacity(0.6) : .clear, radius: 3)
                         if target.jenisTarget == .investasi {
@@ -639,9 +741,9 @@ struct HomeView: View {
                                 Text(target.linkedAset?.tipe.displayName ?? "Investasi")
                                     .font(.system(size: 9, weight: .semibold))
                             }
-                            .foregroundStyle(hasFoto ? .white : accentGreen)
+                            .foregroundStyle(hasFoto ? .white : theme.accent)
                             .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(hasFoto ? Color.white.opacity(0.2) : accentGreen.opacity(0.12))
+                            .background(hasFoto ? Color.white.opacity(0.2) : theme.accent.opacity(0.12))
                             .clipShape(Capsule())
                         }
                         Spacer()
@@ -653,10 +755,10 @@ struct HomeView: View {
                     Text(String(format: "%.0f%%", pct))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(hasFoto ? .white : targetColor)
-                    Text("•").font(.caption).foregroundStyle(.white.opacity(0.4))
+                    Text("•").font(.caption).foregroundStyle(hasFoto ? .white.opacity(0.4) : theme.textSecondary)
                     Text(masked("\(target.tersimpan.shortFormatted) / \(target.targetNominal.shortFormatted)"))
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(hasFoto ? 0.8 : 0.6))
+                        .foregroundStyle(hasFoto ? .white.opacity(0.8) : theme.textSecondary)
                 }
 
                 ProgressBarView(
@@ -677,19 +779,23 @@ struct HomeView: View {
 
                     Text("Estimasi Kelar: \(deadlineStr) • \(daysLeft) hari")
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(hasFoto ? 0.7 : 0.5))
+                        .foregroundStyle(hasFoto ? .white.opacity(0.7) : theme.textSecondary)
 
                     if target.tersimpan < target.targetNominal && daysLeft > 0 {
                         let perBulan = (target.targetNominal - target.tersimpan) / Decimal(max(daysLeft / 30, 1))
                         Text("PERLU MENYISIHKAN: \(masked(perBulan.idrFormatted)) /bln")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(hasFoto ? .white : accentGreen)
+                            .foregroundStyle(hasFoto ? .white : theme.accent)
                     }
                 }
             }
             .padding(14)
         }
         .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(theme.cardBorder, lineWidth: 1)
+        )
     }
 
     // MARK: - Kategori Teratas
@@ -719,12 +825,12 @@ struct HomeView: View {
                         HStack {
                             Text(kat.nama)
                                 .font(.subheadline)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                             Spacer()
                             Text(masked(amount.idrFormatted))
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
-                                .foregroundStyle(accentRed)
+                                .foregroundStyle(theme.pengeluaran)
                         }
                         ProgressBarView(progress: progress, color: Color(hex: kat.warna), height: 4)
                     }
@@ -732,8 +838,12 @@ struct HomeView: View {
             }
         }
         .padding(14)
-        .background(Color.white.opacity(0.05))
+        .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(theme.cardBorder, lineWidth: 1)
+        )
         .padding(.horizontal)
     }
 
@@ -746,14 +856,14 @@ struct HomeView: View {
                 HStack(spacing: 10) {
                     ZStack {
                         Circle()
-                            .fill((tx.tipe == .pemasukan ? accentGreen : accentRed).opacity(0.15))
+                            .fill((tx.tipe == .pemasukan ? theme.pemasukan : theme.pengeluaran).opacity(0.15))
                             .frame(width: 36, height: 36)
                         if let emoji = tx.kategori?.ikonCustom {
                             Text(emoji)
                                 .font(.system(size: 16))
                         } else {
                             Image(systemName: tx.kategori?.ikon ?? (tx.tipe == .pemasukan ? "arrow.down.circle.fill" : "arrow.up.circle.fill"))
-                                .foregroundStyle(tx.tipe == .pemasukan ? accentGreen : accentRed)
+                                .foregroundStyle(tx.tipe == .pemasukan ? theme.pemasukan : theme.pengeluaran)
                                 .font(.system(size: 14))
                         }
                     }
@@ -761,14 +871,14 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(tx.kategori?.nama ?? (tx.tipe == .pemasukan ? "Pemasukan" : "Pengeluaran"))
                             .font(.subheadline)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.textPrimary)
                         HStack(spacing: 4) {
                             Text(tx.tipe == .pemasukan ? "Pemasukan" : "Pengeluaran")
                                 .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(tx.tipe == .pemasukan ? accentGreen : accentRed)
+                                .foregroundStyle(tx.tipe == .pemasukan ? theme.pemasukan : theme.pengeluaran)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background((tx.tipe == .pemasukan ? accentGreen : accentRed).opacity(0.15))
+                                .background((tx.tipe == .pemasukan ? theme.pemasukan : theme.pengeluaran).opacity(0.15))
                                 .clipShape(Capsule())
                             if tx.subTipe != .normal {
                                 Text(tx.subTipe.displayName)
@@ -787,16 +897,20 @@ struct HomeView: View {
                     Text(masked((tx.tipe == .pemasukan ? "+" : "-") + tx.nominal.idrFormatted))
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                        .foregroundStyle(tx.tipe == .pemasukan ? accentGreen : accentRed)
+                        .foregroundStyle(tx.tipe == .pemasukan ? theme.pemasukan : theme.pengeluaran)
                 }
                 if tx.id != stats.terbaru.last?.id {
-                    Divider().background(Color.white.opacity(0.08))
+                    Divider().background(theme.separator)
                 }
             }
         }
         .padding(14)
-        .background(Color.white.opacity(0.05))
+        .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(theme.cardBorder, lineWidth: 1)
+        )
         .padding(.horizontal)
     }
 
@@ -809,15 +923,15 @@ struct HomeView: View {
 
             // Ringkasan pemasukan / pengeluaran
             HStack(spacing: 0) {
-                pastMonthStat(label: "PEMASUKAN", value: stats.pemasukan, color: accentGreen)
-                Divider().frame(width: 1, height: 32).background(Color.white.opacity(0.1))
-                pastMonthStat(label: "PENGELUARAN", value: stats.pengeluaran, color: accentRed)
-                Divider().frame(width: 1, height: 32).background(Color.white.opacity(0.1))
+                pastMonthStat(label: "PEMASUKAN", value: stats.pemasukan, color: theme.pemasukan)
+                Divider().frame(width: 1, height: 32).background(theme.separator)
+                pastMonthStat(label: "PENGELUARAN", value: stats.pengeluaran, color: theme.pengeluaran)
+                Divider().frame(width: 1, height: 32).background(theme.separator)
                 pastMonthStat(label: "NABUNG", value: stats.nabungBulanIni, color: accentCyan)
             }
             .padding(.vertical, 6)
 
-            Divider().background(Color.white.opacity(0.08))
+            Divider().background(theme.separator)
 
             // Semua kategori pengeluaran
             ForEach(Array(stats.semuaKategori.enumerated()), id: \.offset) { _, pair in
@@ -841,15 +955,15 @@ struct HomeView: View {
                         }
                         Text(kat.nama)
                             .font(.subheadline)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.textPrimary)
                         Spacer()
                         VStack(alignment: .trailing, spacing: 1) {
                             Text(masked(amount.idrFormatted))
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(accentRed)
+                                .foregroundStyle(theme.pengeluaran)
                             Text(String(format: "%.0f%%", pct * 100))
                                 .font(.caption2)
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(theme.textSecondary)
                         }
                     }
                     ProgressBarView(progress: pct, color: Color(hex: kat.warna), height: 3)
@@ -857,14 +971,18 @@ struct HomeView: View {
             }
         }
         .padding(14)
-        .background(Color.white.opacity(0.05))
+        .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(theme.cardBorder, lineWidth: 1)
+        )
         .padding(.horizontal)
     }
 
     private func pastMonthStat(label: String, value: Decimal, color: Color) -> some View {
         VStack(spacing: 3) {
-            Text(label).font(.system(size: 8, weight: .semibold)).foregroundStyle(.gray)
+            Text(label).font(.system(size: 8, weight: .semibold)).foregroundStyle(theme.textSecondary)
             Text(masked(value.idrFormatted))
                 .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(color)
@@ -877,14 +995,14 @@ struct HomeView: View {
         VStack(spacing: 8) {
             Image(systemName: "tray")
                 .font(.system(size: 28))
-                .foregroundStyle(.gray)
+                .foregroundStyle(theme.textSecondary)
             Text("Tidak ada transaksi di bulan ini")
                 .font(.subheadline)
-                .foregroundStyle(.gray)
+                .foregroundStyle(theme.textSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
-        .background(Color.white.opacity(0.04))
+        .background(theme.bgCard.opacity(0.6))
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .padding(.horizontal)
     }
@@ -894,11 +1012,11 @@ struct HomeView: View {
         HStack(spacing: 6) {
             Image(systemName: icon)
                 .font(.caption)
-                .foregroundStyle(accentGreen)
+                .foregroundStyle(theme.accent)
             Text(label)
                 .font(.caption)
                 .fontWeight(.semibold)
-                .foregroundStyle(.gray)
+                .foregroundStyle(theme.textSecondary)
         }
     }
 }

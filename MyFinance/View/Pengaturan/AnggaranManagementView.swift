@@ -4,6 +4,7 @@ import SwiftData
 struct AnggaranManagementView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
     @Query private var allAnggaran: [Anggaran]
     @Query private var allTransaksi: [Transaksi]
 
@@ -64,7 +65,7 @@ struct AnggaranManagementView: View {
                                             .foregroundStyle(.gray)
                                         Text(totalAnggaran.idrFormatted)
                                             .font(.subheadline)
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(theme.textPrimary)
                                     }
                                 }
                                 ProgressBarView(progress: min(progress, 1), color: Color(hex: "#FBBF24"), height: 6)
@@ -74,7 +75,7 @@ struct AnggaranManagementView: View {
                                     .frame(maxWidth: .infinity, alignment: .trailing)
                             }
                             .padding()
-                            .background(Color.white.opacity(0.05))
+                            .background(theme.bgCard)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .padding(.horizontal)
                         }
@@ -111,7 +112,7 @@ struct AnggaranManagementView: View {
                                                     anggaran.kategori?.nama ?? "Keseluruhan",
                                                     systemImage: anggaran.kategori?.ikon ?? "chart.pie"
                                                 )
-                                                .foregroundStyle(.white)
+                                                .foregroundStyle(theme.textPrimary)
                                                 Spacer()
                                                 Text("\(Int(prog * 100))%")
                                                     .foregroundStyle(prog > 1 ? .red : Color(hex: "#FBBF24"))
@@ -132,17 +133,17 @@ struct AnggaranManagementView: View {
                                             HStack {
                                                 VStack(alignment: .leading) {
                                                     Text("TERPAKAI DARI").font(.caption2).foregroundStyle(.gray)
-                                                    Text(tp.idrFormatted).font(.caption).foregroundStyle(.white)
+                                                    Text(tp.idrFormatted).font(.caption).foregroundStyle(theme.textPrimary)
                                                 }
                                                 Spacer()
                                                 VStack(alignment: .trailing) {
                                                     Text("ANGGARAN").font(.caption2).foregroundStyle(.gray)
-                                                    Text(anggaran.nominal.idrFormatted).font(.caption).foregroundStyle(.white)
+                                                    Text(anggaran.nominal.idrFormatted).font(.caption).foregroundStyle(theme.textPrimary)
                                                 }
                                             }
                                         }
                                         .padding()
-                                        .background(Color.white.opacity(0.05))
+                                        .background(theme.bgCard)
                                         .clipShape(RoundedRectangle(cornerRadius: 12))
                                         .padding(.horizontal)
                                     }
@@ -154,7 +155,7 @@ struct AnggaranManagementView: View {
                     .padding(.vertical)
                 }
             }
-            .background(Color(hex: "#0D0D0D"))
+            .background(theme.bgApp)
             .navigationTitle("Anggaran")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -175,6 +176,6 @@ struct AnggaranManagementView: View {
         .sheet(item: $editingAnggaran) { a in
             AddEditAnggaranView(anggaran: a, selectedMonth: selectedMonth)
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 }

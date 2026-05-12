@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct TransaksiGroupSheet: View {
+    @Environment(\.appTheme) private var theme
     let title: String
     let transactions: [Transaksi]
     let total: Decimal
@@ -18,7 +19,7 @@ struct TransaksiGroupSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     // Header summary
@@ -26,14 +27,14 @@ struct TransaksiGroupSheet: View {
                         HStack {
                             Text(title)
                                 .font(.title3.bold())
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                             Spacer()
                             Text("\(transactions.count) transaksi")
                                 .font(.caption)
                                 .foregroundStyle(.gray)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 4)
-                                .background(Color.white.opacity(0.08))
+                                .background(theme.separator)
                                 .clipShape(Capsule())
                         }
                         HStack {
@@ -48,7 +49,7 @@ struct TransaksiGroupSheet: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 16)
-                    .background(Color.white.opacity(0.05))
+                    .background(theme.bgCard)
 
                     if transactions.isEmpty {
                         Spacer()
@@ -62,7 +63,7 @@ struct TransaksiGroupSheet: View {
                                 ForEach(transactions) { t in
                                     GroupRowItem(transaksi: t, accent: accent, dateString: dateString)
                                     Divider()
-                                        .background(Color.white.opacity(0.06))
+                                        .background(theme.separator)
                                         .padding(.leading, 74)
                                 }
                             }
@@ -75,13 +76,14 @@ struct TransaksiGroupSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 }
 
 // MARK: - Row item
 
 private struct GroupRowItem: View {
+    @Environment(\.appTheme) private var theme
     let transaksi: Transaksi
     let accent: Color
     let dateString: (Date) -> String
@@ -105,7 +107,7 @@ private struct GroupRowItem: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(transaksi.kategori?.nama ?? "Tanpa Kategori")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
                 Text(dateString(transaksi.tanggal))
                     .font(.caption)
                     .foregroundStyle(.gray)

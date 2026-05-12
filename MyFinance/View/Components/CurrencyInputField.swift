@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - Decimal-based (used in new views)
 
 struct CurrencyInputField: View {
+    @Environment(\.appTheme) private var theme
     @Binding var value: Decimal
     /// Nonaktifkan untuk field yang harus bulat (tidak diperlukan lagi karena default true)
     var allowsDecimal: Bool = true
@@ -15,9 +16,9 @@ struct CurrencyInputField: View {
             .keyboardType(allowsDecimal ? .decimalPad : .numberPad)
             .focused($focused)
             .padding(12)
-            .background(Color.white.opacity(0.08))
+            .background(theme.separator)
             .clipShape(RoundedRectangle(cornerRadius: 10))
-            .foregroundStyle(.white)
+            .foregroundStyle(theme.textPrimary)
             .onChange(of: text) { _, newValue in
                 // Guard: hanya parse saat user aktif mengetik.
                 // Kalau tidak focused, perubahan text berasal dari formatter (bukan user)
@@ -78,9 +79,10 @@ struct CurrencyInputField: View {
     private func formatForEditing(_ val: Decimal) -> String {
         if allowsDecimal {
             let d = Double(truncating: val as NSDecimalNumber)
-            // Kalau bulat, tampilkan tanpa desimal supaya user bisa lanjut ketik
-            if d == d.rounded() && !text.contains(",") {
-                return String(Int(d))
+            // Gunakan value saja (bukan text) untuk cek apakah bilangan bulat.
+            // text masih menyimpan string lama saat fungsi ini dipanggil.
+            if d == d.rounded() && d >= 0 {
+                return String(format: "%.0f", d)
             }
             return String(format: "%.2f", d).replacingOccurrences(of: ".", with: ",")
         } else {
@@ -112,68 +114,3 @@ struct CurrencyInputField: View {
     }
 }
 
-// MARK: - Double-based (legacy, kept for backward compatibility)
-
-struct CurrencyInputFieldDouble: View {
-    let label: String
-    @Binding var amount: Double
-
-    @State private var text: String = ""
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            HStack {
-                Text("Rp")
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
-                TextField("0", text: $text)
-                    .keyboardType(.numberPad)
-                    .focused($focused)
-                    .onChange(of: text) { _, newValue in
-                        let digits = newValue.filter { $0.isNumber }
-                        if digits != newValue { text = digits }
-                        amount = Double(digits) ?? 0
-                    }
-                    .onChange(of: amount) { _, newValue in
-                        if !focused {
-                            text = newValue > 0 ? formatNumber(newValue) : ""
-                        }
-                    }
-                    .onAppear {
-                        text = amount > 0 ? formatNumber(amount) : ""
-                    }
-                    .onChange(of: focused) { _, isFocused in
-                        if isFocused {
-                            if amount > 0 { text = String(Int(amount)) }
-                        } else if amount > 0 {
-                            text = formatNumber(amount)
-                        }
-                    }
-            }
-            .padding()
-            .background(Color(.secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-
-            if amount > 0 {
-                Text(formatWithSeparator(amount))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private func formatNumber(_ value: Double) -> String { String(Int(value)) }
-
-    private func formatWithSeparator(_ value: Double) -> String {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        f.groupingSeparator = "."
-        f.maximumFractionDigits = 0
-        return "Rp " + (f.string(from: NSNumber(value: value)) ?? "\(Int(value))")
-    }
-}

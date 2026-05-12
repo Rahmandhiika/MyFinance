@@ -55,6 +55,30 @@ extension Decimal {
         return String(format: "%.0f", d)
     }
 
+    /// Format tanpa prefix "Rp" — ribuan pakai titik, desimal pakai koma, max 2 desimal.
+    /// Dipakai untuk display kalkulator, expression string, dan input field.
+    var decimalDisplayFormatted: String {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        f.groupingSeparator = "."
+        f.decimalSeparator = ","
+        f.minimumFractionDigits = 0
+        f.maximumFractionDigits = 2
+        return f.string(from: self as NSDecimalNumber) ?? "\(self)"
+    }
+
+    /// Format kuantitas presisi — trailing zeros dihapus, max 8 desimal.
+    /// Cocok untuk shares, gram, unit yang nilainya bisa panjang.
+    var unitFormattedSmart: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 8
+        formatter.decimalSeparator = ","
+        formatter.groupingSeparator = "."
+        return formatter.string(from: self as NSDecimalNumber) ?? "\(self)"
+    }
+
     /// Format unit/kuantitas ke N desimal dengan rounding yang tepat — tanpa konversi via Double.
     /// Menggunakan NSDecimalNumberHandler (.plain = round half away from zero).
     func unitFormatted(_ fractionDigits: Int = 4) -> String {

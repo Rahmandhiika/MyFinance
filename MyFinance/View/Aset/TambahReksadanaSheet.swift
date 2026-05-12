@@ -4,6 +4,7 @@ import SwiftData
 struct TambahReksadanaSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     let aset: Aset
 
@@ -43,7 +44,7 @@ struct TambahReksadanaSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 20) {
 
@@ -59,11 +60,11 @@ struct TambahReksadanaSheet: View {
                             }
                             Text(aset.nama)
                                 .font(.headline)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                             if let jenis = aset.jenisReksadana, !jenis.isEmpty {
                                 Text(jenis)
                                     .font(.caption)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(theme.textSecondary)
                             }
                         }
                         .padding(.top, 8)
@@ -71,13 +72,13 @@ struct TambahReksadanaSheet: View {
                         // Info posisi saat ini (read-only)
                         VStack(spacing: 0) {
                             infoRow(label: "Total Investasi", value: totalInvestasiLama.idrFormatted)
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(theme.separator)
                             infoRow(label: "Estimasi Unit", value: unitLama > 0 ? unitLama.unitFormatted(4) : "–")
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(theme.separator)
                             infoRow(label: "NAV Rata-rata Beli",
                                     value: aset.hargaBeliPerUnit.map { $0.idrDecimalFormatted } ?? "–")
                         }
-                        .background(Color.white.opacity(0.05))
+                        .background(theme.bgCard)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                         .padding(.horizontal, 16)
 
@@ -104,7 +105,7 @@ struct TambahReksadanaSheet: View {
                                     .padding(.bottom, 14)
                                 }
 
-                                Divider().background(Color.white.opacity(0.06))
+                                Divider().background(theme.separator)
 
                                 // NAV saat ini
                                 VStack(alignment: .leading, spacing: 8) {
@@ -119,12 +120,12 @@ struct TambahReksadanaSheet: View {
                                             .foregroundStyle(.gray)
                                             .font(.subheadline)
                                             .padding(.leading, 14)
-                                        CurrencyInputField(value: $navBaru, allowsDecimal: true)
+                                        CurrencyInputField(value: $navBaru)
                                     }
                                     .padding(.bottom, 14)
                                 }
                             }
-                            .background(Color.white.opacity(0.05))
+                            .background(theme.bgCard)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                         }
                         .padding(.horizontal, 16)
@@ -135,16 +136,16 @@ struct TambahReksadanaSheet: View {
                                 previewRow(label: "Total Pengeluaran",
                                            value: tambahInvestasi.idrFormatted,
                                            accent: true)
-                                Divider().background(Color.white.opacity(0.06))
+                                Divider().background(theme.separator)
                                 previewRow(label: "Unit Didapat",
                                            value: unitBaru.unitFormatted(4))
-                                Divider().background(Color.white.opacity(0.06))
+                                Divider().background(theme.separator)
                                 previewRow(label: "Total Unit Setelah",
                                            value: totalUnit.unitFormatted(4))
-                                Divider().background(Color.white.opacity(0.06))
+                                Divider().background(theme.separator)
                                 previewRow(label: "NAV Rata-rata Baru",
                                            value: avgNavBaru.idrDecimalFormatted)
-                                Divider().background(Color.white.opacity(0.06))
+                                Divider().background(theme.separator)
                                 previewRow(label: "Est. Nilai Portofolio",
                                            value: estimasiNilaiBaru.idrFormatted,
                                            accent: true)
@@ -184,16 +185,16 @@ struct TambahReksadanaSheet: View {
             }
             .navigationTitle("Tambah Investasi")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Batal") { dismiss() }
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(theme.textSecondary)
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
         .onAppear {
             // Pre-fill NAV dengan nilai terakhir yang disimpan
             if let navTerakhir = aset.navSaatIni, navTerakhir > 0 {
@@ -209,11 +210,11 @@ struct TambahReksadanaSheet: View {
         HStack {
             Text(label)
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(theme.textSecondary)
             Spacer()
             Text(value)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -224,11 +225,11 @@ struct TambahReksadanaSheet: View {
         HStack {
             Text(label)
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(theme.textSecondary)
             Spacer()
             Text(value)
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(accent ? accentColor : .white)
+                .foregroundStyle(accent ? accentColor : theme.textPrimary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)

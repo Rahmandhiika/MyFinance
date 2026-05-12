@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct VoiceTabView: View {
+    @Environment(\.appTheme) private var theme
     @State private var speechService = SpeechRecognitionService()
     @State private var showReview = false
     @State private var parsedResult: ParsedResult = ParsedResult()
@@ -17,7 +18,7 @@ struct VoiceTabView: View {
 
     var body: some View {
         ZStack {
-            Color(hex: "#0D0D0D").ignoresSafeArea()
+            theme.bgApp.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 Spacer()
@@ -37,7 +38,7 @@ struct VoiceTabView: View {
                     } else {
                         Text("Rekaman selesai")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(theme.textSecondary)
                             .transition(.opacity)
                     }
 
@@ -45,12 +46,12 @@ struct VoiceTabView: View {
                     if !speechService.transcribedText.isEmpty {
                         Text(speechService.transcribedText)
                             .font(.body)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.textPrimary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 24)
                             .padding(.vertical, 14)
                             .frame(maxWidth: .infinity)
-                            .background(Color.white.opacity(0.07))
+                            .background(theme.separator)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                             .padding(.horizontal, 24)
                             .transition(.opacity.combined(with: .scale(scale: 0.97)))
@@ -173,7 +174,7 @@ struct VoiceTabView: View {
 
                 // Main circle
                 Circle()
-                    .fill(speechService.isRecording ? Color(hex: "#22C55E") : Color.white.opacity(0.1))
+                    .fill(speechService.isRecording ? Color(hex: "#22C55E") : theme.bgCard)
                     .frame(width: 88, height: 88)
                     .shadow(
                         color: speechService.isRecording
@@ -253,7 +254,7 @@ struct VoiceTabView: View {
                 .foregroundStyle(Color(hex: "#22C55E").opacity(0.7))
             Text(text)
                 .font(.caption)
-                .foregroundStyle(.white.opacity(0.4))
+                .foregroundStyle(theme.textSecondary.opacity(0.7))
         }
     }
 }

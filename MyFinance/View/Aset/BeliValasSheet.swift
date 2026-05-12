@@ -4,6 +4,7 @@ import SwiftData
 struct BeliValasSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     let aset: Aset
 
@@ -49,7 +50,7 @@ struct BeliValasSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 20) {
 
@@ -64,11 +65,11 @@ struct BeliValasSheet: View {
                             }
                             Text(aset.nama)
                                 .font(.headline)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                             if let m = mata {
                                 Text(m.rawValue)
                                     .font(.caption)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(theme.textSecondary)
                             }
                         }
                         .padding(.top, 8)
@@ -77,11 +78,11 @@ struct BeliValasSheet: View {
                         VStack(spacing: 0) {
                             infoRow(label: "Dimiliki Saat Ini",
                                     value: "\(jumlahLama.unitFormatted(2)) \(mata?.rawValue ?? "")")
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(theme.separator)
                             infoRow(label: "Rata-rata Kurs Beli",
                                     value: kursLama > 0 ? kursLama.idrDecimalFormatted : "–")
                         }
-                        .background(Color.white.opacity(0.05))
+                        .background(theme.bgCard)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                         .padding(.horizontal, 16)
 
@@ -103,12 +104,12 @@ struct BeliValasSheet: View {
                                             .foregroundStyle(.gray)
                                             .font(.subheadline)
                                             .padding(.leading, 14)
-                                        CurrencyInputField(value: $jumlahBeli, allowsDecimal: true)
+                                        CurrencyInputField(value: $jumlahBeli)
                                     }
                                     .padding(.bottom, 14)
                                 }
 
-                                Divider().background(Color.white.opacity(0.06))
+                                Divider().background(theme.separator)
 
                                 // Kurs beli
                                 VStack(alignment: .leading, spacing: 8) {
@@ -155,12 +156,12 @@ struct BeliValasSheet: View {
                                             .foregroundStyle(.gray)
                                             .font(.subheadline)
                                             .padding(.leading, 14)
-                                        CurrencyInputField(value: $kursBeli, allowsDecimal: true)
+                                        CurrencyInputField(value: $kursBeli)
                                     }
                                     .padding(.bottom, 14)
                                 }
                             }
-                            .background(Color.white.opacity(0.05))
+                            .background(theme.bgCard)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                         }
                         .padding(.horizontal, 16)
@@ -171,10 +172,10 @@ struct BeliValasSheet: View {
                                 previewRow(label: "Total Pengeluaran (IDR)",
                                            value: totalPengeluaran.idrDecimalFormatted,
                                            accent: true)
-                                Divider().background(Color.white.opacity(0.06))
+                                Divider().background(theme.separator)
                                 previewRow(label: "Total \(mata?.rawValue ?? "Valas") Setelah",
                                            value: "\((jumlahLama + jumlahBeli).unitFormatted(2)) \(mata?.rawValue ?? "")")
-                                Divider().background(Color.white.opacity(0.06))
+                                Divider().background(theme.separator)
                                 kursComparisonRow
                             }
                             .background(accentColor.opacity(0.06))
@@ -212,16 +213,16 @@ struct BeliValasSheet: View {
             }
             .navigationTitle("Beli \(mata?.rawValue ?? "Valas")")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Batal") { dismiss() }
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(theme.textSecondary)
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     // MARK: - Sub Views
@@ -236,7 +237,7 @@ struct BeliValasSheet: View {
                     .foregroundStyle(.gray)
                 Text(kursLama > 0 ? kursLama.idrFormatted : "–")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(theme.textSecondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -269,11 +270,11 @@ struct BeliValasSheet: View {
         HStack {
             Text(label)
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(theme.textSecondary)
             Spacer()
             Text(value)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -284,11 +285,11 @@ struct BeliValasSheet: View {
         HStack {
             Text(label)
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(theme.textSecondary)
             Spacer()
             Text(value)
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(accent ? accentColor : .white)
+                .foregroundStyle(accent ? accentColor : theme.textPrimary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)

@@ -26,6 +26,7 @@ enum AnyTransaksiItem: Identifiable {
 
 struct TransaksiTabView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.appTheme) private var theme
     @Query private var allTransaksi: [Transaksi]
     @Query private var allTransfer: [TransferInternal]
 
@@ -119,7 +120,7 @@ struct TransaksiTabView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     MonthNavigator(selectedMonth: $selectedMonth)
@@ -129,14 +130,18 @@ struct TransaksiTabView: View {
                     if isCurrentMonth {
                         HStack(spacing: 10) {
                             Image(systemName: "magnifyingglass")
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(theme.textSecondary)
                             TextField("Cari transaksi...", text: $searchText)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
-                        .background(Color.white.opacity(0.07))
+                        .background(theme.bgCard)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(theme.cardBorder, lineWidth: 1)
+                        )
                         .padding(.horizontal, 16)
                         .padding(.top, 12)
                     }
@@ -151,7 +156,7 @@ struct TransaksiTabView: View {
                         if groupedItems.isEmpty {
                             Spacer()
                             Text("Belum ada transaksi")
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(theme.textSecondary)
                                 .font(.subheadline)
                             Spacer()
                         } else {
@@ -164,7 +169,7 @@ struct TransaksiTabView: View {
                                                     .onTapGesture { selectedItem = item }
                                             }
                                         } header: {
-                                            DaySectionHeader(date: day)
+                                            DaySectionHeader(date: day, bgColor: theme.bgApp)
                                         }
                                     }
                                 }
@@ -184,8 +189,8 @@ struct TransaksiTabView: View {
             }
             .navigationTitle("Transaksi")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
@@ -201,7 +206,7 @@ struct TransaksiTabView: View {
                         }
                     } label: {
                         Image(systemName: "plus")
-                            .foregroundStyle(Color(hex: "#22C55E"))
+                            .foregroundStyle(theme.accent)
                             .fontWeight(.semibold)
                     }
                 }
@@ -237,7 +242,6 @@ struct TransaksiTabView: View {
                 )
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     // MARK: - Past Month Analytics
@@ -247,17 +251,17 @@ struct TransaksiTabView: View {
             HStack(spacing: 6) {
                 Image(systemName: "chart.pie.fill")
                     .font(.caption)
-                    .foregroundStyle(Color(hex: "#22C55E"))
+                    .foregroundStyle(theme.accent)
                 Text("PENGELUARAN PER KATEGORI")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(theme.textSecondary)
                     .tracking(0.5)
             }
 
             if pengeluaranPerKategori.isEmpty {
                 Text("Tidak ada pengeluaran di bulan ini")
                     .font(.subheadline)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(theme.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 24)
             } else {
@@ -283,15 +287,15 @@ struct TransaksiTabView: View {
                                 }
                                 Text(kat.nama)
                                     .font(.subheadline)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(theme.textPrimary)
                                 Spacer()
                                 VStack(alignment: .trailing, spacing: 1) {
                                     Text(amount.idrFormatted)
                                         .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.red)
+                                        .foregroundStyle(theme.pengeluaran)
                                     Text(String(format: "%.0f%%", pct * 100))
                                         .font(.caption2)
-                                        .foregroundStyle(.gray)
+                                        .foregroundStyle(theme.textSecondary)
                                 }
                             }
                             ProgressBarView(progress: pct, color: Color(hex: kat.warna), height: 3)
@@ -301,8 +305,12 @@ struct TransaksiTabView: View {
             }
         }
         .padding(16)
-        .background(Color.white.opacity(0.05))
+        .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(theme.cardBorder, lineWidth: 1)
+        )
     }
 
     // MARK: - Summary card
@@ -313,14 +321,14 @@ struct TransaksiTabView: View {
             VStack(spacing: 2) {
                 Text("Bersih")
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(theme.textSecondary)
                 Text(bersih.idrFormatted)
                     .font(.title2.bold())
-                    .foregroundStyle(bersih >= 0 ? .green : .red)
+                    .foregroundStyle(bersih >= 0 ? theme.pemasukan : theme.pengeluaran)
             }
             .frame(maxWidth: .infinity)
 
-            Divider().background(Color.white.opacity(0.1))
+            Divider().background(theme.separator)
 
             // Pemasukan + Pengeluaran
             HStack(spacing: 0) {
@@ -330,15 +338,15 @@ struct TransaksiTabView: View {
                     VStack(spacing: 4) {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.down.circle.fill")
-                                .foregroundStyle(.green)
+                                .foregroundStyle(theme.pemasukan)
                                 .font(.caption)
                             Text("Pemasukan")
                                 .font(.caption)
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(theme.textSecondary)
                         }
                         Text(totalPemasukan.idrFormatted)
                             .font(.subheadline.bold())
-                            .foregroundStyle(.green)
+                            .foregroundStyle(theme.pemasukan)
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -346,7 +354,7 @@ struct TransaksiTabView: View {
 
                 Divider()
                     .frame(height: 36)
-                    .background(Color.white.opacity(0.1))
+                    .background(theme.separator)
 
                 Button {
                     showPengeluaranSheet = true
@@ -354,15 +362,15 @@ struct TransaksiTabView: View {
                     VStack(spacing: 4) {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.up.circle.fill")
-                                .foregroundStyle(.red)
+                                .foregroundStyle(theme.pengeluaran)
                                 .font(.caption)
                             Text("Pengeluaran")
                                 .font(.caption)
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(theme.textSecondary)
                         }
                         Text(totalPengeluaran.idrFormatted)
                             .font(.subheadline.bold())
-                            .foregroundStyle(.red)
+                            .foregroundStyle(theme.pengeluaran)
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -370,8 +378,12 @@ struct TransaksiTabView: View {
             }
         }
         .padding(16)
-        .background(Color.white.opacity(0.05))
+        .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(theme.cardBorder, lineWidth: 1)
+        )
     }
 }
 
@@ -379,6 +391,8 @@ struct TransaksiTabView: View {
 
 private struct DaySectionHeader: View {
     let date: Date
+    var bgColor: Color = Color.black
+    @Environment(\.appTheme) private var theme
 
     private var label: String {
         let cal = Calendar.current
@@ -394,12 +408,12 @@ private struct DaySectionHeader: View {
         HStack {
             Text(label)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.gray)
+                .foregroundStyle(theme.textSecondary)
             Spacer()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .background(Color(hex: "#0D0D0D"))
+        .background(bgColor)
     }
 }
 
@@ -420,6 +434,7 @@ struct TransaksiRowView: View {
 
 private struct TransaksiRow: View {
     let transaksi: Transaksi
+    @Environment(\.appTheme) private var theme
     @Query private var allTargets: [Target]
 
     /// Target yang di-link via goalID (untuk subTipe simpanKeTarget / pakaiDariTarget)
@@ -447,7 +462,7 @@ private struct TransaksiRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(transaksi.kategori?.nama ?? "Tanpa Kategori")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
 
                 HStack(spacing: 6) {
                     // Target badge — muncul kalau ada goalID
@@ -485,7 +500,7 @@ private struct TransaksiRow: View {
                     if let catatan = transaksi.catatan, !catatan.isEmpty {
                         Text(catatan)
                             .font(.caption)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(theme.textSecondary)
                             .lineLimit(1)
                     }
                 }
@@ -495,7 +510,7 @@ private struct TransaksiRow: View {
 
             Text((transaksi.tipe == .pengeluaran ? "-" : "+") + transaksi.nominal.idrFormatted)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(transaksi.tipe == .pengeluaran ? .red : .green)
+                .foregroundStyle(transaksi.tipe == .pengeluaran ? theme.pengeluaran : theme.pemasukan)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -505,6 +520,7 @@ private struct TransaksiRow: View {
 
 private struct TransferRow: View {
     let transfer: TransferInternal
+    @Environment(\.appTheme) private var theme
 
     var body: some View {
         HStack(spacing: 14) {
@@ -520,17 +536,17 @@ private struct TransferRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Transfer")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
                 HStack(spacing: 4) {
                     Text(transfer.pocketAsal?.nama ?? "-")
                         .font(.caption)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(theme.textSecondary)
                     Image(systemName: "arrow.right")
                         .font(.caption2)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(theme.textSecondary)
                     Text(transfer.pocketTujuan?.nama ?? "-")
                         .font(.caption)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(theme.textSecondary)
                 }
             }
 

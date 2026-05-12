@@ -4,6 +4,7 @@ import SwiftData
 struct TransaksiDetailSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     @Query private var allTargets: [Target]
 
@@ -27,12 +28,12 @@ struct TransaksiDetailSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     // Handle indicator
                     RoundedRectangle(cornerRadius: 3)
-                        .fill(Color.white.opacity(0.3))
+                        .fill(theme.separator)
                         .frame(width: 40, height: 4)
                         .padding(.top, 12)
                         .padding(.bottom, 20)
@@ -74,7 +75,7 @@ struct TransaksiDetailSheet: View {
                         )
 
                         if let pocket = transaksi.pocket {
-                            Divider().background(Color.white.opacity(0.08))
+                            Divider().background(theme.separator)
                             detailRow(
                                 icon: "wallet.pass",
                                 iconColor: Color(hex: "#22C55E"),
@@ -84,7 +85,7 @@ struct TransaksiDetailSheet: View {
                         }
 
                         if let catatan = transaksi.catatan, !catatan.isEmpty {
-                            Divider().background(Color.white.opacity(0.08))
+                            Divider().background(theme.separator)
                             detailRow(
                                 icon: "note.text",
                                 iconColor: .yellow,
@@ -94,7 +95,7 @@ struct TransaksiDetailSheet: View {
                         }
 
                         if let target = linkedTarget {
-                            Divider().background(Color.white.opacity(0.08))
+                            Divider().background(theme.separator)
                             HStack(spacing: 12) {
                                 ZStack {
                                     Circle()
@@ -113,12 +114,12 @@ struct TransaksiDetailSheet: View {
                                         .foregroundStyle(.gray)
                                     Text(target.nama)
                                         .font(.subheadline)
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(theme.textPrimary)
                                 }
                                 Spacer()
                                 Text(transaksi.subTipe.displayName)
                                     .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(theme.textPrimary)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 4)
                                     .background(Color(hex: target.warna).opacity(0.3))
@@ -128,7 +129,7 @@ struct TransaksiDetailSheet: View {
                             .padding(.vertical, 12)
                         }
                     }
-                    .background(Color.white.opacity(0.05))
+                    .background(theme.bgCard)
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                     .padding(.horizontal, 16)
                     .padding(.top, 24)
@@ -160,10 +161,10 @@ struct TransaksiDetailSheet: View {
                                 Text("Edit")
                             }
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.textPrimary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(Color.white.opacity(0.1))
+                            .background(theme.cardBorder)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
                     }
@@ -183,7 +184,7 @@ struct TransaksiDetailSheet: View {
         }
         .presentationDetents([.medium])
         .presentationDragIndicator(.hidden)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     @ViewBuilder
@@ -196,10 +197,10 @@ struct TransaksiDetailSheet: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(theme.textSecondary)
                 Text(value)
                     .font(.subheadline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
             }
             Spacer()
         }
@@ -247,6 +248,7 @@ struct TransaksiDetailSheet: View {
 struct TransferDetailSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     let transfer: TransferInternal
 
@@ -261,12 +263,12 @@ struct TransferDetailSheet: View {
 
     var body: some View {
         ZStack {
-            Color(hex: "#0D0D0D").ignoresSafeArea()
+            theme.bgApp.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 // Handle
                 RoundedRectangle(cornerRadius: 3)
-                    .fill(Color.white.opacity(0.3))
+                    .fill(theme.separator)
                     .frame(width: 40, height: 4)
                     .padding(.top, 12)
                     .padding(.bottom, 20)
@@ -296,18 +298,18 @@ struct TransferDetailSheet: View {
                 VStack(spacing: 0) {
                     detailRow(icon: "clock", iconColor: .gray, label: "Tanggal", value: dateString)
 
-                    Divider().background(Color.white.opacity(0.08))
+                    Divider().background(theme.separator)
                     detailRow(icon: "wallet.pass", iconColor: .red, label: "Dari", value: transfer.pocketAsal?.nama ?? "-")
 
-                    Divider().background(Color.white.opacity(0.08))
+                    Divider().background(theme.separator)
                     detailRow(icon: "wallet.pass.fill", iconColor: .green, label: "Ke", value: transfer.pocketTujuan?.nama ?? "-")
 
                     if let catatan = transfer.catatan, !catatan.isEmpty {
-                        Divider().background(Color.white.opacity(0.08))
+                        Divider().background(theme.separator)
                         detailRow(icon: "note.text", iconColor: .yellow, label: "Catatan", value: catatan)
                     }
                 }
-                .background(Color.white.opacity(0.05))
+                .background(theme.bgCard)
                 .clipShape(RoundedRectangle(cornerRadius: 14))
                 .padding(.horizontal, 16)
                 .padding(.top, 24)
@@ -340,7 +342,7 @@ struct TransferDetailSheet: View {
         }
         .presentationDetents([.medium])
         .presentationDragIndicator(.hidden)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     @ViewBuilder
@@ -353,10 +355,10 @@ struct TransferDetailSheet: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(theme.textSecondary)
                 Text(value)
                     .font(.subheadline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
             }
             Spacer()
         }

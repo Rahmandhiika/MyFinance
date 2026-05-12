@@ -140,10 +140,27 @@ struct PocketDTO: Codable {
     let kelompok: String
     let kategoriPocketNama: String?
     let saldo: String          // Decimal as String to preserve precision
+    let saldoUSD: String?      // saldo USD (opsional, dari konversi IDR→USD)
     let logo: String?          // Base64
     let catatan: String?
     let limit: String?
     let urutan: Int
+}
+
+// Backward-compat PocketDTO (saldoUSD mungkin tidak ada di backup lama)
+extension PocketDTO {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        nama                = try c.decode(String.self, forKey: .nama)
+        kelompok            = try c.decode(String.self, forKey: .kelompok)
+        kategoriPocketNama  = try? c.decode(String?.self, forKey: .kategoriPocketNama)
+        saldo               = try c.decode(String.self, forKey: .saldo)
+        saldoUSD            = try? c.decode(String?.self, forKey: .saldoUSD)
+        logo                = try? c.decode(String?.self, forKey: .logo)
+        catatan             = try? c.decode(String?.self, forKey: .catatan)
+        limit               = try? c.decode(String?.self, forKey: .limit)
+        urutan              = (try? c.decode(Int.self, forKey: .urutan)) ?? 0
+    }
 }
 
 struct TransaksiDTO: Codable {
@@ -206,6 +223,7 @@ struct AsetDTO: Codable {
     let hargaSaatIniUSD: String?
     let kursBeliUSD: String?
     let kursSaatIniUSD: String?
+    let biayaFeeUSD: String?
     let mataUangValas: String?
     let jumlahValas: String?
     let kursBeliPerUnit: String?
@@ -214,6 +232,8 @@ struct AsetDTO: Codable {
     let tahunCetak: Int?
     let beratGram: String?
     let hargaBeliPerGram: String?
+    let pajakBeliEmas: String?
+    let hargaSaatIniEmasPerGram: String?
     let nominalDeposito: String?
     let bungaPA: String?
     let pphFinal: String?
@@ -248,6 +268,7 @@ extension AsetDTO {
         hargaSaatIniUSD         = try? c.decode(String?.self, forKey: .hargaSaatIniUSD)
         kursBeliUSD             = try? c.decode(String?.self, forKey: .kursBeliUSD)
         kursSaatIniUSD          = try? c.decode(String?.self, forKey: .kursSaatIniUSD)
+        biayaFeeUSD             = try? c.decode(String?.self, forKey: .biayaFeeUSD)
         mataUangValas           = try? c.decode(String?.self, forKey: .mataUangValas)
         jumlahValas             = try? c.decode(String?.self, forKey: .jumlahValas)
         kursBeliPerUnit         = try? c.decode(String?.self, forKey: .kursBeliPerUnit)
@@ -256,6 +277,8 @@ extension AsetDTO {
         tahunCetak              = try? c.decode(Int?.self, forKey: .tahunCetak)
         beratGram               = try? c.decode(String?.self, forKey: .beratGram)
         hargaBeliPerGram        = try? c.decode(String?.self, forKey: .hargaBeliPerGram)
+        pajakBeliEmas           = try? c.decode(String?.self, forKey: .pajakBeliEmas)
+        hargaSaatIniEmasPerGram = try? c.decode(String?.self, forKey: .hargaSaatIniEmasPerGram)
         nominalDeposito         = try? c.decode(String?.self, forKey: .nominalDeposito)
         bungaPA                 = try? c.decode(String?.self, forKey: .bungaPA)
         pphFinal                = try? c.decode(String?.self, forKey: .pphFinal)
@@ -376,8 +399,9 @@ final class BackupService {
                 saldo: Decimal(string: dto.saldo) ?? 0,
                 catatan: dto.catatan
             )
-            p.limit   = dto.limit.flatMap { Decimal(string: $0) }
-            p.urutan  = dto.urutan
+            p.limit     = dto.limit.flatMap { Decimal(string: $0) }
+            p.saldoUSD  = dto.saldoUSD.flatMap { Decimal(string: $0) } ?? 0
+            p.urutan    = dto.urutan
             if let b64 = dto.logo, let data = Data(base64Encoded: b64) { p.logo = data }
             context.insert(p)
         }
@@ -434,6 +458,7 @@ final class BackupService {
             a.hargaSaatIniUSD        = dto.hargaSaatIniUSD.flatMap { Decimal(string: $0) }
             a.kursBeliUSD            = dto.kursBeliUSD.flatMap { Decimal(string: $0) }
             a.kursSaatIniUSD         = dto.kursSaatIniUSD.flatMap { Decimal(string: $0) }
+            a.biayaFeeUSD            = dto.biayaFeeUSD.flatMap { Decimal(string: $0) }
             a.mataUangValas          = dto.mataUangValas.flatMap { MataUangValas(rawValue: $0) }
             a.jumlahValas            = dto.jumlahValas.flatMap { Decimal(string: $0) }
             a.kursBeliPerUnit        = dto.kursBeliPerUnit.flatMap { Decimal(string: $0) }
@@ -442,6 +467,8 @@ final class BackupService {
             a.tahunCetak             = dto.tahunCetak
             a.beratGram              = dto.beratGram.flatMap { Decimal(string: $0) }
             a.hargaBeliPerGram       = dto.hargaBeliPerGram.flatMap { Decimal(string: $0) }
+            a.pajakBeliEmas          = dto.pajakBeliEmas.flatMap { Decimal(string: $0) }
+            a.hargaSaatIniEmasPerGram = dto.hargaSaatIniEmasPerGram.flatMap { Decimal(string: $0) }
             a.nominalDeposito        = dto.nominalDeposito.flatMap { Decimal(string: $0) }
             a.bungaPA                = dto.bungaPA.flatMap { Decimal(string: $0) }
             a.pphFinal               = dto.pphFinal.flatMap { Decimal(string: $0) }
@@ -564,11 +591,12 @@ final class BackupService {
     }
 
     private func mapPocket(_ p: Pocket) -> PocketDTO {
-        PocketDTO(
+        PocketDTO(  // swiftlint:disable:next function_parameter_count
             nama: p.nama,
             kelompok: p.kelompokPocket.rawValue,
             kategoriPocketNama: p.kategoriPocket?.nama,
             saldo: "\(p.saldo)",
+            saldoUSD: p.saldoUSD > 0 ? "\(p.saldoUSD)" : nil,
             logo: p.logo?.base64EncodedString(),
             catatan: p.catatan,
             limit: p.limit.map { "\($0)" },
@@ -659,6 +687,7 @@ final class BackupService {
             hargaSaatIniUSD: a.hargaSaatIniUSD.map { "\($0)" },
             kursBeliUSD: a.kursBeliUSD.map { "\($0)" },
             kursSaatIniUSD: a.kursSaatIniUSD.map { "\($0)" },
+            biayaFeeUSD: a.biayaFeeUSD.map { "\($0)" },
             mataUangValas: a.mataUangValas?.rawValue,
             jumlahValas: a.jumlahValas.map { "\($0)" },
             kursBeliPerUnit: a.kursBeliPerUnit.map { "\($0)" },
@@ -667,6 +696,8 @@ final class BackupService {
             tahunCetak: a.tahunCetak,
             beratGram: a.beratGram.map { "\($0)" },
             hargaBeliPerGram: a.hargaBeliPerGram.map { "\($0)" },
+            pajakBeliEmas: a.pajakBeliEmas.map { "\($0)" },
+            hargaSaatIniEmasPerGram: a.hargaSaatIniEmasPerGram.map { "\($0)" },
             nominalDeposito: a.nominalDeposito.map { "\($0)" },
             bungaPA: a.bungaPA.map { "\($0)" },
             pphFinal: a.pphFinal.map { "\($0)" },

@@ -6,6 +6,9 @@ import Charts
 
 struct AnalitikView: View {
     @Query(sort: \Transaksi.tanggal) var allTransaksi: [Transaksi]
+    @Query private var allPockets: [Pocket]
+    @Query private var profiles: [UserProfile]
+    @Environment(\.appTheme) private var theme
     @State private var selectedMonth: Date = Date()
 
     // Chart toggle state
@@ -17,19 +20,73 @@ struct AnalitikView: View {
     // Per Kategori tab
     @State private var kategoriTab: TipeTransaksi = .pengeluaran
 
-    private let bg = Color(hex: "#0D0D0D")
-    private let cardBg = Color.white.opacity(0.05)
+    // Siklus Gajian mode — persisted
+    @AppStorage("useSiklusGajian") private var useSiklusGajian: Bool = false
+
+    // MARK: - User settings
+
+    private var tanggalGajian: Int {
+        profiles.first?.tanggalGajian ?? 25
+    }
+
+    // MARK: - Cycle Date Range
+
+    /// Start of selected period (1st of month, or tanggalGajian of selectedMonth)
+    private var cycleStartDate: Date {
+        let cal = Calendar.current
+        if useSiklusGajian {
+            var comps = cal.dateComponents([.year, .month], from: selectedMonth)
+            let maxDay = cal.range(of: .day, in: .month, for: selectedMonth)?.count ?? 28
+            comps.day = min(tanggalGajian, maxDay)
+            return cal.date(from: comps) ?? selectedMonth
+        } else {
+            var comps = cal.dateComponents([.year, .month], from: selectedMonth)
+            comps.day = 1
+            return cal.date(from: comps) ?? selectedMonth
+        }
+    }
+
+    /// End of selected period (last day of month, or day before gajian of next month)
+    private var cycleEndDate: Date {
+        let cal = Calendar.current
+        if useSiklusGajian {
+            let nextMonth = selectedMonth.addingMonths(1)
+            var comps = cal.dateComponents([.year, .month], from: nextMonth)
+            let maxDay = cal.range(of: .day, in: .month, for: nextMonth)?.count ?? 28
+            comps.day = min(tanggalGajian, maxDay)
+            let nextStart = cal.date(from: comps)!
+            return cal.date(byAdding: .day, value: -1, to: nextStart)!
+        } else {
+            let nextMonth = selectedMonth.addingMonths(1)
+            var comps = cal.dateComponents([.year, .month], from: nextMonth)
+            comps.day = 1
+            let firstOfNext = cal.date(from: comps)!
+            return cal.date(byAdding: .day, value: -1, to: firstOfNext)!
+        }
+    }
+
+    // MARK: - Body
 
     var body: some View {
         ZStack {
-            bg.ignoresSafeArea()
+            theme.bgApp.ignoresSafeArea()
             ScrollView {
-                VStack(spacing: 20) {
-                    // Month navigator
+                VStack(spacing: 16) {
                     monthNavigator
+                    cycleToggle
 
                     // Summary 2x2
                     summaryGrid
+
+                    // Cash Flow (Saldo Awal → Akhir)
+                    cashFlowCard
+
+                    // Saving Rate + vs Bulan Lalu
+                    savingRateCard
+                    vsBulanLaluCard
+
+                    // Auto Insights
+                    if !insights.isEmpty { insightCard }
 
                     // Highlight cards
                     pengeluaranTerbesarCard
@@ -52,9 +109,9 @@ struct AnalitikView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button { } label: {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                        .foregroundStyle(.white)
+                ShareLink(item: csvFileURL) {
+                    Image(systemName: "square.and.arrow.up")
+                        .foregroundStyle(theme.textSecondary)
                 }
             }
         }
@@ -68,18 +125,19 @@ struct AnalitikView: View {
                 selectedMonth = selectedMonth.addingMonths(-1)
             } label: {
                 Image(systemName: "chevron.left")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
                     .frame(width: 36, height: 36)
-                    .background(cardBg)
+                    .background(theme.bgCard)
                     .clipShape(Circle())
             }
 
             Spacer()
 
             VStack(spacing: 2) {
-                Text(monthRangeLabel)
+                Text(periodLabel)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
+                    .multilineTextAlignment(.center)
             }
 
             Spacer()
@@ -88,27 +146,85 @@ struct AnalitikView: View {
                 selectedMonth = selectedMonth.addingMonths(1)
             } label: {
                 Image(systemName: "chevron.right")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
                     .frame(width: 36, height: 36)
-                    .background(cardBg)
+                    .background(theme.bgCard)
                     .clipShape(Circle())
             }
         }
         .padding(.top, 8)
     }
 
-    private var monthRangeLabel: String {
+    private var periodLabel: String {
         let cal = Calendar.current
-        let comps = cal.dateComponents([.year, .month], from: selectedMonth)
-        guard let start = cal.date(from: comps),
-              let range = cal.range(of: .day, in: .month, for: start) else {
-            return selectedMonth.indonesianMonthYear
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "id_ID")
+
+        if useSiklusGajian {
+            df.dateFormat = "d MMM"
+            let startStr = df.string(from: cycleStartDate)
+            df.dateFormat = "d MMM yyyy"
+            let endStr = df.string(from: cycleEndDate)
+            return "\(startStr) – \(endStr)"
+        } else {
+            let comps = cal.dateComponents([.year, .month], from: selectedMonth)
+            guard let start = cal.date(from: comps),
+                  let range = cal.range(of: .day, in: .month, for: start) else {
+                return selectedMonth.indonesianMonthYear
+            }
+            df.dateFormat = "MMMM yyyy"
+            return "1 – \(range.count) \(df.string(from: start))"
         }
-        let lastDay = range.count
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "id_ID")
-        formatter.dateFormat = "MMMM yyyy"
-        return "1 - \(lastDay) \(formatter.string(from: start))"
+    }
+
+    // MARK: - Cycle Toggle
+
+    private var cycleToggle: some View {
+        HStack(spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { useSiklusGajian = false }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "calendar")
+                        .font(.caption.weight(.semibold))
+                    Text("Kalender")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(!useSiklusGajian ? theme.textOnColor : theme.textSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 7)
+                .background(!useSiklusGajian ? theme.accent : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    useSiklusGajian = true
+                    // Auto-jump ke cycle yang lagi berjalan:
+                    // kalau hari ini belum nyampe tanggal gajian, cycle aktif ada di bulan sebelumnya
+                    let todayDay = Calendar.current.component(.day, from: Date())
+                    let isCurrentMonth = Calendar.current.isDate(selectedMonth, equalTo: Date(), toGranularity: .month)
+                    if isCurrentMonth && todayDay < tanggalGajian {
+                        selectedMonth = selectedMonth.addingMonths(-1)
+                    }
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "dollarsign.circle.fill")
+                        .font(.caption.weight(.semibold))
+                    Text("Siklus Gajian (Tgl \(tanggalGajian))")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(useSiklusGajian ? theme.textOnColor : theme.textSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 7)
+                .background(useSiklusGajian ? theme.accent : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .padding(3)
+        .background(theme.separator.opacity(0.8))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     // MARK: - Summary Grid
@@ -150,6 +266,355 @@ struct AnalitikView: View {
         }
     }
 
+    // MARK: - Cash Flow Card (NEW)
+
+    private var cashFlowCard: some View {
+        let net = totalPemasukan - totalPengeluaran
+        let netPositive = net >= 0
+        let saldoAkhir = saldoAwalBulan + net
+
+        return VStack(alignment: .leading, spacing: 14) {
+            // Header
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.left.arrow.right.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(theme.accent)
+                Text("ARUS KAS PERIODE INI")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(theme.textSecondary)
+                    .tracking(0.5)
+                Spacer()
+                if useSiklusGajian {
+                    Text("Siklus Tgl \(tanggalGajian)")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(theme.accent)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(theme.accent.opacity(0.12))
+                        .clipShape(Capsule())
+                }
+            }
+
+            // Flow rows
+            VStack(spacing: 0) {
+                // Saldo Awal
+                cashFlowRow(
+                    icon: "tray.full.fill",
+                    label: "Saldo Awal Periode",
+                    value: saldoAwalBulan,
+                    valueColor: theme.textPrimary,
+                    prefix: "",
+                    isHighlight: false
+                )
+
+                flowDivider
+
+                // Pemasukan
+                cashFlowRow(
+                    icon: "plus.circle.fill",
+                    label: "Pemasukan",
+                    value: totalPemasukan,
+                    valueColor: Color(hex: "#4ADE80"),
+                    prefix: "+",
+                    isHighlight: false
+                )
+
+                flowDivider
+
+                // Pengeluaran
+                cashFlowRow(
+                    icon: "minus.circle.fill",
+                    label: "Pengeluaran",
+                    value: totalPengeluaran,
+                    valueColor: Color(hex: "#FF6B6B"),
+                    prefix: "−",
+                    isHighlight: false
+                )
+
+                // Total line
+                Rectangle()
+                    .fill(theme.separator)
+                    .frame(height: 1)
+                    .padding(.vertical, 4)
+
+                // Saldo Akhir
+                cashFlowRow(
+                    icon: "equal.circle.fill",
+                    label: "Saldo Saat Ini",
+                    value: saldoAkhir,
+                    valueColor: saldoAkhir >= 0 ? theme.textPrimary : Color(hex: "#FF6B6B"),
+                    prefix: "",
+                    isHighlight: true
+                )
+            }
+
+            // Net change badge
+            HStack(spacing: 6) {
+                Image(systemName: netPositive ? "arrow.up.right" : "arrow.down.right")
+                    .font(.caption.weight(.bold))
+                Text("Perubahan bulan ini: \(netPositive ? "+" : "")\(net.shortFormatted)")
+                    .font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(netPositive ? Color(hex: "#4ADE80") : Color(hex: "#FF6B6B"))
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background((netPositive ? Color(hex: "#4ADE80") : Color(hex: "#FF6B6B")).opacity(0.1))
+            .clipShape(Capsule())
+        }
+        .padding(16)
+        .background(theme.bgCard)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.cardBorder, lineWidth: 1))
+    }
+
+    private func cashFlowRow(icon: String, label: String, value: Decimal, valueColor: Color, prefix: String, isHighlight: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundStyle(valueColor.opacity(0.8))
+                .frame(width: 20)
+            Text(label)
+                .font(isHighlight ? .subheadline.weight(.bold) : .subheadline)
+                .foregroundStyle(isHighlight ? theme.textPrimary : theme.textSecondary)
+            Spacer()
+            Text("\(prefix)\(value.shortFormatted)")
+                .font(isHighlight ? .subheadline.weight(.bold) : .subheadline.weight(.semibold))
+                .foregroundStyle(valueColor)
+        }
+        .padding(.vertical, 8)
+    }
+
+    private var flowDivider: some View {
+        HStack {
+            Spacer().frame(width: 30)
+            Rectangle().fill(theme.separator).frame(height: 0.5)
+        }
+    }
+
+    // MARK: - Saving Rate Card
+
+    private var savingRateCard: some View {
+        // Saving rate based on income (traditional definition)
+        // If no income this period but still have carryover, show carryover usage rate
+        let rate = savingRate
+        let rateColor: Color = rate >= 20 ? Color(hex: "#4ADE80")
+                             : rate >= 0  ? Color(hex: "#FBBF24")
+                             : Color(hex: "#FF6B6B")
+        let rateLabel: String = rate >= 30 ? "Excellent! 🎉"
+                              : rate >= 20 ? "Bagus 👍"
+                              : rate >= 10 ? "Bisa Lebih Baik 💡"
+                              : rate >= 0  ? "Perhatian ⚠️"
+                              : "Defisit! 🚨"
+        let netBalance = totalPemasukan - totalPengeluaran
+        let noIncome = totalPemasukan == 0
+
+        return HStack(spacing: 16) {
+            // Gauge
+            ZStack {
+                Circle()
+                    .stroke(rateColor.opacity(0.15), lineWidth: 7)
+                    .frame(width: 72, height: 72)
+                if !noIncome {
+                    Circle()
+                        .trim(from: 0, to: min(max(CGFloat(rate) / 100.0, 0), 1))
+                        .stroke(rateColor, style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .frame(width: 72, height: 72)
+                        .animation(.easeOut(duration: 0.6), value: rate)
+                }
+                VStack(spacing: 1) {
+                    if noIncome {
+                        Image(systemName: "moon.zzz.fill")
+                            .font(.title3)
+                            .foregroundStyle(theme.textSecondary.opacity(0.5))
+                    } else {
+                        Text(rate < 0 ? "–" : "\(Int(rate))%")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(rateColor)
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 6) {
+                    Image(systemName: "chart.pie.fill")
+                        .font(.caption)
+                        .foregroundStyle(noIncome ? theme.textSecondary : rateColor)
+                    Text("SAVING RATE")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(theme.textSecondary)
+                        .tracking(0.5)
+                }
+                if noIncome {
+                    Text("Belum ada pemasukan")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(theme.textSecondary)
+                    Text("(Saldo awal masih cukup)")
+                        .font(.caption2)
+                        .foregroundStyle(theme.textSecondary.opacity(0.7))
+                } else {
+                    Text(rateLabel)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(rateColor)
+                    HStack(spacing: 4) {
+                        Image(systemName: netBalance >= 0 ? "arrow.up.right" : "arrow.down.right")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("Net: \(netBalance >= 0 ? "+" : "")\(netBalance.shortFormatted)")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(netBalance >= 0 ? Color(hex: "#4ADE80") : Color(hex: "#FF6B6B"))
+                }
+            }
+
+            Spacer()
+
+            if !noIncome && rate < 20 {
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text("Target 20%")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(theme.textSecondary)
+                    let targetSaving = totalPemasukan * Decimal(0.2)
+                    let selisih = targetSaving - (totalPemasukan - totalPengeluaran)
+                    if selisih > 0 {
+                        Text("Kurangi")
+                            .font(.caption2)
+                            .foregroundStyle(theme.textSecondary)
+                        Text(selisih.shortFormatted)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color(hex: "#FBBF24"))
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(theme.bgCard)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(
+            (noIncome ? theme.cardBorder : rateColor.opacity(0.2)), lineWidth: 1
+        ))
+    }
+
+    // MARK: - vs Bulan Lalu Card
+
+    private var vsBulanLaluCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.left.arrow.right")
+                    .font(.caption)
+                    .foregroundStyle(theme.accent)
+                Text("VS PERIODE LALU")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(theme.textSecondary)
+                    .tracking(0.5)
+                Spacer()
+                Text(prevMonthDate.indonesianMonthYear)
+                    .font(.caption2)
+                    .foregroundStyle(theme.textSecondary)
+            }
+
+            if prevMonthTransaksi.isEmpty {
+                Text("Tidak ada data periode lalu")
+                    .font(.caption)
+                    .foregroundStyle(theme.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 8)
+            } else {
+                VStack(spacing: 8) {
+                    comparisonRow(label: "Pengeluaran", current: totalPengeluaran, prev: prevTotalPengeluaran, isExpense: true)
+                    Divider().background(theme.separator)
+                    comparisonRow(label: "Pemasukan", current: totalPemasukan, prev: prevTotalPemasukan, isExpense: false)
+                    Divider().background(theme.separator)
+                    comparisonRow(
+                        label: "Net Balance",
+                        current: totalPemasukan - totalPengeluaran,
+                        prev: prevTotalPemasukan - prevTotalPengeluaran,
+                        isExpense: false
+                    )
+                }
+            }
+        }
+        .padding(16)
+        .background(theme.bgCard)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.cardBorder, lineWidth: 1))
+    }
+
+    private func comparisonRow(label: String, current: Decimal, prev: Decimal, isExpense: Bool) -> some View {
+        let pct = pctChange(current, prev)
+        let pctColor: Color = {
+            if pct == 0 { return theme.textSecondary }
+            let up = pct > 0
+            return (isExpense ? !up : up) ? Color(hex: "#4ADE80") : Color(hex: "#FF6B6B")
+        }()
+        let arrow = pct > 0 ? "arrow.up.right" : "arrow.down.right"
+
+        return HStack {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(theme.textSecondary)
+                .frame(width: 90, alignment: .leading)
+            Spacer()
+            Text(prev.shortFormatted)
+                .font(.caption)
+                .foregroundStyle(theme.textSecondary)
+                .frame(width: 72, alignment: .trailing)
+            Image(systemName: "arrow.right")
+                .font(.system(size: 9))
+                .foregroundStyle(theme.textSecondary.opacity(0.4))
+                .frame(width: 20)
+            Text(current.shortFormatted)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(theme.textPrimary)
+                .frame(width: 72, alignment: .trailing)
+            if pct != 0 {
+                HStack(spacing: 2) {
+                    Image(systemName: arrow).font(.system(size: 9, weight: .bold))
+                    Text("\(String(format: "%.0f", abs(pct)))%")
+                        .font(.caption2.weight(.bold))
+                }
+                .foregroundStyle(pctColor)
+                .frame(width: 44, alignment: .trailing)
+            } else {
+                Text("=")
+                    .font(.caption2)
+                    .foregroundStyle(theme.textSecondary)
+                    .frame(width: 44, alignment: .trailing)
+            }
+        }
+    }
+
+    // MARK: - Auto Insight Card
+
+    private var insightCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "lightbulb.fill")
+                    .font(.caption)
+                    .foregroundStyle(Color(hex: "#FBBF24"))
+                Text("INSIGHT")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(theme.textSecondary)
+                    .tracking(0.5)
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(insights, id: \.self) { text in
+                    HStack(alignment: .top, spacing: 10) {
+                        Circle()
+                            .fill(theme.accent.opacity(0.4))
+                            .frame(width: 6, height: 6)
+                            .padding(.top, 5)
+                        Text(text)
+                            .font(.subheadline)
+                            .foregroundStyle(theme.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(hex: "#FBBF24").opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "#FBBF24").opacity(0.2), lineWidth: 1))
+    }
+
     // MARK: - Highlight Cards
 
     private var pengeluaranTerbesarCard: some View {
@@ -158,46 +623,33 @@ struct AnalitikView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Color(hex: "#FF6B6B"))
                 .tracking(1)
-
             if let t = pengeluaranTerbesar {
                 HStack(alignment: .center) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(t.nominal.idrFormatted)
                             .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.textPrimary)
                         HStack(spacing: 6) {
                             if let kat = t.kategori {
-                                Circle()
-                                    .fill(Color(hex: kat.warna))
-                                    .frame(width: 8, height: 8)
-                                Text(kat.nama)
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(.gray)
+                                Circle().fill(Color(hex: kat.warna)).frame(width: 8, height: 8)
+                                Text(kat.nama).font(.system(size: 13)).foregroundStyle(theme.textSecondary)
                             } else {
-                                Text("Tanpa Kategori")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(.gray)
+                                Text("Tanpa Kategori").font(.system(size: 13)).foregroundStyle(theme.textSecondary)
                             }
                         }
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 4) {
-                        Text(dateLabel(t.tanggal))
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.white.opacity(0.5))
-                        Text(dayName(t.tanggal))
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.7))
+                        Text(dateLabel(t.tanggal)).font(.system(size: 12)).foregroundStyle(theme.textSecondary)
+                        Text(dayName(t.tanggal)).font(.system(size: 12, weight: .medium)).foregroundStyle(theme.textSecondary)
                     }
                 }
             } else {
-                Text("Tidak ada data bulan ini")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.gray)
+                Text("Tidak ada data periode ini").font(.system(size: 14)).foregroundStyle(theme.textSecondary)
             }
         }
         .padding(16)
-        .background(cardBg)
+        .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -207,30 +659,21 @@ struct AnalitikView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Color(hex: "#FBBF24"))
                 .tracking(1)
-
             if let hb = hariBoros {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(hb.total.idrFormatted)
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(.white)
-                        Text(dateLabel(hb.date))
-                            .font(.system(size: 13))
-                            .foregroundStyle(.gray)
+                        Text(hb.total.idrFormatted).font(.system(size: 20, weight: .bold)).foregroundStyle(theme.textPrimary)
+                        Text(dateLabel(hb.date)).font(.system(size: 13)).foregroundStyle(theme.textSecondary)
                     }
                     Spacer()
-                    Text(dayName(hb.date))
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(Color(hex: "#FBBF24"))
+                    Text(dayName(hb.date)).font(.system(size: 22, weight: .bold)).foregroundStyle(Color(hex: "#FBBF24"))
                 }
             } else {
-                Text("Tidak ada data bulan ini")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.gray)
+                Text("Tidak ada data periode ini").font(.system(size: 14)).foregroundStyle(theme.textSecondary)
             }
         }
         .padding(16)
-        .background(cardBg)
+        .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -241,10 +684,9 @@ struct AnalitikView: View {
             HStack {
                 Text("TREN")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(theme.textSecondary)
                     .tracking(1)
                 Spacer()
-                // Toggle buttons
                 HStack(spacing: 6) {
                     ChartToggleButton(label: "Out", isOn: $showPengeluaran, color: Color(hex: "#FF6B6B"))
                     ChartToggleButton(label: "In", isOn: $showPemasukan, color: Color(hex: "#4ADE80"))
@@ -254,23 +696,18 @@ struct AnalitikView: View {
                     } label: {
                         Image(systemName: useBarchart ? "chart.bar.fill" : "chart.line.uptrend.xyaxis")
                             .font(.system(size: 13))
-                            .foregroundStyle(.white.opacity(0.8))
+                            .foregroundStyle(theme.textPrimary.opacity(0.8))
                             .padding(6)
-                            .background(Color.white.opacity(0.08))
+                            .background(theme.separator)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                     }
                 }
             }
-
-            if dailyData.isEmpty {
-                emptyChartPlaceholder
-            } else {
-                trenChart
-                trenLegend
-            }
+            if dailyData.isEmpty { emptyChartPlaceholder }
+            else { trenChart; trenLegend }
         }
         .padding(16)
-        .background(cardBg)
+        .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -279,62 +716,32 @@ struct AnalitikView: View {
             ForEach(dailyData, id: \.date) { item in
                 if showPengeluaran {
                     if useBarchart {
-                        BarMark(
-                            x: .value("Tanggal", item.date, unit: .day),
-                            y: .value("Pengeluaran", item.pengeluaran)
-                        )
-                        .foregroundStyle(Color(hex: "#FF6B6B").opacity(0.8))
+                        BarMark(x: .value("Tanggal", item.date, unit: .day), y: .value("Pengeluaran", item.pengeluaran))
+                            .foregroundStyle(Color(hex: "#FF6B6B").opacity(0.8))
                     } else {
-                        LineMark(
-                            x: .value("Tanggal", item.date, unit: .day),
-                            y: .value("Pengeluaran", item.pengeluaran)
-                        )
-                        .foregroundStyle(Color(hex: "#FF6B6B"))
-                        .interpolationMethod(.catmullRom)
-                        AreaMark(
-                            x: .value("Tanggal", item.date, unit: .day),
-                            y: .value("Pengeluaran", item.pengeluaran)
-                        )
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [Color(hex: "#FF6B6B").opacity(0.3), .clear],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .interpolationMethod(.catmullRom)
+                        LineMark(x: .value("Tanggal", item.date, unit: .day), y: .value("Pengeluaran", item.pengeluaran))
+                            .foregroundStyle(Color(hex: "#FF6B6B")).interpolationMethod(.catmullRom)
+                        AreaMark(x: .value("Tanggal", item.date, unit: .day), y: .value("Pengeluaran", item.pengeluaran))
+                            .foregroundStyle(LinearGradient(colors: [Color(hex: "#FF6B6B").opacity(0.3), .clear], startPoint: .top, endPoint: .bottom))
+                            .interpolationMethod(.catmullRom)
                     }
                 }
                 if showPemasukan {
                     if useBarchart {
-                        BarMark(
-                            x: .value("Tanggal", item.date, unit: .day),
-                            y: .value("Pemasukan", item.pemasukan)
-                        )
-                        .foregroundStyle(Color(hex: "#4ADE80").opacity(0.8))
+                        BarMark(x: .value("Tanggal", item.date, unit: .day), y: .value("Pemasukan", item.pemasukan))
+                            .foregroundStyle(Color(hex: "#4ADE80").opacity(0.8))
                     } else {
-                        LineMark(
-                            x: .value("Tanggal", item.date, unit: .day),
-                            y: .value("Pemasukan", item.pemasukan)
-                        )
-                        .foregroundStyle(Color(hex: "#4ADE80"))
-                        .interpolationMethod(.catmullRom)
+                        LineMark(x: .value("Tanggal", item.date, unit: .day), y: .value("Pemasukan", item.pemasukan))
+                            .foregroundStyle(Color(hex: "#4ADE80")).interpolationMethod(.catmullRom)
                     }
                 }
                 if showBersih {
                     if useBarchart {
-                        BarMark(
-                            x: .value("Tanggal", item.date, unit: .day),
-                            y: .value("Bersih", item.bersih)
-                        )
-                        .foregroundStyle(Color(hex: "#22D3EE").opacity(0.8))
+                        BarMark(x: .value("Tanggal", item.date, unit: .day), y: .value("Bersih", item.bersih))
+                            .foregroundStyle(Color(hex: "#22D3EE").opacity(0.8))
                     } else {
-                        LineMark(
-                            x: .value("Tanggal", item.date, unit: .day),
-                            y: .value("Bersih", item.bersih)
-                        )
-                        .foregroundStyle(Color(hex: "#22D3EE"))
-                        .interpolationMethod(.catmullRom)
+                        LineMark(x: .value("Tanggal", item.date, unit: .day), y: .value("Bersih", item.bersih))
+                            .foregroundStyle(Color(hex: "#22D3EE")).interpolationMethod(.catmullRom)
                     }
                 }
             }
@@ -342,32 +749,20 @@ struct AnalitikView: View {
         .chartXAxis {
             AxisMarks(values: .stride(by: .day, count: 7)) { value in
                 if let date = value.as(Date.self) {
-                    AxisValueLabel {
-                        Text(shortDayLabel(date))
-                            .font(.system(size: 10))
-                            .foregroundStyle(.gray)
-                    }
+                    AxisValueLabel { Text(shortDayLabel(date)).font(.system(size: 10)).foregroundStyle(theme.textSecondary) }
                 }
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                    .foregroundStyle(Color.white.opacity(0.1))
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5)).foregroundStyle(theme.separator)
             }
         }
         .chartYAxis {
             AxisMarks { value in
                 if let v = value.as(Double.self) {
-                    AxisValueLabel {
-                        Text(v.shortFormatted)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.gray)
-                    }
+                    AxisValueLabel { Text(v.shortFormatted).font(.system(size: 10)).foregroundStyle(theme.textSecondary) }
                 }
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                    .foregroundStyle(Color.white.opacity(0.1))
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5)).foregroundStyle(theme.separator)
             }
         }
-        .chartBackground { _ in
-            Color.clear
-        }
+        .chartBackground { _ in Color.clear }
         .frame(height: 180)
     }
 
@@ -386,14 +781,9 @@ struct AnalitikView: View {
     private var perKategoriSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("PER KATEGORI")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.6))
-                    .tracking(1)
+                Text("PER KATEGORI").font(.system(size: 11, weight: .semibold)).foregroundStyle(theme.textSecondary).tracking(1)
                 Spacer()
             }
-
-            // Tab selector
             HStack(spacing: 0) {
                 ForEach([TipeTransaksi.pengeluaran, .pemasukan], id: \.self) { tipe in
                     Button {
@@ -401,34 +791,23 @@ struct AnalitikView: View {
                     } label: {
                         Text(tipe == .pengeluaran ? "Pengeluaran" : "Pemasukan")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(kategoriTab == tipe ? .black : .white.opacity(0.5))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .background(
-                                kategoriTab == tipe
-                                    ? (tipe == .pengeluaran ? Color(hex: "#FF6B6B") : Color(hex: "#4ADE80"))
-                                    : Color.clear
-                            )
+                            .foregroundStyle(kategoriTab == tipe ? .black : theme.textSecondary)
+                            .frame(maxWidth: .infinity).padding(.vertical, 8)
+                            .background(kategoriTab == tipe ? (tipe == .pengeluaran ? Color(hex: "#FF6B6B") : Color(hex: "#4ADE80")) : Color.clear)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
                 }
             }
-            .padding(4)
-            .background(Color.white.opacity(0.07))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .padding(4).background(theme.separator).clipShape(RoundedRectangle(cornerRadius: 10))
 
             let activeData = kategoriTab == .pengeluaran ? kategoriDataPengeluaran : kategoriDataPemasukan
             let activeTotal = kategoriTab == .pengeluaran ? totalPengeluaran : totalPemasukan
-
-            if activeData.isEmpty {
-                emptyChartPlaceholder
-            } else {
+            if activeData.isEmpty { emptyChartPlaceholder }
+            else {
                 HStack(alignment: .center, spacing: 20) {
-                    donutChart(data: activeData)
-                        .frame(width: 130, height: 130)
+                    donutChart(data: activeData).frame(width: 130, height: 130)
                     Spacer()
                 }
-
                 VStack(spacing: 8) {
                     ForEach(Array(activeData.enumerated()), id: \.offset) { _, item in
                         KategoriAnalitikRow(item: item, total: activeTotal)
@@ -436,20 +815,13 @@ struct AnalitikView: View {
                 }
             }
         }
-        .padding(16)
-        .background(cardBg)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(16).background(theme.bgCard).clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private func donutChart(data: [(kategori: Kategori?, total: Decimal, pct: Double)]) -> some View {
         Chart(Array(data.enumerated()), id: \.offset) { _, item in
-            SectorMark(
-                angle: .value("Total", Double(truncating: item.total as NSDecimalNumber)),
-                innerRadius: .ratio(0.6),
-                angularInset: 1.5
-            )
-            .foregroundStyle(Color(hex: item.kategori?.warna ?? "#6B7280"))
-            .cornerRadius(4)
+            SectorMark(angle: .value("Total", Double(truncating: item.total as NSDecimalNumber)), innerRadius: .ratio(0.6), angularInset: 1.5)
+                .foregroundStyle(Color(hex: item.kategori?.warna ?? "#6B7280")).cornerRadius(4)
         }
         .chartBackground { _ in Color.clear }
     }
@@ -458,49 +830,26 @@ struct AnalitikView: View {
 
     private var perHariSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("PER HARI")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.6))
-                .tracking(1)
-
-            if weekdayData.allSatisfy({ $0.total == 0 }) {
-                emptyChartPlaceholder
-            } else {
+            Text("PER HARI").font(.system(size: 11, weight: .semibold)).foregroundStyle(theme.textSecondary).tracking(1)
+            if weekdayData.allSatisfy({ $0.total == 0 }) { emptyChartPlaceholder }
+            else {
                 Chart(weekdayData, id: \.weekday) { item in
-                    BarMark(
-                        x: .value("Total", item.total),
-                        y: .value("Hari", item.label)
-                    )
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color(hex: "#FF6B6B"), Color(hex: "#FF6B6B").opacity(0.6)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .cornerRadius(4)
+                    BarMark(x: .value("Total", item.total), y: .value("Hari", item.label))
+                        .foregroundStyle(LinearGradient(colors: [Color(hex: "#FF6B6B"), Color(hex: "#FF6B6B").opacity(0.6)], startPoint: .leading, endPoint: .trailing))
+                        .cornerRadius(4)
                 }
                 .chartXAxis {
                     AxisMarks { value in
                         if let v = value.as(Double.self) {
-                            AxisValueLabel {
-                                Text(v.shortFormatted)
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(.gray)
-                            }
+                            AxisValueLabel { Text(v.shortFormatted).font(.system(size: 10)).foregroundStyle(theme.textSecondary) }
                         }
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                            .foregroundStyle(Color.white.opacity(0.1))
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5)).foregroundStyle(theme.separator)
                     }
                 }
                 .chartYAxis {
                     AxisMarks { value in
                         if let label = value.as(String.self) {
-                            AxisValueLabel {
-                                Text(label)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(.white.opacity(0.8))
-                            }
+                            AxisValueLabel { Text(label).font(.system(size: 12, weight: .medium)).foregroundStyle(theme.textPrimary) }
                         }
                     }
                 }
@@ -508,9 +857,7 @@ struct AnalitikView: View {
                 .frame(height: 220)
             }
         }
-        .padding(16)
-        .background(cardBg)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(16).background(theme.bgCard).clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     // MARK: - Empty Placeholder
@@ -519,12 +866,8 @@ struct AnalitikView: View {
         HStack {
             Spacer()
             VStack(spacing: 8) {
-                Image(systemName: "chart.bar.xaxis")
-                    .font(.system(size: 28))
-                    .foregroundStyle(.white.opacity(0.2))
-                Text("Tidak ada data bulan ini")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.gray)
+                Image(systemName: "chart.bar.xaxis").font(.system(size: 28)).foregroundStyle(theme.textSecondary.opacity(0.5))
+                Text("Tidak ada data periode ini").font(.system(size: 13)).foregroundStyle(theme.textSecondary)
             }
             .padding(.vertical, 24)
             Spacer()
@@ -534,35 +877,99 @@ struct AnalitikView: View {
     // MARK: - Computed: Filtered Transaksi
 
     private var monthTransaksi: [Transaksi] {
-        allTransaksi.filter { $0.tanggal.isSameMonth(as: selectedMonth) }
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: cycleStartDate)
+        let endInclusive = cal.startOfDay(for: cycleEndDate)
+        let endExclusive = cal.date(byAdding: .day, value: 1, to: endInclusive)!
+        return allTransaksi.filter { $0.tanggal >= start && $0.tanggal < endExclusive }
+    }
+
+    private var prevMonthDate: Date { selectedMonth.addingMonths(-1) }
+
+    private var prevMonthTransaksi: [Transaksi] {
+        // Previous period uses same cycle logic shifted by 1 month
+        let cal = Calendar.current
+        let prevSelected = selectedMonth.addingMonths(-1)
+        let prevCycleStart: Date
+        let prevCycleEnd: Date
+
+        if useSiklusGajian {
+            var startComps = cal.dateComponents([.year, .month], from: prevSelected)
+            startComps.day = min(tanggalGajian, cal.range(of: .day, in: .month, for: prevSelected)?.count ?? 28)
+            prevCycleStart = cal.date(from: startComps)!
+
+            var endComps = cal.dateComponents([.year, .month], from: selectedMonth)
+            endComps.day = min(tanggalGajian, cal.range(of: .day, in: .month, for: selectedMonth)?.count ?? 28)
+            let thisStart = cal.date(from: endComps)!
+            prevCycleEnd = cal.date(byAdding: .day, value: -1, to: thisStart)!
+        } else {
+            var startComps = cal.dateComponents([.year, .month], from: prevSelected)
+            startComps.day = 1
+            prevCycleStart = cal.date(from: startComps)!
+
+            var endComps = cal.dateComponents([.year, .month], from: selectedMonth)
+            endComps.day = 1
+            let thisStart = cal.date(from: endComps)!
+            prevCycleEnd = cal.date(byAdding: .day, value: -1, to: thisStart)!
+        }
+
+        let start = cal.startOfDay(for: prevCycleStart)
+        let endExclusive = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: prevCycleEnd))!
+        return allTransaksi.filter { $0.tanggal >= start && $0.tanggal < endExclusive }
     }
 
     private var totalPengeluaran: Decimal {
-        monthTransaksi
-            .filter { $0.tipe == .pengeluaran }
-            .reduce(Decimal(0)) { $0 + $1.nominal }
+        monthTransaksi.filter { $0.tipe == .pengeluaran }.reduce(Decimal(0)) { $0 + $1.nominal }
     }
 
     private var totalPemasukan: Decimal {
-        monthTransaksi
-            .filter { $0.tipe == .pemasukan }
-            .reduce(Decimal(0)) { $0 + $1.nominal }
+        monthTransaksi.filter { $0.tipe == .pemasukan }.reduce(Decimal(0)) { $0 + $1.nominal }
+    }
+
+    private var prevTotalPengeluaran: Decimal {
+        prevMonthTransaksi.filter { $0.tipe == .pengeluaran }.reduce(Decimal(0)) { $0 + $1.nominal }
+    }
+
+    private var prevTotalPemasukan: Decimal {
+        prevMonthTransaksi.filter { $0.tipe == .pemasukan }.reduce(Decimal(0)) { $0 + $1.nominal }
+    }
+
+    /// Saldo di semua pocket SEBELUM periode ini dimulai
+    /// = totalPocketSekarang - net semua transaksi dari cycleStart sampai sekarang
+    private var saldoAwalBulan: Decimal {
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: cycleStartDate)
+        let totalPocketNow = allPockets.reduce(Decimal(0)) { $0 + $1.saldo }
+
+        let txFromStart = allTransaksi.filter { $0.tanggal >= start }
+        let pemasukanFromStart = txFromStart.filter { $0.tipe == .pemasukan }.reduce(Decimal(0)) { $0 + $1.nominal }
+        let pengeluaranFromStart = txFromStart.filter { $0.tipe == .pengeluaran }.reduce(Decimal(0)) { $0 + $1.nominal }
+
+        return totalPocketNow - pemasukanFromStart + pengeluaranFromStart
+    }
+
+    private var savingRate: Double {
+        guard totalPemasukan > 0 else { return 0 }
+        let net = totalPemasukan - totalPengeluaran
+        return Double(truncating: (net / totalPemasukan * 100) as NSDecimalNumber)
+    }
+
+    private func pctChange(_ current: Decimal, _ prev: Decimal) -> Double {
+        guard prev != 0 else { return 0 }
+        return Double(truncating: ((current - prev) / abs(prev) * 100) as NSDecimalNumber)
     }
 
     private var rataRataPerHari: Decimal {
-        let days = daysInSelectedMonth()
-        guard days > 0 else { return 0 }
+        let cal = Calendar.current
+        let components = cal.dateComponents([.day], from: cycleStartDate, to: cycleEndDate)
+        let days = max(1, (components.day ?? 0) + 1)
         return totalPengeluaran / Decimal(days)
     }
 
-    private var jumlahTransaksi: Int {
-        monthTransaksi.count
-    }
+    private var jumlahTransaksi: Int { monthTransaksi.count }
 
     private var pengeluaranTerbesar: Transaksi? {
-        monthTransaksi
-            .filter { $0.tipe == .pengeluaran }
-            .max(by: { $0.nominal < $1.nominal })
+        monthTransaksi.filter { $0.tipe == .pengeluaran }.max(by: { $0.nominal < $1.nominal })
     }
 
     private var hariBoros: (date: Date, total: Decimal)? {
@@ -570,43 +977,103 @@ struct AnalitikView: View {
         let cal = Calendar.current
         var dailyTotals: [Date: Decimal] = [:]
         for t in pengeluaran {
-            let day = cal.startOfDay(for: t.tanggal)
-            dailyTotals[day, default: 0] += t.nominal
+            dailyTotals[cal.startOfDay(for: t.tanggal), default: 0] += t.nominal
         }
         guard let maxEntry = dailyTotals.max(by: { $0.value < $1.value }) else { return nil }
         return (date: maxEntry.key, total: maxEntry.value)
+    }
+
+    // MARK: - Auto Insights
+
+    private var insights: [String] {
+        var list: [String] = []
+
+        if totalPemasukan > 0 {
+            let r = Int(savingRate)
+            if savingRate >= 30 {
+                list.append("Saving rate \(r)% periode ini — luar biasa! Tetap pertahankan 💪")
+            } else if savingRate >= 20 {
+                list.append("Saving rate \(r)% — sudah melewati target 20%. Kerja bagus! 👍")
+            } else if savingRate >= 0 {
+                list.append("Saving rate baru \(r)%. Kurangi pengeluaran untuk capai target 20% 💡")
+            } else {
+                list.append("Pengeluaran melebihi pemasukan periode ini. Tinjau kembali kebiasaan belanja ⚠️")
+            }
+        } else {
+            // No income yet — show carryover context
+            let saldoAkhirEstimasi = saldoAwalBulan - totalPengeluaran
+            if saldoAwalBulan > 0 {
+                list.append("Gaji belum masuk — saldo awal \(saldoAwalBulan.shortFormatted) masih cukup untuk sementara 💰")
+                if saldoAkhirEstimasi > 0 {
+                    list.append("Sisa saldo setelah pengeluaran: \(saldoAkhirEstimasi.shortFormatted)")
+                }
+            }
+        }
+
+        if prevTotalPengeluaran > 0 {
+            let pct = pctChange(totalPengeluaran, prevTotalPengeluaran)
+            if pct > 5 {
+                list.append("Pengeluaran naik \(String(format: "%.0f", pct))% dibanding periode lalu. Kategori terbesar: \(kategoriDataPengeluaran.first?.kategori?.nama ?? "-")")
+            } else if pct < -5 {
+                list.append("Pengeluaran turun \(String(format: "%.0f", abs(pct)))% vs periode lalu — penghematan yang bagus! 📉")
+            }
+        }
+
+        if let top = kategoriDataPengeluaran.first, let kat = top.kategori {
+            list.append("\"\(kat.nama)\" menyumbang \(String(format: "%.0f", top.pct))% dari total pengeluaran periode ini")
+        }
+
+        if let hb = hariBoros {
+            list.append("Hari \(dayName(hb.date)) adalah hari paling boros: \(hb.total.shortFormatted) dalam sehari")
+        }
+
+        return Array(list.prefix(3))
+    }
+
+    // MARK: - CSV Export
+
+    private var csvString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        var lines = ["Tanggal,Tipe,Kategori,Nominal,Catatan,Pocket"]
+        for t in monthTransaksi.sorted(by: { $0.tanggal < $1.tanggal }) {
+            let tanggal = formatter.string(from: t.tanggal)
+            let tipe = t.tipe == .pengeluaran ? "Pengeluaran" : "Pemasukan"
+            let kat = t.kategori?.nama ?? "-"
+            let nominal = "\(t.nominal)"
+            let catatan = (t.catatan ?? "").replacingOccurrences(of: ",", with: ";")
+            let pocket = t.pocket?.nama ?? "-"
+            lines.append("\(tanggal),\(tipe),\(kat),\(nominal),\(catatan),\(pocket)")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private var csvFileURL: URL {
+        let dir = FileManager.default.temporaryDirectory
+        let label = useSiklusGajian
+            ? "siklus_\(tanggalGajian)_\(selectedMonth.indonesianMonthYear)"
+            : selectedMonth.indonesianMonthYear
+        let name = "transaksi_\(label.replacingOccurrences(of: " ", with: "_").lowercased()).csv"
+        let url = dir.appendingPathComponent(name)
+        try? csvString.write(to: url, atomically: true, encoding: .utf8)
+        return url
     }
 
     // MARK: - Computed: Chart Data
 
     private var dailyData: [(date: Date, pengeluaran: Double, pemasukan: Double, bersih: Double)] {
         let cal = Calendar.current
-        guard let range = cal.range(of: .day, in: .month, for: selectedMonth),
-              let startOfMonth = cal.date(from: cal.dateComponents([.year, .month], from: selectedMonth)) else {
-            return []
-        }
-
         var result: [(date: Date, pengeluaran: Double, pemasukan: Double, bersih: Double)] = []
-        for day in 0 ..< range.count {
-            guard let date = cal.date(byAdding: .day, value: day, to: startOfMonth) else { continue }
-            let dayStart = cal.startOfDay(for: date)
-            let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart)!
+        var current = cal.startOfDay(for: cycleStartDate)
+        let end = cal.startOfDay(for: cycleEndDate)
 
-            let dayTransaksi = monthTransaksi.filter { $0.tanggal >= dayStart && $0.tanggal < dayEnd }
-            let keluar = dayTransaksi.filter { $0.tipe == .pengeluaran }
-                .reduce(Decimal(0)) { $0 + $1.nominal }
-            let masuk = dayTransaksi.filter { $0.tipe == .pemasukan }
-                .reduce(Decimal(0)) { $0 + $1.nominal }
-
-            let keluarD = Double(truncating: keluar as NSDecimalNumber)
-            let masukD = Double(truncating: masuk as NSDecimalNumber)
-
-            result.append((
-                date: dayStart,
-                pengeluaran: keluarD,
-                pemasukan: masukD,
-                bersih: masukD - keluarD
-            ))
+        while current <= end {
+            let next = cal.date(byAdding: .day, value: 1, to: current)!
+            let dayTx = monthTransaksi.filter { $0.tanggal >= current && $0.tanggal < next }
+            let keluar = Double(truncating: dayTx.filter { $0.tipe == .pengeluaran }.reduce(Decimal(0)) { $0 + $1.nominal } as NSDecimalNumber)
+            let masuk  = Double(truncating: dayTx.filter { $0.tipe == .pemasukan  }.reduce(Decimal(0)) { $0 + $1.nominal } as NSDecimalNumber)
+            result.append((date: current, pengeluaran: keluar, pemasukan: masuk, bersih: masuk - keluar))
+            current = next
         }
         return result
     }
@@ -614,11 +1081,9 @@ struct AnalitikView: View {
     private var kategoriDataPengeluaran: [(kategori: Kategori?, total: Decimal, pct: Double)] {
         buildKategoriData(tipe: .pengeluaran, totalRef: totalPengeluaran)
     }
-
     private var kategoriDataPemasukan: [(kategori: Kategori?, total: Decimal, pct: Double)] {
         buildKategoriData(tipe: .pemasukan, totalRef: totalPemasukan)
     }
-
     private func buildKategoriData(tipe: TipeTransaksi, totalRef: Decimal) -> [(kategori: Kategori?, total: Decimal, pct: Double)] {
         let filtered = monthTransaksi.filter { $0.tipe == tipe }
         var grouped: [UUID?: Decimal] = [:]
@@ -629,55 +1094,36 @@ struct AnalitikView: View {
             katMap[key] = t.kategori
         }
         let total = Double(truncating: totalRef as NSDecimalNumber)
-        return grouped
-            .map { key, sum in
-                let pct = total > 0 ? Double(truncating: sum as NSDecimalNumber) / total * 100 : 0
-                return (kategori: katMap[key] ?? nil, total: sum, pct: pct)
-            }
-            .sorted { $0.total > $1.total }
+        return grouped.map { key, sum in
+            let pct = total > 0 ? Double(truncating: sum as NSDecimalNumber) / total * 100 : 0
+            return (kategori: katMap[key] ?? nil, total: sum, pct: pct)
+        }.sorted { $0.total > $1.total }
     }
 
     private var weekdayData: [(weekday: Int, label: String, total: Double)] {
         let labels = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"]
-        // Calendar weekday: 1=Sun, 2=Mon...7=Sat → map to Mon-Sun index 0-6
         var totals = [Int: Double]()
-        for i in 0 ..< 7 { totals[i] = 0 }
-        let pengeluaran = monthTransaksi.filter { $0.tipe == .pengeluaran }
+        for i in 0..<7 { totals[i] = 0 }
         let cal = Calendar.current
-        for t in pengeluaran {
-            let weekday = cal.component(.weekday, from: t.tanggal) // 1=Sun
-            let idx = (weekday + 5) % 7 // Mon=0 .. Sun=6
+        for t in monthTransaksi.filter({ $0.tipe == .pengeluaran }) {
+            let idx = (cal.component(.weekday, from: t.tanggal) + 5) % 7
             totals[idx, default: 0] += Double(truncating: t.nominal as NSDecimalNumber)
         }
-        return (0 ..< 7).map { i in (weekday: i, label: labels[i], total: totals[i] ?? 0) }
+        return (0..<7).map { i in (weekday: i, label: labels[i], total: totals[i] ?? 0) }
     }
 
     // MARK: - Helpers
 
-    private func daysInSelectedMonth() -> Int {
-        let cal = Calendar.current
-        guard let range = cal.range(of: .day, in: .month, for: selectedMonth) else { return 30 }
-        return range.count
-    }
-
     private func dateLabel(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "id_ID")
-        f.dateFormat = "d MMM yyyy"
+        let f = DateFormatter(); f.locale = Locale(identifier: "id_ID"); f.dateFormat = "d MMM yyyy"
         return f.string(from: date)
     }
-
     private func dayName(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "id_ID")
-        f.dateFormat = "EEEE"
+        let f = DateFormatter(); f.locale = Locale(identifier: "id_ID"); f.dateFormat = "EEEE"
         return f.string(from: date)
     }
-
     private func shortDayLabel(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "id_ID")
-        f.dateFormat = "d"
+        let f = DateFormatter(); f.locale = Locale(identifier: "id_ID"); f.dateFormat = "d"
         return f.string(from: date)
     }
 }
@@ -685,67 +1131,44 @@ struct AnalitikView: View {
 // MARK: - Sub-views
 
 private struct SummaryCard: View {
-    let title: String
-    let value: String
-    let fullValue: String
-    let valueColor: Color
-    let icon: String
-    let iconColor: Color
+    let title: String; let value: String; let fullValue: String
+    let valueColor: Color; let icon: String; let iconColor: Color
+    @Environment(\.appTheme) private var theme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Image(systemName: icon)
-                    .font(.system(size: 14))
-                    .foregroundStyle(iconColor)
+                Image(systemName: icon).font(.system(size: 14)).foregroundStyle(iconColor)
                 Spacer()
             }
             Text(value)
                 .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(valueColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-            Text(title)
-                .font(.system(size: 11))
-                .foregroundStyle(.gray)
-                .lineLimit(1)
+                .foregroundStyle(valueColor == .white ? theme.textPrimary : valueColor)
+                .lineLimit(1).minimumScaleFactor(0.6)
+            Text(title).font(.system(size: 11)).foregroundStyle(theme.textSecondary).lineLimit(1)
         }
-        .padding(14)
-        .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(14).background(theme.bgCard).clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
 private struct KategoriAnalitikRow: View {
     let item: (kategori: Kategori?, total: Decimal, pct: Double)
     let total: Decimal
+    @Environment(\.appTheme) private var theme
 
     var body: some View {
         VStack(spacing: 4) {
             HStack(spacing: 8) {
-                Circle()
-                    .fill(Color(hex: item.kategori?.warna ?? "#6B7280"))
-                    .frame(width: 10, height: 10)
-                Text(item.kategori?.nama ?? "Lainnya")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.white.opacity(0.85))
+                Circle().fill(Color(hex: item.kategori?.warna ?? "#6B7280")).frame(width: 10, height: 10)
+                Text(item.kategori?.nama ?? "Lainnya").font(.system(size: 13)).foregroundStyle(theme.textPrimary)
                 Spacer()
-                Text(String(format: "%.1f%%", item.pct))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.6))
-                Text(item.total.shortFormatted)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 60, alignment: .trailing)
+                Text(String(format: "%.1f%%", item.pct)).font(.system(size: 12, weight: .semibold)).foregroundStyle(theme.textSecondary)
+                Text(item.total.shortFormatted).font(.system(size: 13, weight: .semibold)).foregroundStyle(theme.textPrimary).frame(width: 60, alignment: .trailing)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.08))
-                        .frame(height: 4)
-                    Capsule()
-                        .fill(Color(hex: item.kategori?.warna ?? "#6B7280"))
-                        .frame(width: geo.size.width * CGFloat(item.pct / 100), height: 4)
+                    Capsule().fill(theme.separator).frame(height: 4)
+                    Capsule().fill(Color(hex: item.kategori?.warna ?? "#6B7280")).frame(width: geo.size.width * CGFloat(item.pct / 100), height: 4)
                 }
             }
             .frame(height: 4)
@@ -754,36 +1177,26 @@ private struct KategoriAnalitikRow: View {
 }
 
 private struct LegendDot: View {
-    let color: Color
-    let label: String
-
+    let color: Color; let label: String
+    @Environment(\.appTheme) private var theme
     var body: some View {
         HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-            Text(label)
-                .font(.system(size: 11))
-                .foregroundStyle(.gray)
+            Circle().fill(color).frame(width: 8, height: 8)
+            Text(label).font(.system(size: 11)).foregroundStyle(theme.textSecondary)
         }
     }
 }
 
 private struct ChartToggleButton: View {
-    let label: String
-    @Binding var isOn: Bool
-    let color: Color
-
+    let label: String; @Binding var isOn: Bool; let color: Color
+    @Environment(\.appTheme) private var theme
     var body: some View {
-        Button {
-            isOn.toggle()
-        } label: {
+        Button { isOn.toggle() } label: {
             Text(label)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(isOn ? color : .gray)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(isOn ? color.opacity(0.15) : Color.white.opacity(0.05))
+                .foregroundStyle(isOn ? color : theme.textSecondary)
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(isOn ? color.opacity(0.15) : theme.bgCard)
                 .clipShape(Capsule())
         }
     }

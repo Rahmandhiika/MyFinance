@@ -15,6 +15,7 @@ struct PocketChipPicker: View {
 }
 
 struct PocketChip: View {
+    @Environment(\.appTheme) private var theme
     let pocket: Pocket
     var isSelected: Bool
 
@@ -38,11 +39,11 @@ struct PocketChip: View {
             }
             Text(pocket.nama)
                 .font(.subheadline)
-                .foregroundStyle(isSelected ? .black : .white)
+                .foregroundStyle(isSelected ? .black : theme.textPrimary)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(isSelected ? Color(hex: "#22C55E") : Color.white.opacity(0.1))
+        .background(isSelected ? Color(hex: "#22C55E") : theme.separator)
         .clipShape(Capsule())
     }
 }

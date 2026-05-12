@@ -7,8 +7,10 @@ import Foundation
     var kelompokPocket: KelompokPocket
     var kategoriPocket: KategoriPocket?
     var saldo: Decimal
+    var saldoUSD: Decimal = 0   // saldo USD (dari konversi IDR→USD di Pluang, dll)
     var logo: Data?
     var isAktif: Bool
+    var ikutHitungSisa: Bool = true   // kalau true, saldo ikut dihitung di "Sisa Pocket" Home
     var catatan: String?
     var limit: Decimal?  // untuk Kartu Kredit/PayLater
     var urutan: Int      // untuk drag reorder di tab Pocket

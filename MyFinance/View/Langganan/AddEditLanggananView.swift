@@ -5,6 +5,7 @@ import PhotosUI
 struct AddEditLanggananView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     var existing: Langganan? = nil
 
@@ -28,14 +29,14 @@ struct AddEditLanggananView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 20) {
                         // Logo picker
                         PhotosPicker(selection: $selectedPhoto, matching: .images) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 16)
-                                    .fill(Color.white.opacity(0.07))
+                                    .fill(theme.separator)
                                     .frame(width: 80, height: 80)
                                 if let data = logoData, let uiImg = UIImage(data: data) {
                                     Image(uiImage: uiImg)
@@ -61,21 +62,21 @@ struct AddEditLanggananView: View {
                         VStack(spacing: 1) {
                             formRow {
                                 TextField("Nama bill", text: $nama)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(theme.textPrimary)
                             }
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(theme.separator)
                             formRow {
                                 VStack(alignment: .leading, spacing: 8) {
                                     HStack {
                                         Text("Nominal per bulan")
-                                            .foregroundStyle(.gray)
+                                            .foregroundStyle(theme.textSecondary)
                                             .font(.subheadline)
                                         Spacer()
                                         Text(nominalDecimal > 0 ? nominalDecimal.idrFormatted : "Rp 0")
                                             .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(nominalDecimal > 0 ? .white : .gray)
+                                            .foregroundStyle(nominalDecimal > 0 ? theme.textPrimary : theme.textSecondary)
                                     }
-                                    CurrencyInputField(value: $nominalDecimal)
+                                    CalcInputField(value: $nominalDecimal)
                                     // Quick amount buttons — only in ADD mode
                                     if !isEditing {
                                         QuickAmountButtons(nominal: $nominalDecimal)
@@ -83,10 +84,10 @@ struct AddEditLanggananView: View {
                                     }
                                 }
                             }
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(theme.separator)
                             formRow {
                                 Text("Tanggal tagih")
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(theme.textSecondary)
                                     .font(.subheadline)
                                 Spacer()
                                 Picker("", selection: $tanggalTagih) {
@@ -97,7 +98,7 @@ struct AddEditLanggananView: View {
                                 .tint(Color(hex: "#22C55E"))
                             }
                         }
-                        .background(Color.white.opacity(0.05))
+                        .background(theme.bgCard)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                         .padding(.horizontal, 16)
 
@@ -122,10 +123,10 @@ struct AddEditLanggananView: View {
                         VStack(spacing: 1) {
                             formRow {
                                 TextField("Catatan (opsional)", text: $catatan)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(theme.textPrimary)
                             }
                         }
-                        .background(Color.white.opacity(0.05))
+                        .background(theme.bgCard)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                         .padding(.horizontal, 16)
 
@@ -136,12 +137,12 @@ struct AddEditLanggananView: View {
             }
             .navigationTitle(isEditing ? "Edit Bill" : "Tambah Bill")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Batal") { dismiss() }
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(theme.textSecondary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Simpan") { save() }
@@ -159,7 +160,7 @@ struct AddEditLanggananView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     // MARK: - Sub Views

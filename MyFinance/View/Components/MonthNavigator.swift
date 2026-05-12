@@ -4,21 +4,22 @@ struct MonthNavigator: View {
     @Binding var selectedMonth: Date
     var showDayMode: Bool = false
     @Binding var selectedDay: Date
+    @Environment(\.appTheme) private var theme
 
     var body: some View {
         HStack {
             Button { navigateBack() } label: {
                 Image(systemName: "chevron.left")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
             }
             Spacer()
             Text(showDayMode ? dayString : monthString)
                 .font(.headline)
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
             Spacer()
             Button { navigateForward() } label: {
                 Image(systemName: "chevron.right")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
             }
         }
         .padding(.horizontal)

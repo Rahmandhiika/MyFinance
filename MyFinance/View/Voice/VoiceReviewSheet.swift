@@ -4,6 +4,7 @@ import SwiftData
 struct VoiceReviewSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     @Query(filter: #Predicate<Pocket> { $0.isAktif }) private var pockets: [Pocket]
     @Query private var allKategoris: [Kategori]
@@ -35,7 +36,7 @@ struct VoiceReviewSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
 
                 ScrollView {
                     VStack(spacing: 24) {
@@ -44,11 +45,11 @@ struct VoiceReviewSheet: View {
                         VStack(spacing: 8) {
                             Text(nominalDisplay)
                                 .font(.system(size: 40, weight: .bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.5)
 
-                            CurrencyInputField(value: $nominal)
+                            CalcInputField(value: $nominal)
                                 .padding(.horizontal, 24)
                         }
                         .padding(.top, 12)
@@ -113,9 +114,9 @@ struct VoiceReviewSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             sectionLabel("Catatan")
                             TextField("Tulis catatan...", text: $catatan)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                                 .padding(12)
-                                .background(Color.white.opacity(0.07))
+                                .background(theme.separator)
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
                         .padding(.horizontal, 20)
@@ -133,7 +134,7 @@ struct VoiceReviewSheet: View {
                             .foregroundStyle(canSave ? .black : .gray)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
-                            .background(canSave ? Color(hex: "#22C55E") : Color.white.opacity(0.1))
+                            .background(canSave ? Color(hex: "#22C55E") : theme.bgCard)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                             .shadow(
                                 color: canSave ? Color(hex: "#22C55E").opacity(0.35) : .clear,
@@ -148,8 +149,8 @@ struct VoiceReviewSheet: View {
             }
             .navigationTitle("Review Transaksi")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Batal") { dismiss() }
@@ -160,7 +161,7 @@ struct VoiceReviewSheet: View {
                 populateFromParsed()
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     // MARK: - Helpers

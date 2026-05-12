@@ -4,6 +4,7 @@ import SwiftData
 struct EditPortofolioSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     let config: PortofolioConfig
 
@@ -19,7 +20,7 @@ struct EditPortofolioSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 24) {
                         // Live preview
@@ -29,7 +30,7 @@ struct EditPortofolioSheet: View {
                                 .foregroundStyle(Color(hex: warna))
                             Text(nama.isEmpty ? "—" : nama)
                                 .font(.headline.weight(.bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                             Spacer()
                         }
                         .padding(16)
@@ -41,9 +42,9 @@ struct EditPortofolioSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("NAMA").font(.caption.weight(.semibold)).foregroundStyle(.gray).tracking(0.8)
                             TextField("Nama portofolio...", text: $nama)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                                 .padding(12)
-                                .background(Color.white.opacity(0.08))
+                                .background(theme.separator)
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
 
@@ -77,16 +78,16 @@ struct EditPortofolioSheet: View {
             }
             .navigationTitle("Edit Portofolio")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Batal") { dismiss() }.foregroundStyle(.gray)
+                    Button("Batal") { dismiss() }.foregroundStyle(theme.textSecondary)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Simpan") { save() }
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(theme.textPrimary)
                         .disabled(nama.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
@@ -95,7 +96,7 @@ struct EditPortofolioSheet: View {
                 warna = config.warna
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     private func save() {

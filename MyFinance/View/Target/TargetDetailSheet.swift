@@ -4,6 +4,7 @@ import SwiftData
 struct TargetDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
+    @Environment(\.appTheme) private var theme
 
     let target: Target
 
@@ -30,13 +31,13 @@ struct TargetDetailSheet: View {
 
     var body: some View {
         ZStack {
-            Color(hex: "#0D0D0D").ignoresSafeArea()
+            theme.bgApp.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 0) {
                     // Handle bar
                     Capsule()
-                        .fill(Color.white.opacity(0.2))
+                        .fill(theme.separator)
                         .frame(width: 36, height: 4)
                         .padding(.top, 12)
                         .padding(.bottom, 20)
@@ -59,7 +60,7 @@ struct TargetDetailSheet: View {
 
                         Text(target.nama)
                             .font(.title2.weight(.bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.textPrimary)
                             .multilineTextAlignment(.center)
 
                         // Jenis target badge
@@ -79,10 +80,10 @@ struct TargetDetailSheet: View {
                         if isInvestasi, let aset = linkedAset {
                             Text(aset.tipe.displayName)
                                 .font(.caption2.weight(.medium))
-                                .foregroundStyle(.white.opacity(0.6))
+                                .foregroundStyle(theme.textSecondary)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 4)
-                                .background(Color.white.opacity(0.08))
+                                .background(theme.separator)
                                 .clipShape(Capsule())
                         }
                     }
@@ -135,9 +136,9 @@ struct TargetDetailSheet: View {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.textPrimary)
                             .frame(width: 30, height: 30)
-                            .background(Color.white.opacity(0.12))
+                            .background(theme.cardBorder)
                             .clipShape(Circle())
                     }
                     .padding(.trailing, 20)
@@ -148,7 +149,7 @@ struct TargetDetailSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
         .sheet(isPresented: $showAddTransaksi) {
             AddEditTransaksiSheet(
                 prefilledSubTipe: .simpanKeTarget,
@@ -198,7 +199,7 @@ struct TargetDetailSheet: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 14)
-                .background(Color.white.opacity(0.05))
+                .background(theme.bgCard)
             }
 
             detailRow(label: "TERSIMPAN", value: target.tersimpan.idrFormatted, valueColor: Color(hex: "#22D3EE"))
@@ -445,16 +446,16 @@ struct TargetDetailSheet: View {
         HStack {
             Text(label)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.gray)
+                .foregroundStyle(theme.textSecondary)
                 .tracking(0.4)
             Spacer()
             Text(value)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(valueColor)
+                .foregroundStyle(valueColor == .white ? theme.textPrimary : valueColor)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 14)
-        .background(Color.white.opacity(0.05))
+        .background(theme.bgCard)
     }
 
     // MARK: - Riwayat Row
@@ -479,7 +480,7 @@ struct TargetDetailSheet: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(isSpecial ? (record.catatan ?? "") : target.nama)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
                 HStack(spacing: 6) {
                     if !isSpecial {
                         Text("Simpan ke Target")
@@ -504,6 +505,6 @@ struct TargetDetailSheet: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .background(Color.white.opacity(0.05))
+        .background(theme.bgCard)
     }
 }

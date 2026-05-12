@@ -4,6 +4,7 @@ import SwiftData
 struct LanggananReorderSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     @Query(sort: \Langganan.urutan) private var allLangganan: [Langganan]
 
@@ -12,7 +13,7 @@ struct LanggananReorderSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
 
                 List {
                     ForEach(items) { l in
@@ -38,16 +39,16 @@ struct LanggananReorderSheet: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(l.nama)
                                     .font(.subheadline.weight(.medium))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(theme.textPrimary)
                                 Text("Tgl \(l.tanggalTagih) · \(l.nominal.idrFormatted)")
                                     .font(.caption)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(theme.textSecondary)
                             }
 
                             Spacer()
                         }
-                        .listRowBackground(Color.white.opacity(0.05))
-                        .listRowSeparatorTint(Color.white.opacity(0.06))
+                        .listRowBackground(theme.bgCard)
+                        .listRowSeparatorTint(theme.separator)
                         .opacity(l.isAktif ? 1 : 0.4)
                     }
                     .onMove { from, to in
@@ -60,12 +61,12 @@ struct LanggananReorderSheet: View {
             }
             .navigationTitle("Atur Urutan")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Batal") { dismiss() }
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(theme.textSecondary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Simpan") {
@@ -77,7 +78,7 @@ struct LanggananReorderSheet: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
         .onAppear { items = allLangganan }
     }
 

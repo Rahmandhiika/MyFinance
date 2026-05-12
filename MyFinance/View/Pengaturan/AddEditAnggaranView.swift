@@ -4,6 +4,7 @@ import SwiftData
 struct AddEditAnggaranView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
     @Query(sort: \Kategori.urutan) private var allKategoris: [Kategori]
 
     var anggaran: Anggaran? = nil
@@ -33,16 +34,16 @@ struct AddEditAnggaranView: View {
                                 .foregroundStyle(Color(hex: "#FBBF24"))
                         }
                         .padding(12)
-                        .background(Color.white.opacity(0.08))
+                        .background(theme.separator)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
-                        CurrencyInputField(value: $nominal)
+                        CalcInputField(value: $nominal)
                     }
 
                     // Toggles
                     VStack(spacing: 12) {
                         Toggle(isOn: $berulang) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Berulang").foregroundStyle(.white)
+                                Text("Berulang").foregroundStyle(theme.textPrimary)
                                 Text("Reset otomatis tiap bulan")
                                     .font(.caption)
                                     .foregroundStyle(.gray)
@@ -50,7 +51,7 @@ struct AddEditAnggaranView: View {
                         }
                         .tint(Color(hex: "#FBBF24"))
                         .padding()
-                        .background(Color.white.opacity(0.05))
+                        .background(theme.bgCard)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
 
                         Toggle(isOn: $pindahan) {
@@ -58,7 +59,7 @@ struct AddEditAnggaranView: View {
                                 Image(systemName: "arrow.clockwise")
                                     .foregroundStyle(Color(hex: "#FBBF24"))
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("Pindahan").foregroundStyle(.white)
+                                    Text("Pindahan").foregroundStyle(theme.textPrimary)
                                     Text("Sisa anggaran otomatis dibawa ke bulan depan")
                                         .font(.caption)
                                         .foregroundStyle(.gray)
@@ -67,7 +68,7 @@ struct AddEditAnggaranView: View {
                         }
                         .tint(Color(hex: "#FBBF24"))
                         .padding()
-                        .background(Color.white.opacity(0.05))
+                        .background(theme.bgCard)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
 
@@ -83,14 +84,14 @@ struct AddEditAnggaranView: View {
                             HStack {
                                 ZStack {
                                     RoundedRectangle(cornerRadius: 10)
-                                        .fill(selectedKategori == nil ? Color(hex: "#FBBF24") : Color.white.opacity(0.1))
+                                        .fill(selectedKategori == nil ? Color(hex: "#FBBF24") : theme.cardBorder)
                                         .frame(width: 56, height: 56)
                                     Image(systemName: "chart.pie.fill")
                                         .foregroundStyle(selectedKategori == nil ? .black : .gray)
                                 }
                                 VStack(alignment: .leading) {
                                     Text("Keseluruhan")
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(theme.textPrimary)
                                     Text("Semua pengeluaran")
                                         .font(.caption)
                                         .foregroundStyle(.gray)
@@ -109,7 +110,7 @@ struct AddEditAnggaranView: View {
                 }
                 .padding()
             }
-            .background(Color(hex: "#0D0D0D"))
+            .background(theme.bgApp)
             .navigationTitle(isEditing ? "Edit Anggaran" : "Buat Anggaran")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -125,7 +126,7 @@ struct AddEditAnggaranView: View {
             }
         }
         .onAppear { loadExisting() }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     private func loadExisting() {

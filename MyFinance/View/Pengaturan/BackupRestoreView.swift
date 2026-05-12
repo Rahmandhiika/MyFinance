@@ -30,6 +30,7 @@ struct BackupDocument: FileDocument {
 struct BackupRestoreView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     @State private var isExporting = false
     @State private var isImporting = false
@@ -46,7 +47,7 @@ struct BackupRestoreView: View {
 
     var body: some View {
         ZStack {
-            Color(hex: "#0D0D0D").ignoresSafeArea()
+            theme.bgApp.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 24) {
@@ -62,7 +63,7 @@ struct BackupRestoreView: View {
                         }
                         Text("Backup & Restore")
                             .font(.title3.weight(.bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.textPrimary)
                         Text("Export data ke file .myfinance untuk backup,\nlalu import kapan saja untuk restore.")
                             .font(.subheadline)
                             .foregroundStyle(.gray)
@@ -77,20 +78,20 @@ struct BackupRestoreView: View {
                             .padding(.top, 14)
                             .padding(.bottom, 4)
                         scopeRow(icon: "creditcard.fill", label: "Pocket & Saldo", color: "#3B82F6")
-                        Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
+                        Divider().background(theme.separator).padding(.leading, 44)
                         scopeRow(icon: "tag.fill", label: "Kategori Transaksi", color: "#A78BFA")
-                        Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
+                        Divider().background(theme.separator).padding(.leading, 44)
                         scopeRow(icon: "arrow.left.arrow.right", label: "Semua Transaksi & Transfer", color: "#22D3EE")
-                        Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
+                        Divider().background(theme.separator).padding(.leading, 44)
                         scopeRow(icon: "chart.pie.fill", label: "Semua Aset (termasuk target investasi)", color: "#F59E0B")
-                        Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
+                        Divider().background(theme.separator).padding(.leading, 44)
                         scopeRow(icon: "target", label: "Target & Riwayat Tabungan", color: "#22C55E")
-                        Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
+                        Divider().background(theme.separator).padding(.leading, 44)
                         scopeRow(icon: "creditcard.circle.fill", label: "Daftar Bills", color: "#EC4899")
-                        Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
+                        Divider().background(theme.separator).padding(.leading, 44)
                         scopeRow(icon: "photo.fill", label: "Logo, foto & portofolio aset", color: "#F97316")
                     }
-                    .background(Color.white.opacity(0.05))
+                    .background(theme.bgCard)
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                     .padding(.horizontal, 16)
 
@@ -168,9 +169,9 @@ struct BackupRestoreView: View {
         }
         .navigationTitle("Backup & Restore")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .preferredColorScheme(.dark)
+        .toolbarBackground(theme.bgApp, for: .navigationBar)
+        .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
+        .preferredColorScheme(theme.colorScheme)
         // Export sheet
         .fileExporter(
             isPresented: $isExporting,
@@ -311,7 +312,7 @@ struct BackupRestoreView: View {
             }
             Text(label)
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(theme.textPrimary)
             Spacer()
             Image(systemName: "checkmark")
                 .font(.caption.weight(.bold))

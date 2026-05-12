@@ -4,6 +4,7 @@ import SwiftData
 struct PocketDetailSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     let pocket: Pocket
 
@@ -11,6 +12,7 @@ struct PocketDetailSheet: View {
 
     @State private var showTransfer = false
     @State private var showEditPocket = false
+    @State private var showKonversiUSD = false
     @State private var selectedTransaksi: Transaksi? = nil
     @State private var selectedTransfer: TransferInternal? = nil
 
@@ -52,13 +54,13 @@ struct PocketDetailSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
 
                 ScrollView {
                     VStack(spacing: 0) {
                         // Handle
                         RoundedRectangle(cornerRadius: 3)
-                            .fill(Color.white.opacity(0.3))
+                            .fill(theme.separator)
                             .frame(width: 40, height: 4)
                             .padding(.top, 12)
                             .padding(.bottom, 20)
@@ -100,10 +102,13 @@ struct PocketDetailSheet: View {
             .sheet(item: $selectedTransfer) { tf in
                 TransferDetailSheet(transfer: tf)
             }
+            .sheet(isPresented: $showKonversiUSD) {
+                KonversiUSDSheet(pocket: pocket)
+            }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     // MARK: - Header Section
@@ -132,7 +137,7 @@ struct PocketDetailSheet: View {
             // Nama
             Text(pocket.nama)
                 .font(.title2.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
 
             // Badges
             HStack(spacing: 8) {
@@ -150,27 +155,94 @@ struct PocketDetailSheet: View {
                 if let kategori = pocket.kategoriPocket {
                     Text(kategori.nama)
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(theme.textSecondary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
-                        .background(Color.white.opacity(0.08))
+                        .background(theme.separator)
                         .clipShape(Capsule())
                 }
             }
 
-            // Saldo
+            // Saldo IDR
             VStack(spacing: 2) {
                 Text(isUtang ? "Terpakai" : "Saldo")
                     .font(.caption)
                     .foregroundStyle(.gray)
                 Text(pocket.saldo.idrDecimalFormatted)
                     .font(.system(size: 34, weight: .bold))
-                    .foregroundStyle(isUtang ? .red : .white)
+                    .foregroundStyle(isUtang ? .red : theme.textPrimary)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
             }
             .padding(.top, 8)
+
+            // Saldo USD (hanya jika ada)
+            if pocket.saldoUSD > 0 {
+                HStack(spacing: 6) {
+                    Image(systemName: "dollarsign.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color(hex: "#F97316"))
+                    Text("$\(pocket.saldoUSD.unitFormatted(2)) USD")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color(hex: "#F97316"))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(Color(hex: "#F97316").opacity(0.12))
+                .clipShape(Capsule())
+            }
+
+            // Toggle Ikut Hitung Sisa — hanya pocket biasa
+            if !isUtang {
+                ikutHitungSisaToggle
+            }
         }
+        .padding(.horizontal, 16)
+    }
+
+    @ViewBuilder
+    private var ikutHitungSisaToggle: some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                pocket.ikutHitungSisa.toggle()
+                try? modelContext.save()
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: pocket.ikutHitungSisa ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20))
+                    .foregroundStyle(pocket.ikutHitungSisa ? theme.accent : theme.textSecondary.opacity(0.4))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Ikut Sisa Pocket")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(theme.textPrimary)
+                    Text(pocket.ikutHitungSisa
+                         ? "Saldo dihitung di ringkasan Home"
+                         : "Tidak dihitung di ringkasan Home")
+                        .font(.caption)
+                        .foregroundStyle(theme.textSecondary)
+                }
+
+                Spacer()
+
+                // Visual pill state
+                Text(pocket.ikutHitungSisa ? "ON" : "OFF")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(pocket.ikutHitungSisa ? theme.accent : theme.textSecondary)
+                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .background(pocket.ikutHitungSisa ? theme.accent.opacity(0.12) : theme.separator)
+                    .clipShape(Capsule())
+            }
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            .background(theme.bgCard)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(pocket.ikutHitungSisa ? theme.accent.opacity(0.3) : theme.cardBorder, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
         .padding(.horizontal, 16)
     }
 
@@ -188,7 +260,7 @@ struct PocketDetailSheet: View {
                             .foregroundStyle(.gray)
                         Text(limit.idrDecimalFormatted)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.textPrimary)
                     }
 
                     Spacer()
@@ -224,7 +296,7 @@ struct PocketDetailSheet: View {
                 }
             }
             .padding(16)
-            .background(Color.white.opacity(0.05))
+            .background(theme.bgCard)
             .clipShape(RoundedRectangle(cornerRadius: 14))
         }
     }
@@ -232,34 +304,52 @@ struct PocketDetailSheet: View {
     // MARK: - Action Buttons
 
     private var actionButtons: some View {
-        HStack(spacing: 12) {
-            Button {
-                showTransfer = true
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.left.arrow.right")
-                    Text("Transfer")
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                Button {
+                    showTransfer = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.left.arrow.right")
+                        Text("Transfer")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(theme.textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(theme.cardBorder)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Color.white.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                Button {
+                    showEditPocket = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "pencil")
+                        Text("Edit")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(theme.textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(theme.cardBorder)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
             }
 
+            // Tombol konversi USD — selalu tersedia di semua pocket
             Button {
-                showEditPocket = true
+                showKonversiUSD = true
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "pencil")
-                    Text("Edit")
+                    Image(systemName: "arrow.2.squarepath")
+                    Text("Konversi IDR → USD")
                 }
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color(hex: "#F97316"))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(Color.white.opacity(0.1))
+                .background(Color(hex: "#F97316").opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
@@ -279,14 +369,14 @@ struct PocketDetailSheet: View {
                 VStack(spacing: 8) {
                     Image(systemName: "clock.arrow.circlepath")
                         .font(.system(size: 32))
-                        .foregroundStyle(Color.white.opacity(0.2))
+                        .foregroundStyle(theme.textSecondary.opacity(0.5))
                     Text("Belum ada transaksi")
                         .font(.subheadline)
                         .foregroundStyle(.gray)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 32)
-                .background(Color.white.opacity(0.04))
+                .background(theme.separator)
                 .clipShape(RoundedRectangle(cornerRadius: 14))
             } else {
                 VStack(spacing: 1) {
@@ -301,12 +391,12 @@ struct PocketDetailSheet: View {
 
                         if item.id != histori.last?.id {
                             Divider()
-                                .background(Color.white.opacity(0.07))
+                                .background(theme.separator)
                                 .padding(.horizontal, 16)
                         }
                     }
                 }
-                .background(Color.white.opacity(0.05))
+                .background(theme.bgCard)
                 .clipShape(RoundedRectangle(cornerRadius: 14))
             }
         }
@@ -339,6 +429,7 @@ enum HistoriItem: Identifiable {
 private struct HistoriRow: View {
     let item: HistoriItem
     let pocket: Pocket
+    @Environment(\.appTheme) private var theme
 
     private var dateString: String {
         let f = DateFormatter()
@@ -376,14 +467,14 @@ private struct HistoriRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(t.kategori?.nama ?? "Tanpa Kategori")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
                 Text(dateString)
                     .font(.caption)
                     .foregroundStyle(.gray)
                 if let catatan = t.catatan, !catatan.isEmpty {
                     Text(catatan)
                         .font(.caption2)
-                        .foregroundStyle(Color.white.opacity(0.4))
+                        .foregroundStyle(theme.textSecondary.opacity(0.7))
                         .lineLimit(1)
                 }
             }
@@ -417,7 +508,7 @@ private struct HistoriRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(isOutgoing ? "Transfer Keluar" : "Transfer Masuk")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
                 Text(isOutgoing
                      ? "→ \(tf.pocketTujuan?.nama ?? "-")"
                      : "← \(tf.pocketAsal?.nama ?? "-")")
@@ -425,7 +516,7 @@ private struct HistoriRow: View {
                     .foregroundStyle(.gray)
                 Text(dateString)
                     .font(.caption2)
-                    .foregroundStyle(Color.white.opacity(0.4))
+                    .foregroundStyle(theme.textSecondary)
             }
 
             Spacer()

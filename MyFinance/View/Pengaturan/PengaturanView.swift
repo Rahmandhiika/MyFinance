@@ -4,8 +4,11 @@ import PhotosUI
 
 struct PengaturanView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.appTheme) private var theme
+    @EnvironmentObject private var themeManager: ThemeManager
     @Query private var profiles: [UserProfile]
     @State private var showKategori = false
+    @State private var showKategoriPocket = false
     @State private var showAnggaran = false
     @State private var showLangganan = false
     @State private var showBackupRestore = false
@@ -38,7 +41,7 @@ struct PengaturanView: View {
                                 }
                             ))
                             .font(.headline)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.textPrimary)
                             TextField("Greeting text", text: Binding(
                                 get: { profile?.greetingText ?? "Halo" },
                                 set: { newVal in
@@ -47,66 +50,126 @@ struct PengaturanView: View {
                                 }
                             ))
                             .font(.subheadline)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(theme.textSecondary)
                         }
                     }
-                    .listRowBackground(Color.white.opacity(0.05))
+                    .listRowBackground(theme.bgListRow)
+                }
+
+                // KEUANGAN
+                Section("KEUANGAN") {
+                    HStack {
+                        Label("Tanggal Gajian", systemImage: "calendar.badge.clock")
+                            .foregroundStyle(theme.textPrimary)
+                        Spacer()
+                        Picker("", selection: Binding(
+                            get: { profile?.tanggalGajian ?? 25 },
+                            set: { profile?.tanggalGajian = $0; try? context.save() }
+                        )) {
+                            ForEach(1...28, id: \.self) { day in
+                                Text("Tgl \(day)").tag(day)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .foregroundStyle(theme.accent)
+                    }
+                    .listRowBackground(theme.bgListRow)
+
+                    HStack(spacing: 6) {
+                        Image(systemName: "info.circle")
+                            .font(.caption)
+                            .foregroundStyle(theme.textSecondary.opacity(0.6))
+                        Text("Digunakan untuk mode Siklus Gajian di Analitik")
+                            .font(.caption)
+                            .foregroundStyle(theme.textSecondary.opacity(0.6))
+                    }
+                    .listRowBackground(theme.bgListRow)
+                }
+
+                // TAMPILAN
+                Section("TAMPILAN") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Tema Aplikasi")
+                            .font(.subheadline).foregroundStyle(theme.textSecondary)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(AppTheme.all) { t in
+                                    ThemeCard(theme: t, isSelected: themeManager.currentID == t.id) {
+                                        themeManager.currentID = t.id
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 2)
+                        }
+                    }
+                    .padding(.vertical, 8)
+                    .listRowBackground(theme.bgListRow)
                 }
 
                 // MANAJEMEN
                 Section("MANAJEMEN") {
                     Button { showKategori = true } label: {
                         HStack {
-                            Label("Kategori", systemImage: "tag.fill")
-                                .foregroundStyle(.white)
+                            Label("Kategori Transaksi", systemImage: "tag.fill")
+                                .foregroundStyle(theme.textPrimary)
                             Spacer()
-                            Image(systemName: "chevron.right").foregroundStyle(.gray)
+                            Image(systemName: "chevron.right").foregroundStyle(theme.textSecondary)
                         }
                     }
-                    .listRowBackground(Color.white.opacity(0.05))
+                    .listRowBackground(theme.bgListRow)
+
+                    Button { showKategoriPocket = true } label: {
+                        HStack {
+                            Label("Kategori Pocket", systemImage: "folder.fill")
+                                .foregroundStyle(theme.textPrimary)
+                            Spacer()
+                            Image(systemName: "chevron.right").foregroundStyle(theme.textSecondary)
+                        }
+                    }
+                    .listRowBackground(theme.bgListRow)
 
                     Button { showAnggaran = true } label: {
                         HStack {
                             Label("Anggaran", systemImage: "chart.bar.fill")
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                             Spacer()
-                            Image(systemName: "chevron.right").foregroundStyle(.gray)
+                            Image(systemName: "chevron.right").foregroundStyle(theme.textSecondary)
                         }
                     }
-                    .listRowBackground(Color.white.opacity(0.05))
+                    .listRowBackground(theme.bgListRow)
 
                     Button { showLangganan = true } label: {
                         HStack {
                             Label("Bills", systemImage: "creditcard.circle.fill")
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                             Spacer()
-                            Image(systemName: "chevron.right").foregroundStyle(.gray)
+                            Image(systemName: "chevron.right").foregroundStyle(theme.textSecondary)
                         }
                     }
-                    .listRowBackground(Color.white.opacity(0.05))
+                    .listRowBackground(theme.bgListRow)
 
                     Button { showBackupRestore = true } label: {
                         HStack {
                             Label("Backup & Restore", systemImage: "arrow.up.arrow.down.circle.fill")
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                             Spacer()
-                            Image(systemName: "chevron.right").foregroundStyle(.gray)
+                            Image(systemName: "chevron.right").foregroundStyle(theme.textSecondary)
                         }
                     }
-                    .listRowBackground(Color.white.opacity(0.05))
+                    .listRowBackground(theme.bgListRow)
                 }
 
                 // INFO APLIKASI
                 Section("INFO") {
                     HStack {
                         Label("Versi", systemImage: "info.circle.fill")
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.textPrimary)
                         Spacer()
                         Text(appVersion)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(theme.textSecondary)
                             .font(.subheadline)
                     }
-                    .listRowBackground(Color.white.opacity(0.05))
+                    .listRowBackground(theme.bgListRow)
                 }
 
                 // DANGER ZONE
@@ -118,17 +181,17 @@ struct PengaturanView: View {
                             Image(systemName: "trash.fill")
                             Text("Reset Semua Data")
                         }
-                        .foregroundStyle(.red)
+                        .foregroundStyle(theme.danger)
                         .frame(maxWidth: .infinity)
                     }
-                    .listRowBackground(Color.red.opacity(0.1))
+                    .listRowBackground(theme.danger.opacity(0.1))
                 } header: {
                     Text("DANGER ZONE")
-                        .foregroundStyle(.red)
+                        .foregroundStyle(theme.danger)
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Color(hex: "#0D0D0D"))
+            .background(theme.bgApp)
             .navigationTitle("Pengaturan")
             .navigationBarTitleDisplayMode(.large)
             .overlay {
@@ -136,19 +199,20 @@ struct PengaturanView: View {
                     ZStack {
                         Color.black.opacity(0.6).ignoresSafeArea()
                         VStack(spacing: 14) {
-                            ProgressView().tint(.white).scaleEffect(1.3)
+                            ProgressView().tint(theme.textPrimary).scaleEffect(1.3)
                             Text("Menghapus data...")
                                 .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                         }
                         .padding(28)
-                        .background(Color(hex: "#1A1A1A"))
+                        .background(theme.bgCard)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                     }
                 }
             }
         }
         .sheet(isPresented: $showKategori) { KategoriManagementView() }
+        .sheet(isPresented: $showKategoriPocket) { KategoriPocketManagementView() }
         .sheet(isPresented: $showAnggaran) { AnggaranManagementView() }
         .sheet(isPresented: $showLangganan) { LanggananManagementView() }
         .sheet(isPresented: $showBackupRestore) { NavigationStack { BackupRestoreView() } }
@@ -172,7 +236,6 @@ struct PengaturanView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     @ViewBuilder
@@ -186,12 +249,12 @@ struct PengaturanView: View {
                     .clipShape(Circle())
             } else {
                 Circle()
-                    .fill(Color.green.opacity(0.3))
+                    .fill(theme.accent.opacity(0.3))
                     .frame(width: 56, height: 56)
                     .overlay(
                         Text(String(profile?.nama.prefix(1) ?? "D"))
                             .font(.title2.bold())
-                            .foregroundStyle(.green)
+                            .foregroundStyle(theme.accent)
                     )
             }
         }
@@ -235,6 +298,44 @@ struct PengaturanView: View {
             try? context.save()
             ModelContainerService.shared.seedAll()
             isResetting = false
+        }
+    }
+}
+
+// MARK: - Theme Card
+
+private struct ThemeCard: View {
+    let theme: AppTheme
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 8) {
+                // Color preview: small squares
+                HStack(spacing: 4) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(theme.bgApp)
+                        .frame(width: 28, height: 28)
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.gray.opacity(0.3), lineWidth: 0.5))
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(theme.accent)
+                        .frame(width: 28, height: 28)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(theme.danger)
+                        .frame(width: 28, height: 28)
+                }
+                Text("\(theme.emoji) \(theme.nama)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(isSelected ? theme.accent : .gray)
+            }
+            .padding(10)
+            .background(theme.bgCard)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? theme.accent : Color.gray.opacity(0.2), lineWidth: isSelected ? 2 : 1)
+            )
         }
     }
 }

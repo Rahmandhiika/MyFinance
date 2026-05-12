@@ -20,6 +20,7 @@ struct KategoriGridPicker: View {
 struct KategoriCell: View {
     let kategori: Kategori
     var isSelected: Bool = false
+    @Environment(\.appTheme) private var theme
 
     var body: some View {
         VStack(spacing: 6) {
@@ -43,7 +44,7 @@ struct KategoriCell: View {
 
             Text(kategori.nama)
                 .font(.system(size: 10, weight: .regular))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)

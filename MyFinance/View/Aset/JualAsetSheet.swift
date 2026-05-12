@@ -4,6 +4,7 @@ import SwiftData
 struct JualAsetSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     let aset: Aset
     var onJual: () -> Void
@@ -37,7 +38,7 @@ struct JualAsetSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 20) {
 
@@ -48,10 +49,10 @@ struct JualAsetSheet: View {
                         // Info kepemilikan (read-only)
                         VStack(spacing: 0) {
                             infoRow(label: "Total Modal", value: modal.idrDecimalFormatted)
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(theme.separator)
                             infoRow(label: "Nilai Pasar Saat Ini", value: aset.nilaiSaatIni.idrDecimalFormatted)
                         }
-                        .background(Color.white.opacity(0.05))
+                        .background(theme.bgCard)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                         .padding(.horizontal, 16)
 
@@ -73,7 +74,7 @@ struct JualAsetSheet: View {
                                             .foregroundStyle(.gray)
                                             .font(.subheadline)
                                             .padding(.leading, 14)
-                                        CurrencyInputField(value: $hasilJual, allowsDecimal: true)
+                                        CurrencyInputField(value: $hasilJual)
                                     }
                                     // Shortcut pakai nilai pasar
                                     if aset.nilaiSaatIni > 0 && hasilJual != aset.nilaiSaatIni {
@@ -91,7 +92,7 @@ struct JualAsetSheet: View {
                                     Spacer(minLength: 14)
                                 }
 
-                                Divider().background(Color.white.opacity(0.06))
+                                Divider().background(theme.separator)
 
                                 // Biaya admin
                                 VStack(alignment: .leading, spacing: 8) {
@@ -113,7 +114,7 @@ struct JualAsetSheet: View {
                                             .foregroundStyle(.gray)
                                             .font(.subheadline)
                                             .padding(.leading, 14)
-                                        CurrencyInputField(value: $biayaAdmin, allowsDecimal: true)
+                                        CurrencyInputField(value: $biayaAdmin)
                                     }
                                     if biayaAdmin > 0 {
                                         HStack(spacing: 4) {
@@ -129,7 +130,7 @@ struct JualAsetSheet: View {
                                     Spacer(minLength: 14)
                                 }
 
-                                Divider().background(Color.white.opacity(0.06))
+                                Divider().background(theme.separator)
 
                                 // Tanggal
                                 HStack {
@@ -140,7 +141,7 @@ struct JualAsetSheet: View {
                                             .tracking(0.5)
                                         Text(tanggalJual.formatted(date: .abbreviated, time: .omitted))
                                             .font(.subheadline)
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(theme.textPrimary)
                                     }
                                     Spacer()
                                     DatePicker("", selection: $tanggalJual, displayedComponents: .date)
@@ -151,7 +152,7 @@ struct JualAsetSheet: View {
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 14)
                             }
-                            .background(Color.white.opacity(0.05))
+                            .background(theme.bgCard)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                         }
                         .padding(.horizontal, 16)
@@ -181,7 +182,7 @@ struct JualAsetSheet: View {
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
-                            .background(canSave ? accentColor : Color.white.opacity(0.12))
+                            .background(canSave ? accentColor : theme.bgCard)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                         }
                         .disabled(!canSave)
@@ -191,16 +192,16 @@ struct JualAsetSheet: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("Jual \(aset.tipe.displayName)")
-                        .font(.headline).foregroundStyle(.white)
+                        .font(.headline).foregroundStyle(theme.textPrimary)
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Batal") { dismiss() }
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(theme.textSecondary)
                 }
             }
             .onAppear { hasilJual = aset.nilaiSaatIni }
@@ -215,7 +216,7 @@ struct JualAsetSheet: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     // MARK: - Header
@@ -232,11 +233,11 @@ struct JualAsetSheet: View {
             }
             Text(aset.nama)
                 .font(.headline)
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
             if let kode = aset.kode, !kode.isEmpty {
                 Text(kode.uppercased())
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(theme.textSecondary)
             }
         }
         .frame(maxWidth: .infinity)
@@ -249,10 +250,10 @@ struct JualAsetSheet: View {
         let color = pnlPositive ? Color(hex: "#22C55E") : accentColor
         return VStack(spacing: 0) {
             HStack(spacing: 0) {
-                pnlItem(label: "Modal", value: modal.idrFormatted, color: .white.opacity(0.7))
-                Divider().background(Color.white.opacity(0.1)).frame(height: 40)
-                pnlItem(label: "Hasil Jual", value: hasilJual.idrFormatted, color: .white)
-                Divider().background(Color.white.opacity(0.1)).frame(height: 40)
+                pnlItem(label: "Modal", value: modal.idrFormatted, color: theme.textSecondary)
+                Divider().background(theme.separator).frame(height: 40)
+                pnlItem(label: "Hasil Jual", value: hasilJual.idrFormatted, color: theme.textPrimary)
+                Divider().background(theme.separator).frame(height: 40)
                 pnlItem(
                     label: pnlPositive ? "Untung" : "Rugi",
                     value: "\(pnlPositive ? "+" : "")\(pnl.idrFormatted)",
@@ -262,7 +263,7 @@ struct JualAsetSheet: View {
             .padding(.vertical, 14)
 
             if biayaAdmin > 0 {
-                Divider().background(Color.white.opacity(0.1))
+                Divider().background(theme.separator)
                 HStack {
                     HStack(spacing: 4) {
                         Image(systemName: "building.columns.fill")
@@ -270,7 +271,7 @@ struct JualAsetSheet: View {
                             .foregroundStyle(Color(hex: "#F59E0B"))
                         Text("Hasil bersih (setelah admin)")
                             .font(.caption2)
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(theme.textSecondary)
                     }
                     Spacer()
                     Text(hasilBersih.idrFormatted)
@@ -316,11 +317,11 @@ struct JualAsetSheet: View {
         HStack {
             Text(label)
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(theme.textSecondary)
             Spacer()
             Text(value)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -329,7 +330,7 @@ struct JualAsetSheet: View {
     @ViewBuilder
     private func pnlItem(label: String, value: String, color: Color) -> some View {
         VStack(spacing: 4) {
-            Text(label).font(.caption2).foregroundStyle(.white.opacity(0.5))
+            Text(label).font(.caption2).foregroundStyle(theme.textSecondary)
             Text(value).font(.caption.weight(.bold)).foregroundStyle(color).lineLimit(1).minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity)

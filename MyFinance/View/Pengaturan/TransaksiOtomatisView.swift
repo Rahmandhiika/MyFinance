@@ -4,6 +4,7 @@ import SwiftData
 struct TransaksiOtomatisView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
     @Query(sort: \TransaksiOtomatis.createdAt) private var items: [TransaksiOtomatis]
     @State private var showAdd = false
     @State private var editingItem: TransaksiOtomatis? = nil
@@ -23,8 +24,8 @@ struct TransaksiOtomatisView: View {
                             TransaksiOtomatisRow(item: item)
                                 .contentShape(Rectangle())
                                 .onTapGesture { editingItem = item }
-                                .listRowBackground(Color.white.opacity(0.05))
-                                .listRowSeparatorTint(.white.opacity(0.1))
+                                .listRowBackground(theme.bgCard)
+                                .listRowSeparatorTint(theme.separator)
                         }
                         .onDelete { indexSet in
                             for i in indexSet { context.delete(items[i]) }
@@ -34,7 +35,7 @@ struct TransaksiOtomatisView: View {
                     .scrollContentBackground(.hidden)
                 }
             }
-            .background(Color(hex: "#0D0D0D"))
+            .background(theme.bgApp)
             .navigationTitle("Transaksi Otomatis")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -50,12 +51,13 @@ struct TransaksiOtomatisView: View {
         }
         .sheet(isPresented: $showAdd) { AddEditTransaksiOtomatisView() }
         .sheet(item: $editingItem) { item in AddEditTransaksiOtomatisView(item: item) }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 }
 
 struct TransaksiOtomatisRow: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.appTheme) private var theme
     let item: TransaksiOtomatis
 
     var body: some View {
@@ -76,7 +78,7 @@ struct TransaksiOtomatisRow: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.kategori?.nama ?? "Tanpa Kategori")
-                        .foregroundStyle(.white)
+                        .foregroundStyle(theme.textPrimary)
                         .font(.subheadline)
                     HStack(spacing: 4) {
                         Text("Tanggal tiap bulan \(item.setiapTanggal)")

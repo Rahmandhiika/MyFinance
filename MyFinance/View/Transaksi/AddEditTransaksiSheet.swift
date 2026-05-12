@@ -4,6 +4,7 @@ import SwiftData
 struct AddEditTransaksiSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     @Query(sort: \Pocket.urutan) private var allPockets: [Pocket]
     @Query(sort: \Kategori.urutan) private var allKategoris: [Kategori]
@@ -66,7 +67,7 @@ struct AddEditTransaksiSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -74,11 +75,11 @@ struct AddEditTransaksiSheet: View {
                         VStack(spacing: 6) {
                             Text(nominalDisplay)
                                 .font(.system(size: 36, weight: .bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.5)
 
-                            CurrencyInputField(value: $nominal)
+                            CalcInputField(value: $nominal)
                                 .padding(.horizontal, 16)
 
                             // Quick amount buttons — only in ADD mode
@@ -175,15 +176,7 @@ struct AddEditTransaksiSheet: View {
                                     Spacer()
                                     adminQuickPick($biayaAdmin)
                                 }
-                                HStack(spacing: 8) {
-                                    Text("Rp")
-                                        .foregroundStyle(.white.opacity(0.5))
-                                        .font(.subheadline)
-                                        .padding(.leading, 12)
-                                    CurrencyInputField(value: $biayaAdmin)
-                                }
-                                .background(Color.white.opacity(0.07))
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                CalcInputField(value: $biayaAdmin, placeholder: "Ketuk untuk input biaya admin")
 
                                 if biayaAdmin > 0 {
                                     HStack(spacing: 4) {
@@ -203,9 +196,9 @@ struct AddEditTransaksiSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             sectionLabel("Catatan")
                             TextField("Tulis catatan...", text: $catatan)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                                 .padding(12)
-                                .background(Color.white.opacity(0.07))
+                                .background(theme.separator)
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
                         .padding(.horizontal, 16)
@@ -227,8 +220,8 @@ struct AddEditTransaksiSheet: View {
             }
             .navigationTitle(editingTransaksi == nil ? "Tambah Transaksi" : "Edit Transaksi")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Batal") { dismiss() }
@@ -243,7 +236,7 @@ struct AddEditTransaksiSheet: View {
             }
             .onAppear { populateIfEditing() }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     // MARK: - Admin Quick Pick
@@ -390,14 +383,15 @@ struct AddEditTransaksiSheet: View {
 private struct SubTipeChip: View {
     let label: String
     let isSelected: Bool
+    @Environment(\.appTheme) private var theme
 
     var body: some View {
         Text(label)
             .font(.caption.weight(.medium))
-            .foregroundStyle(isSelected ? .black : .white)
+            .foregroundStyle(isSelected ? .black : theme.textPrimary)
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .background(isSelected ? Color(hex: "#22C55E") : Color.white.opacity(0.1))
+            .background(isSelected ? Color(hex: "#22C55E") : theme.bgCard)
             .clipShape(Capsule())
     }
 }
@@ -407,6 +401,7 @@ private struct SubTipeChip: View {
 private struct TargetChip: View {
     let target: Target
     let isSelected: Bool
+    @Environment(\.appTheme) private var theme
 
     var body: some View {
         HStack(spacing: 6) {
@@ -419,11 +414,11 @@ private struct TargetChip: View {
             }
             Text(target.nama)
                 .font(.subheadline)
-                .foregroundStyle(isSelected ? .black : .white)
+                .foregroundStyle(isSelected ? .black : theme.textPrimary)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(isSelected ? Color(hex: target.warna) : Color.white.opacity(0.1))
+        .background(isSelected ? Color(hex: target.warna) : theme.bgCard)
         .clipShape(Capsule())
     }
 }

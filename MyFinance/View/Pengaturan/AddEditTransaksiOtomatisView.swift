@@ -4,6 +4,7 @@ import SwiftData
 struct AddEditTransaksiOtomatisView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
     @Query(sort: \Kategori.urutan) private var allKategoris: [Kategori]
     @Query private var pockets: [Pocket]
 
@@ -37,9 +38,9 @@ struct AddEditTransaksiOtomatisView: View {
                                 .foregroundStyle(tipe == .pengeluaran ? .red : .green)
                         }
                         .padding(12)
-                        .background(Color.white.opacity(0.08))
+                        .background(theme.separator)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
-                        CurrencyInputField(value: $nominal)
+                        CalcInputField(value: $nominal)
                     }
 
                     // Tipe
@@ -80,8 +81,8 @@ struct AddEditTransaksiOtomatisView: View {
                                     Text("\(day)")
                                         .font(.subheadline)
                                         .frame(width: 40, height: 40)
-                                        .background(setiapTanggal == day ? Color.purple : Color.white.opacity(0.08))
-                                        .foregroundStyle(setiapTanggal == day ? .white : .gray)
+                                        .background(setiapTanggal == day ? Color.purple : theme.separator)
+                                        .foregroundStyle(setiapTanggal == day ? .white : theme.textSecondary)
                                         .clipShape(RoundedRectangle(cornerRadius: 8))
                                 }
                             }
@@ -94,14 +95,14 @@ struct AddEditTransaksiOtomatisView: View {
                         TextField("Catatan...", text: $catatan, axis: .vertical)
                             .lineLimit(3)
                             .padding(12)
-                            .background(Color.white.opacity(0.08))
+                            .background(theme.separator)
                             .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.textPrimary)
                     }
                 }
                 .padding()
             }
-            .background(Color(hex: "#0D0D0D"))
+            .background(theme.bgApp)
             .navigationTitle(isEditing ? "Edit Transaksi Otomatis" : "Tambah Transaksi")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -117,7 +118,7 @@ struct AddEditTransaksiOtomatisView: View {
             }
         }
         .onAppear { loadExisting() }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     private func loadExisting() {

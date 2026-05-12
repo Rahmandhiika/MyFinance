@@ -4,6 +4,7 @@ import SwiftData
 struct CairkanDepositoSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     let aset: Aset
     var onCairkan: () -> Void
@@ -30,7 +31,7 @@ struct CairkanDepositoSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 20) {
 
@@ -41,12 +42,12 @@ struct CairkanDepositoSheet: View {
                         // Info deposito (read-only)
                         VStack(spacing: 0) {
                             infoRow(label: "Nominal Pokok", value: nominal.idrDecimalFormatted)
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(theme.separator)
                             infoRow(label: "Tenor", value: tenorLabel)
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(theme.separator)
                             infoRow(label: "Bunga p.a.", value: bungaPALabel)
                         }
-                        .background(Color.white.opacity(0.05))
+                        .background(theme.bgCard)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                         .padding(.horizontal, 16)
 
@@ -66,7 +67,7 @@ struct CairkanDepositoSheet: View {
                                             .tracking(0.5)
                                         Text(tanggalCair.formatted(date: .abbreviated, time: .omitted))
                                             .font(.subheadline)
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(theme.textPrimary)
                                     }
                                     Spacer()
                                     DatePicker("", selection: $tanggalCair, displayedComponents: .date)
@@ -77,7 +78,7 @@ struct CairkanDepositoSheet: View {
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 14)
                             }
-                            .background(Color.white.opacity(0.05))
+                            .background(theme.bgCard)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                         }
                         .padding(.horizontal, 16)
@@ -101,7 +102,7 @@ struct CairkanDepositoSheet: View {
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
-                            .background(selectedPocket != nil ? accentColor : Color.white.opacity(0.12))
+                            .background(selectedPocket != nil ? accentColor : theme.bgCard)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                         }
                         .disabled(selectedPocket == nil)
@@ -111,17 +112,17 @@ struct CairkanDepositoSheet: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("Cairkan Deposito")
                         .font(.headline)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(theme.textPrimary)
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Batal") { dismiss() }
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(theme.textSecondary)
                 }
             }
             .alert("Konfirmasi Pencairan?", isPresented: $showConfirm) {
@@ -131,7 +132,7 @@ struct CairkanDepositoSheet: View {
                 Text("Total \(totalDiterima.idrFormatted) akan masuk ke pocket \"\(selectedPocket?.nama ?? "")\".")
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     // MARK: - Header
@@ -148,11 +149,11 @@ struct CairkanDepositoSheet: View {
             }
             Text(aset.nama)
                 .font(.headline)
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
             if let bank = aset.kode, !bank.isEmpty {
                 Text(bank.uppercased())
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(theme.textSecondary)
             }
         }
         .frame(maxWidth: .infinity)
@@ -164,16 +165,16 @@ struct CairkanDepositoSheet: View {
     private var breakdownCard: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                breakdownItem(label: "Pokok", value: nominal.idrFormatted, color: .white.opacity(0.8))
-                Divider().background(Color.white.opacity(0.1)).frame(height: 40)
+                breakdownItem(label: "Pokok", value: nominal.idrFormatted, color: theme.textSecondary)
+                Divider().background(theme.separator).frame(height: 40)
                 breakdownItem(label: "Bunga Bersih", value: "+\(bungaBersih.idrFormatted)", color: Color(hex: "#22C55E"))
-                Divider().background(Color.white.opacity(0.1)).frame(height: 40)
+                Divider().background(theme.separator).frame(height: 40)
                 breakdownItem(label: "Total Cair", value: totalDiterima.idrFormatted, color: accentColor)
             }
             .padding(.vertical, 14)
 
             if let pph = aset.pphFinal, let bunga = aset.bungaPA {
-                Divider().background(Color.white.opacity(0.1))
+                Divider().background(theme.separator)
                 HStack(spacing: 4) {
                     Image(systemName: "info.circle")
                         .font(.caption2)
@@ -212,11 +213,11 @@ struct CairkanDepositoSheet: View {
         HStack {
             Text(label)
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(theme.textSecondary)
             Spacer()
             Text(value)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -225,7 +226,7 @@ struct CairkanDepositoSheet: View {
     @ViewBuilder
     private func breakdownItem(label: String, value: String, color: Color) -> some View {
         VStack(spacing: 4) {
-            Text(label).font(.caption2).foregroundStyle(.white.opacity(0.5))
+            Text(label).font(.caption2).foregroundStyle(theme.textSecondary)
             Text(value).font(.caption.weight(.bold)).foregroundStyle(color).lineLimit(1).minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity)

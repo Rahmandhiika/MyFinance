@@ -5,6 +5,7 @@ import PhotosUI
 struct AddEditPocketView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     var existingPocket: Pocket? = nil
 
@@ -16,6 +17,7 @@ struct AddEditPocketView: View {
     @State private var selectedKategori: KategoriPocket? = nil
     @State private var saldoAwal: Decimal = 0
     @State private var saldoEdit: Decimal = 0
+    @State private var saldoUSDEdit: Decimal = 0
     @State private var limit: Decimal = 0
     @State private var catatan: String = ""
     @State private var logoData: Data? = nil
@@ -37,7 +39,7 @@ struct AddEditPocketView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -48,9 +50,9 @@ struct AddEditPocketView: View {
                         // Nama
                         formSection("Nama Pocket") {
                             TextField("Contoh: BCA Utama, GoPay", text: $nama)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                                 .padding(12)
-                                .background(Color.white.opacity(0.07))
+                                .background(theme.separator)
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
 
@@ -88,51 +90,48 @@ struct AddEditPocketView: View {
 
                         // Saldo — awal saat tambah baru, update manual saat edit
                         if isEditing {
-                            formSection("Saldo Saat Ini") {
+                            formSection("Saldo IDR Saat Ini") {
                                 VStack(alignment: .leading, spacing: 8) {
-                                    HStack(spacing: 8) {
-                                        Text("Rp")
-                                            .foregroundStyle(.white.opacity(0.5))
-                                            .font(.subheadline)
-                                        CurrencyInputField(value: $saldoEdit)
-                                    }
+                                    CalcInputField(value: $saldoEdit)
                                     Text("Perubahan saldo tidak dicatat sebagai transaksi.")
                                         .font(.caption)
-                                        .foregroundStyle(.white.opacity(0.35))
+                                        .foregroundStyle(theme.textSecondary.opacity(0.7))
+                                }
+                            }
+
+                            formSection("Saldo USD Saat Ini") {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack(spacing: 8) {
+                                        Text("$")
+                                            .foregroundStyle(theme.textSecondary)
+                                            .font(.subheadline)
+                                        CurrencyInputField(value: $saldoUSDEdit)
+                                    }
+                                    Text("Isi jika pocket ini punya saldo USD (hasil konversi).")
+                                        .font(.caption)
+                                        .foregroundStyle(theme.textSecondary.opacity(0.7))
                                 }
                             }
                         } else {
                             formSection("Saldo Awal") {
-                                VStack(spacing: 4) {
-                                    Text(saldoAwal > 0 ? saldoAwal.idrDecimalFormatted : "Rp 0,00")
-                                        .font(.title3.weight(.semibold))
-                                        .foregroundStyle(.white)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                    CurrencyInputField(value: $saldoAwal)
-                                }
+                                CalcInputField(value: $saldoAwal)
                             }
                         }
 
                         // Limit (Kartu Kredit/PayLater only)
                         if showLimitField {
                             formSection("Limit Kredit") {
-                                VStack(spacing: 4) {
-                                    Text(limit > 0 ? limit.idrDecimalFormatted : "Rp 0,00")
-                                        .font(.title3.weight(.semibold))
-                                        .foregroundStyle(.white)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                    CurrencyInputField(value: $limit)
-                                }
+                                CalcInputField(value: $limit)
                             }
                         }
 
                         // Catatan
                         formSection("Catatan (Opsional)") {
                             TextField("Tulis catatan...", text: $catatan, axis: .vertical)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                                 .lineLimit(3...)
                                 .padding(12)
-                                .background(Color.white.opacity(0.07))
+                                .background(theme.separator)
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
 
@@ -144,8 +143,8 @@ struct AddEditPocketView: View {
             }
             .navigationTitle(isEditing ? "Edit Pocket" : "Tambah Pocket")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Batal") { dismiss() }
@@ -167,7 +166,7 @@ struct AddEditPocketView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     // MARK: - Logo Picker
@@ -188,7 +187,7 @@ struct AddEditPocketView: View {
                             )
                     } else {
                         Circle()
-                            .fill(Color.white.opacity(0.08))
+                            .fill(theme.separator)
                             .frame(width: 80, height: 80)
                             .overlay(
                                 VStack(spacing: 4) {
@@ -251,6 +250,7 @@ struct AddEditPocketView: View {
         catatan = p.catatan ?? ""
         logoData = p.logo
         saldoEdit = p.saldo
+        saldoUSDEdit = p.saldoUSD
         if let l = p.limit { limit = l }
     }
 
@@ -268,6 +268,7 @@ struct AddEditPocketView: View {
             existing.logo = logoData
             existing.limit = limitValue
             existing.saldo = saldoEdit
+            existing.saldoUSD = saldoUSDEdit
         } else {
             let newPocket = Pocket(
                 nama: trimmedNama,
@@ -291,21 +292,22 @@ struct AddEditPocketView: View {
 private struct KategoriPocketChip: View {
     let nama: String
     let isSelected: Bool
+    @Environment(\.appTheme) private var theme
 
     var body: some View {
         Text(nama)
             .font(.subheadline.weight(.medium))
-            .foregroundStyle(isSelected ? .black : .white)
+            .foregroundStyle(isSelected ? .black : theme.textPrimary)
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity)
-            .background(isSelected ? Color(hex: "#22C55E") : Color.white.opacity(0.08))
+            .background(isSelected ? Color(hex: "#22C55E") : theme.separator)
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(isSelected ? Color(hex: "#22C55E") : Color.white.opacity(0.12), lineWidth: 1)
+                    .stroke(isSelected ? Color(hex: "#22C55E") : theme.cardBorder, lineWidth: 1)
             )
     }
 }

@@ -5,6 +5,7 @@ import PhotosUI
 struct AddEditTargetView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     @Query var allPockets: [Pocket]
 
@@ -118,7 +119,7 @@ struct AddEditTargetView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
 
                 ScrollView {
                     VStack(spacing: 24) {
@@ -126,14 +127,14 @@ struct AddEditTargetView: View {
 
                         formSection(label: "NAMA") {
                             TextField("Nama target...", text: $nama)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                                 .padding(12)
-                                .background(Color.white.opacity(0.07))
+                                .background(theme.separator)
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
 
                         formSection(label: "BUTUH DANA BERAPA? (OPSIONAL)") {
-                            CurrencyInputField(value: $targetNominal)
+                            CalcInputField(value: $targetNominal, placeholder: "Opsional")
                         }
 
                         // Tipe — hanya saat buat baru
@@ -164,16 +165,16 @@ struct AddEditTargetView: View {
             }
             .navigationTitle(isEditing ? "Edit Target" : "Bikin Target Baru")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Batal") { dismiss() }.foregroundStyle(.gray)
+                    Button("Batal") { dismiss() }.foregroundStyle(theme.textSecondary)
                 }
             }
             .onAppear { populateIfEditing() }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
         .sheet(isPresented: $showEditLinkedAset) {
             if let aset = editingTarget?.linkedAset {
                 AddEditAsetView(existingAset: aset, mode: .edit)
@@ -224,7 +225,7 @@ struct AddEditTargetView: View {
                 .foregroundStyle(fotoData == nil ? .gray : selectedColor)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
-                .background(Color.white.opacity(0.07))
+                .background(theme.separator)
                 .clipShape(Capsule())
             }
             .onChange(of: selectedPhoto) { _, item in
@@ -264,10 +265,10 @@ struct AddEditTargetView: View {
                             Text(jenis.displayName)
                                 .font(.subheadline.weight(.semibold))
                         }
-                        .foregroundStyle(jenisTarget == jenis ? .black : .white.opacity(0.6))
+                        .foregroundStyle(jenisTarget == jenis ? .black : theme.textSecondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(jenisTarget == jenis ? selectedColor : Color.white.opacity(0.07))
+                        .background(jenisTarget == jenis ? selectedColor : theme.separator)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                 }
@@ -288,27 +289,24 @@ struct AddEditTargetView: View {
                 )
                 Text("Setiap simpan ke target ini, saldo pocket yang dipilih otomatis bertambah.")
                     .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.35))
+                    .foregroundStyle(theme.textSecondary.opacity(0.7))
             }
         }
 
         formSection(label: "UDAH ADA BERAPA? (OPSIONAL)") {
-            HStack(spacing: 8) {
-                Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
-                CurrencyInputField(value: $saldoAwal)
-            }
+            CalcInputField(value: $saldoAwal, placeholder: "Opsional")
         }
         if saldoAwal > 0 {
             Text("Dicatat sebagai saldo awal, tidak dihitung sebagai tabungan bulan ini.")
-                .font(.caption).foregroundStyle(.white.opacity(0.35))
+                .font(.caption).foregroundStyle(theme.textSecondary.opacity(0.7))
                 .padding(.top, -12)
         }
         if isEditing {
             formSection(label: "SALDO TERKUMPUL SAAT INI") {
-                CurrencyInputField(value: $saldoTerkumpulEdit)
+                CalcInputField(value: $saldoTerkumpulEdit)
             }
             Text("Perubahan saldo tidak dicatat sebagai transaksi, hanya penyesuaian manual.")
-                .font(.caption).foregroundStyle(.white.opacity(0.35))
+                .font(.caption).foregroundStyle(theme.textSecondary.opacity(0.7))
                 .padding(.top, -12)
         }
     }
@@ -330,10 +328,10 @@ struct AddEditTargetView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(aset.nama)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.textPrimary)
                         Text(aset.tipe.displayName)
                             .font(.caption)
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(theme.textSecondary)
                     }
                     Spacer()
                     Text(aset.nilaiEfektif.idrDecimalFormatted)
@@ -341,7 +339,7 @@ struct AddEditTargetView: View {
                         .foregroundStyle(aset.tipe.color)
                 }
                 .padding(14)
-                .background(Color.white.opacity(0.05))
+                .background(theme.bgCard)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
 
                 Button {
@@ -376,15 +374,15 @@ struct AddEditTargetView: View {
                             VStack(spacing: 5) {
                                 ZStack {
                                     RoundedRectangle(cornerRadius: 8)
-                                        .fill(invTipe == tipe ? tipe.color.opacity(0.2) : Color.white.opacity(0.06))
+                                        .fill(invTipe == tipe ? tipe.color.opacity(0.2) : theme.separator)
                                         .frame(height: 38)
                                     Image(systemName: tipe.iconName)
                                         .font(.system(size: 15))
-                                        .foregroundStyle(invTipe == tipe ? tipe.color : .white.opacity(0.4))
+                                        .foregroundStyle(invTipe == tipe ? tipe.color : theme.textSecondary.opacity(0.7))
                                 }
                                 Text(tipe.displayName)
                                     .font(.caption2.weight(invTipe == tipe ? .bold : .regular))
-                                    .foregroundStyle(invTipe == tipe ? tipe.color : .white.opacity(0.5))
+                                    .foregroundStyle(invTipe == tipe ? tipe.color : theme.textSecondary)
                                     .lineLimit(1)
                             }
                             .padding(.vertical, 4)
@@ -392,7 +390,7 @@ struct AddEditTargetView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 10)
-                                    .stroke(invTipe == tipe ? tipe.color.opacity(0.5) : Color.white.opacity(0.08), lineWidth: 1)
+                                    .stroke(invTipe == tipe ? tipe.color.opacity(0.5) : theme.separator, lineWidth: 1)
                             )
                         }
                     }
@@ -423,7 +421,7 @@ struct AddEditTargetView: View {
             // --- Card 1: jenis chips + search field ---
             investasiCard {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("DETAIL REKSADANA").invLabel()
+                    Text("DETAIL REKSADANA").font(.caption).foregroundStyle(theme.textSecondary).tracking(1)
 
                     FormField(label: "JENIS") {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -441,20 +439,20 @@ struct AddEditTargetView: View {
 
                     FormField(label: "CARI PRODUK") {
                         HStack(spacing: 8) {
-                            Image(systemName: "magnifyingglass").foregroundStyle(.white.opacity(0.4)).font(.subheadline)
+                            Image(systemName: "magnifyingglass").foregroundStyle(theme.textSecondary).font(.subheadline)
                             TextField("Ketik nama atau manajer investasi...", text: $rdSearchQuery)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                                 .autocorrectionDisabled()
                             if !rdSearchQuery.isEmpty {
                                 Button {
                                     rdSearchQuery = ""; rdNama = ""; rdJenis = ""; rdShowResults = false
                                 } label: {
-                                    Image(systemName: "xmark.circle.fill").foregroundStyle(.white.opacity(0.4))
+                                    Image(systemName: "xmark.circle.fill").foregroundStyle(theme.textSecondary)
                                 }
                             }
                         }
                         .padding(12)
-                        .background(Color.white.opacity(0.08))
+                        .background(theme.separator)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                         .onChange(of: rdSearchQuery) { _, query in
                             rdNama = query.trimmingCharacters(in: .whitespaces)
@@ -482,19 +480,19 @@ struct AddEditTargetView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     FormField(label: "TOTAL INVESTASI") {
                         HStack(spacing: 8) {
-                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
                             CurrencyInputField(value: $rdTotalInvestasi)
                         }
                     }
                     FormField(label: "NAV SAAT BELI/UNIT") {
                         HStack(spacing: 8) {
-                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
                             CurrencyInputField(value: $rdHargaBeliPerUnit)
                         }
                     }
                     FormField(label: "NAV SAAT INI/UNIT") {
                         HStack(spacing: 8) {
-                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
                             CurrencyInputField(value: $rdNavSaatIni)
                         }
                     }
@@ -513,7 +511,7 @@ struct AddEditTargetView: View {
         return Group {
             if !featured.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("POPULER").font(.caption2.weight(.bold)).foregroundStyle(.white.opacity(0.35)).tracking(1).padding(.top, 6)
+                    Text("POPULER").font(.caption2.weight(.bold)).foregroundStyle(theme.textSecondary.opacity(0.7)).tracking(1).padding(.top, 6)
                     VStack(spacing: 0) {
                         ForEach(featured) { item in
                             Button {
@@ -522,12 +520,12 @@ struct AddEditTargetView: View {
                             } label: {
                                 rdItemRow(item)
                             }
-                            if item.id != featured.last?.id { Divider().background(Color.white.opacity(0.06)) }
+                            if item.id != featured.last?.id { Divider().background(theme.separator) }
                         }
                     }
                     .background(Color(hex: "#1A1A1A"))
                     .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.cardBorder, lineWidth: 1))
                 }
             }
         }
@@ -541,19 +539,19 @@ struct AddEditTargetView: View {
                 } label: {
                     rdItemRow(item)
                 }
-                if item.id != rdSearchResults.last?.id { Divider().background(Color.white.opacity(0.06)) }
+                if item.id != rdSearchResults.last?.id { Divider().background(theme.separator) }
             }
         }
         .background(Color(hex: "#1A1A1A"))
         .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.cardBorder, lineWidth: 1))
     }
 
     private func rdItemRow(_ item: ReksadanaItem) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.nama).font(.subheadline.weight(.medium)).foregroundStyle(.white).multilineTextAlignment(.leading)
-                Text(item.manajer).font(.caption).foregroundStyle(.white.opacity(0.5))
+                Text(item.nama).font(.subheadline.weight(.medium)).foregroundStyle(theme.textPrimary).multilineTextAlignment(.leading)
+                Text(item.manajer).font(.caption).foregroundStyle(theme.textSecondary)
             }
             Spacer()
             Text(item.jenis).font(.caption2.weight(.bold)).foregroundStyle(jenisColor(item.jenis))
@@ -565,7 +563,7 @@ struct AddEditTargetView: View {
     private var rdSelectedBadge: some View {
         HStack(spacing: 8) {
             Image(systemName: "checkmark.circle.fill").foregroundStyle(Color(hex: "#3B82F6")).font(.caption)
-            Text(rdNama).font(.caption.weight(.medium)).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
+            Text(rdNama).font(.caption.weight(.medium)).foregroundStyle(theme.textPrimary).lineLimit(1)
             Spacer()
             if !rdJenis.isEmpty {
                 Text(rdJenis).font(.caption2.weight(.bold)).foregroundStyle(jenisColor(rdJenis))
@@ -581,7 +579,7 @@ struct AddEditTargetView: View {
         case "Obligasi":   return Color(hex: "#F59E0B")
         case "Saham":      return Color(hex: "#3B82F6")
         case "Campuran":   return Color(hex: "#A78BFA")
-        default:           return .white.opacity(0.5)
+        default:           return theme.textSecondary
         }
     }
 
@@ -590,14 +588,14 @@ struct AddEditTargetView: View {
     private var depositoForm: some View {
         investasiCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("DETAIL DEPOSITO").invLabel()
+                Text("DETAIL DEPOSITO").font(.caption).foregroundStyle(theme.textSecondary).tracking(1)
 
                 FormField(label: "POCKET SUMBER") {
                     PocketChipPicker(pockets: allPockets.filter { $0.isAktif && $0.kelompokPocket == .biasa }, selected: $depoPocket)
                 }
                 FormField(label: "NOMINAL / POKOK") {
                     HStack(spacing: 8) {
-                        Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
+                        Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
                         CurrencyInputField(value: $depoNominal)
                     }
                 }
@@ -609,8 +607,8 @@ struct AddEditTargetView: View {
                     Picker("Tenor", selection: $depoTenor) {
                         ForEach(tenorOptions, id: \.self) { Text("\($0) Bulan").tag($0) }
                     }
-                    .pickerStyle(.menu).padding(10).background(Color.white.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 10)).tint(.white)
+                    .pickerStyle(.menu).padding(10).background(theme.separator)
+                    .clipShape(RoundedRectangle(cornerRadius: 10)).tint(theme.textPrimary)
                 }
                 FormField(label: "TANGGAL MULAI") {
                     DatePicker("", selection: $depoTanggal, displayedComponents: .date)
@@ -618,16 +616,16 @@ struct AddEditTargetView: View {
                 }
                 let jatuhTempo = Calendar.current.date(byAdding: .month, value: depoTenor, to: depoTanggal) ?? depoTanggal
                 HStack {
-                    Text("Jatuh Tempo").font(.subheadline).foregroundStyle(.white.opacity(0.5))
+                    Text("Jatuh Tempo").font(.subheadline).foregroundStyle(theme.textSecondary)
                     Spacer()
                     Text(jatuhTempo.formatted(date: .abbreviated, time: .omitted))
-                        .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(theme.textPrimary)
                 }
-                .padding(12).background(Color.white.opacity(0.04)).clipShape(RoundedRectangle(cornerRadius: 10))
+                .padding(12).background(theme.bgCard).clipShape(RoundedRectangle(cornerRadius: 10))
                 Toggle(isOn: $depoARO) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Auto Roll Over (ARO)").font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                        Text("Perpanjang otomatis saat jatuh tempo").font(.caption).foregroundStyle(.white.opacity(0.5))
+                        Text("Auto Roll Over (ARO)").font(.subheadline.weight(.semibold)).foregroundStyle(theme.textPrimary)
+                        Text("Perpanjang otomatis saat jatuh tempo").font(.caption).foregroundStyle(theme.textSecondary)
                     }
                 }.tint(Color(hex: "#A78BFA"))
             }
@@ -640,7 +638,7 @@ struct AddEditTargetView: View {
     private var sahamForm: some View {
         investasiCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("DETAIL SAHAM IDN").invLabel()
+                Text("DETAIL SAHAM IDN").font(.caption).foregroundStyle(theme.textSecondary).tracking(1)
                 FormField(label: "NAMA PERUSAHAAN") {
                     TextField("Contoh: Bank Central Asia", text: $sahamNama).styledInput()
                 }
@@ -663,7 +661,7 @@ struct AddEditTargetView: View {
                 }
                 FormField(label: "HARGA BELI/LEMBAR") {
                     HStack(spacing: 8) {
-                        Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
+                        Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
                         CurrencyInputField(value: $sahamHarga)
                     }
                 }
@@ -677,7 +675,7 @@ struct AddEditTargetView: View {
     private var sahamASForm: some View {
         investasiCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("DETAIL SAHAM AS").invLabel()
+                Text("DETAIL SAHAM AS").font(.caption).foregroundStyle(theme.textSecondary).tracking(1)
                 FormField(label: "NAMA PERUSAHAAN") {
                     TextField("Contoh: NVIDIA Corporation", text: $asNama).styledInput()
                 }
@@ -697,26 +695,26 @@ struct AddEditTargetView: View {
                 }
                 FormField(label: "TOTAL INVESTASI (USD)") {
                     HStack(spacing: 8) {
-                        Text("$").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
+                        Text("$").foregroundStyle(theme.textSecondary).font(.subheadline)
                         CurrencyInputField(value: $asTotalUSD)
                     }
                 }
                 FormField(label: "HARGA BELI/SHARE (USD)") {
                     HStack(spacing: 8) {
-                        Text("$").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
+                        Text("$").foregroundStyle(theme.textSecondary).font(.subheadline)
                         CurrencyInputField(value: $asHargaBeli)
                     }
                 }
                 HStack(spacing: 12) {
                     FormField(label: "KURS BELI (IDR/USD)") {
                         HStack(spacing: 4) {
-                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.caption)
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.caption)
                             CurrencyInputField(value: $asKursBeli)
                         }
                     }
                     FormField(label: "KURS SAAT INI") {
                         HStack(spacing: 4) {
-                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.caption)
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.caption)
                             CurrencyInputField(value: $asKursSaatIni)
                         }
                     }
@@ -739,7 +737,7 @@ struct AddEditTargetView: View {
     private var valasForm: some View {
         investasiCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("DETAIL VALAS").invLabel()
+                Text("DETAIL VALAS").font(.caption).foregroundStyle(theme.textSecondary).tracking(1)
                 FormField(label: "MATA UANG") {
                     HStack(spacing: 0) {
                         ForEach(MataUangValas.allCases) { mu in
@@ -750,26 +748,26 @@ struct AddEditTargetView: View {
                                 VStack(spacing: 2) {
                                     Text(mu.flag).font(.title3)
                                     Text(mu.rawValue).font(.caption2.weight(.bold))
-                                        .foregroundStyle(valasMata == mu ? .black : .white.opacity(0.6))
+                                        .foregroundStyle(valasMata == mu ? .black : theme.textSecondary)
                                 }
                                 .frame(maxWidth: .infinity).padding(.vertical, 10)
                                 .background(valasMata == mu ? Color(hex: "#06B6D4") : Color.clear)
                             }
                         }
                     }
-                    .background(Color.white.opacity(0.08)).clipShape(RoundedRectangle(cornerRadius: 10))
+                    .background(theme.separator).clipShape(RoundedRectangle(cornerRadius: 10))
                 }
                 HStack(spacing: 12) {
                     FormField(label: "KURS SAAT INI") {
                         HStack(spacing: 4) {
-                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.caption)
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.caption)
                             CurrencyInputField(value: $valasKursSaatIni)
                             if isFetchingKurs { ProgressView().tint(.white).scaleEffect(0.7) }
                         }
                     }
                     FormField(label: "KURS BELI") {
                         HStack(spacing: 4) {
-                            Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.caption)
+                            Text("Rp").foregroundStyle(theme.textSecondary).font(.caption)
                             CurrencyInputField(value: $valasKursBeli)
                         }
                     }
@@ -792,7 +790,7 @@ struct AddEditTargetView: View {
     private var emasForm: some View {
         investasiCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("DETAIL EMAS").invLabel()
+                Text("DETAIL EMAS").font(.caption).foregroundStyle(theme.textSecondary).tracking(1)
                 FormField(label: "JENIS EMAS") {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
@@ -822,7 +820,7 @@ struct AddEditTargetView: View {
                 }
                 FormField(label: "HARGA BELI/GRAM") {
                     HStack(spacing: 8) {
-                        Text("Rp").foregroundStyle(.white.opacity(0.5)).font(.subheadline)
+                        Text("Rp").foregroundStyle(theme.textSecondary).font(.subheadline)
                         CurrencyInputField(value: $emasHarga)
                     }
                 }
@@ -838,7 +836,7 @@ struct AddEditTargetView: View {
             VStack(spacing: 10) {
                 Toggle("Aktifkan deadline", isOn: $hasDeadline)
                     .toggleStyle(SwitchToggleStyle(tint: selectedColor))
-                    .foregroundStyle(.white).font(.subheadline)
+                    .foregroundStyle(theme.textPrimary).font(.subheadline)
                 if hasDeadline {
                     HStack {
                         DatePicker("", selection: $deadline, in: Date()..., displayedComponents: [.date])
@@ -847,14 +845,14 @@ struct AddEditTargetView: View {
                     }
                 }
             }
-            .padding(12).background(Color.white.opacity(0.07)).clipShape(RoundedRectangle(cornerRadius: 10))
+            .padding(12).background(theme.separator).clipShape(RoundedRectangle(cornerRadius: 10))
         }
     }
 
     private var ikonWarnaSection: some View {
         formSection(label: "IKON & WARNA") {
             IkonColorPicker(selectedIkon: $selectedIkon, selectedWarna: $selectedWarna, ikonCustom: $ikonCustom)
-                .padding(12).background(Color.white.opacity(0.07)).clipShape(RoundedRectangle(cornerRadius: 10))
+                .padding(12).background(theme.separator).clipShape(RoundedRectangle(cornerRadius: 10))
         }
     }
 
@@ -876,23 +874,23 @@ struct AddEditTargetView: View {
     @ViewBuilder
     private func investasiCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
-            .background(Color.white.opacity(0.05))
+            .background(theme.bgCard)
             .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     @ViewBuilder
     private func formSection<Content: View>(label: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(label).font(.caption.weight(.semibold)).foregroundStyle(.gray).tracking(0.5)
+            Text(label).font(.caption.weight(.semibold)).foregroundStyle(theme.textSecondary).tracking(0.5)
             content()
         }
     }
 
     private func estimasiBox(label: String, value: String, note: String?) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption).foregroundStyle(.white.opacity(0.4)).tracking(0.8)
-            Text(value).font(.title3.weight(.bold)).foregroundStyle(.white)
-            if let note { Text(note).font(.caption).foregroundStyle(.white.opacity(0.4)) }
+            Text(label).font(.caption).foregroundStyle(theme.textSecondary.opacity(0.7)).tracking(0.8)
+            Text(value).font(.title3.weight(.bold)).foregroundStyle(theme.textPrimary)
+            if let note { Text(note).font(.caption).foregroundStyle(theme.textSecondary.opacity(0.7)) }
         }
         .padding(12).frame(maxWidth: .infinity, alignment: .leading)
         .background(invTipe.color.opacity(0.1)).clipShape(RoundedRectangle(cornerRadius: 10))
@@ -1085,10 +1083,3 @@ struct AddEditTargetView: View {
     }
 }
 
-// MARK: - Label helper
-
-private extension Text {
-    func invLabel() -> some View {
-        self.font(.caption).foregroundStyle(.white.opacity(0.5)).tracking(1)
-    }
-}

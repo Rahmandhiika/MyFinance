@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct IkonColorPicker: View {
+    @Environment(\.appTheme) private var theme
     @Binding var selectedIkon: String
     @Binding var selectedWarna: String
     @Binding var ikonCustom: String
@@ -33,9 +34,9 @@ struct IkonColorPicker: View {
                     .foregroundStyle(.gray)
                 TextField("Ketik emoji di sini...", text: $ikonCustom)
                     .padding(12)
-                    .background(Color.white.opacity(0.08))
+                    .background(theme.separator)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
             }
 
             // Icon grid
@@ -47,7 +48,7 @@ struct IkonColorPicker: View {
                     ForEach(presetIkons, id: \.self) { ikon in
                         ZStack {
                             Circle()
-                                .fill(selectedIkon == ikon ? Color(hex: selectedWarna) : Color.white.opacity(0.1))
+                                .fill(selectedIkon == ikon ? Color(hex: selectedWarna) : theme.separator)
                                 .frame(width: 44, height: 44)
                             Image(systemName: ikon)
                                 .foregroundStyle(selectedIkon == ikon ? .white : .gray)

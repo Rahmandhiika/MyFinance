@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ProgressBarView: View {
+    @Environment(\.appTheme) private var theme
     let progress: Double  // 0.0 to 1.0+
     let color: Color
     var height: CGFloat = 4
@@ -9,7 +10,7 @@ struct ProgressBarView: View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: height / 2)
-                    .fill(Color.white.opacity(0.1))
+                    .fill(theme.separator)
                     .frame(height: height)
                 RoundedRectangle(cornerRadius: height / 2)
                     .fill(progress > 1.0 ? Color.red : color)

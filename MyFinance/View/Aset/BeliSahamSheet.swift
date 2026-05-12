@@ -4,6 +4,7 @@ import SwiftData
 struct BeliSahamSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     let aset: Aset
     var onDismissParent: (() -> Void)? = nil
@@ -49,7 +50,7 @@ struct BeliSahamSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 20) {
 
@@ -65,11 +66,11 @@ struct BeliSahamSheet: View {
                             }
                             Text(aset.nama)
                                 .font(.headline)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                             if let kode = aset.kode, !kode.isEmpty {
                                 Text(kode.uppercased())
                                     .font(.caption)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(theme.textSecondary)
                             }
                         }
                         .padding(.top, 8)
@@ -77,11 +78,11 @@ struct BeliSahamSheet: View {
                         // Info kepemilikan saat ini (read-only)
                         VStack(spacing: 0) {
                             infoRow(label: "Lot Dimiliki", value: "\(NSDecimalNumber(decimal: lotLama).intValue) lot")
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(theme.separator)
                             infoRow(label: "Rata-rata Harga Beli",
                                     value: hargaLama > 0 ? hargaLama.idrFormatted : "–")
                         }
-                        .background(Color.white.opacity(0.05))
+                        .background(theme.bgCard)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                         .padding(.horizontal, 16)
 
@@ -100,13 +101,13 @@ struct BeliSahamSheet: View {
                                         .padding(.top, 14)
                                     TextField("Contoh: 5", text: $lotBaruText)
                                         .keyboardType(.numberPad)
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(theme.textPrimary)
                                         .padding(.horizontal, 14)
                                         .padding(.bottom, 14)
                                         .onChange(of: lotBaruText) { _, _ in syncNominalPocket() }
                                 }
 
-                                Divider().background(Color.white.opacity(0.06))
+                                Divider().background(theme.separator)
 
                                 // Harga beli per lembar
                                 VStack(alignment: .leading, spacing: 8) {
@@ -121,12 +122,12 @@ struct BeliSahamSheet: View {
                                             .foregroundStyle(.gray)
                                             .font(.subheadline)
                                             .padding(.leading, 14)
-                                        CurrencyInputField(value: $hargaBeli, allowsDecimal: true)
+                                        CurrencyInputField(value: $hargaBeli)
                                     }
                                     .padding(.bottom, 14)
                                 }
                             }
-                            .background(Color.white.opacity(0.05))
+                            .background(theme.bgCard)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                             .onChange(of: hargaBeli) { _, _ in syncNominalPocket() }
                         }
@@ -160,9 +161,9 @@ struct BeliSahamSheet: View {
                                     .foregroundStyle(.gray)
                                     .font(.subheadline)
                                     .padding(.leading, 14)
-                                CurrencyInputField(value: $nominalPocket, allowsDecimal: true)
+                                CurrencyInputField(value: $nominalPocket)
                             }
-                            .background(Color.white.opacity(0.05))
+                            .background(theme.bgCard)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
 
                             if nominalPocket > totalPengeluaran && totalPengeluaran > 0 {
@@ -184,14 +185,14 @@ struct BeliSahamSheet: View {
                             VStack(spacing: 0) {
                                 previewRow(label: "Total Pengeluaran (Market)",
                                            value: totalPengeluaran.idrFormatted)
-                                Divider().background(Color.white.opacity(0.06))
+                                Divider().background(theme.separator)
                                 previewRow(label: "Kepotong Pocket (Aktual)",
                                            value: nominalPocket.idrFormatted,
                                            accent: true)
-                                Divider().background(Color.white.opacity(0.06))
+                                Divider().background(theme.separator)
                                 previewRow(label: "Total Lot Setelah",
                                            value: "\(NSDecimalNumber(decimal: lotLama + lotBaru).intValue) lot")
-                                Divider().background(Color.white.opacity(0.06))
+                                Divider().background(theme.separator)
                                 // Avg before → after comparison
                                 avgComparisonRow
                             }
@@ -230,16 +231,16 @@ struct BeliSahamSheet: View {
             }
             .navigationTitle("Beli Saham")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Batal") { dismiss() }
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(theme.textSecondary)
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     // MARK: - Sub Views
@@ -254,7 +255,7 @@ struct BeliSahamSheet: View {
                     .foregroundStyle(.gray)
                 Text(hargaLama > 0 ? hargaLama.idrFormatted : "–")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(theme.textSecondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -287,11 +288,11 @@ struct BeliSahamSheet: View {
         HStack {
             Text(label)
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(theme.textSecondary)
             Spacer()
             Text(value)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -302,11 +303,11 @@ struct BeliSahamSheet: View {
         HStack {
             Text(label)
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(theme.textSecondary)
             Spacer()
             Text(value)
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(accent ? accentColor : .white)
+                .foregroundStyle(accent ? accentColor : theme.textPrimary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)

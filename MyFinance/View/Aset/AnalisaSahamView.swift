@@ -21,6 +21,7 @@ private struct AnalisaDetailItem: Identifiable {
 
 struct AnalisaSahamView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
     @Query(sort: [SortDescriptor(\Aset.urutan)]) private var allAset: [Aset]
 
     @State private var states: [String: AnalisisState] = [:]
@@ -32,32 +33,32 @@ struct AnalisaSahamView: View {
 
     var body: some View {
         ZStack {
-            Color(hex: "#0D0D0D").ignoresSafeArea()
+            theme.bgApp.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 // Custom header — tanpa NavigationStack
                 HStack {
                     Button("Tutup") { dismiss() }
                         .font(.body)
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(theme.textSecondary)
                     Spacer()
                     Text("Analisa Saham")
                         .font(.headline)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(theme.textPrimary)
                     Spacer()
                     Button {
                         Task { await fetchAll() }
                     } label: {
                         Image(systemName: "arrow.clockwise")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.7))
+                            .foregroundStyle(theme.textSecondary)
                     }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
                 .padding(.bottom, 12)
 
-                Divider().background(Color.white.opacity(0.08))
+                Divider().background(theme.separator)
 
                 if sahamAset.isEmpty {
                     emptyState
@@ -81,7 +82,7 @@ struct AnalisaSahamView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
         .task { await fetchAll() }
         .sheet(item: $detailItem) { item in
             AnalisaSahamDetailSheet(aset: item.aset, hasil: item.hasil)
@@ -114,13 +115,13 @@ struct AnalisaSahamView: View {
         VStack(spacing: 16) {
             Image(systemName: "chart.xyaxis.line")
                 .font(.system(size: 40))
-                .foregroundStyle(.white.opacity(0.2))
+                .foregroundStyle(theme.textSecondary.opacity(0.5))
             Text("Belum ada saham IDX")
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.4))
+                .foregroundStyle(theme.textSecondary)
             Text("Tambah saham dengan kode bursa (BBCA, BBRI, dll)")
                 .font(.caption)
-                .foregroundStyle(.white.opacity(0.3))
+                .foregroundStyle(theme.textSecondary.opacity(0.7))
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -130,6 +131,7 @@ struct AnalisaSahamView: View {
 // MARK: - Analisa Card
 
 private struct AnalisaCard: View {
+    @Environment(\.appTheme) private var theme
     let aset: Aset
     let state: AnalisisState
     let onTap: () -> Void
@@ -157,14 +159,14 @@ private struct AnalisaCard: View {
         HStack(spacing: 14) {
             asetIcon
             VStack(alignment: .leading, spacing: 4) {
-                Text(aset.nama).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                Text(aset.nama).font(.subheadline.weight(.semibold)).foregroundStyle(theme.textPrimary)
                 Text(aset.kode?.uppercased() ?? "").font(.caption2).foregroundStyle(.gray)
             }
             Spacer()
-            ProgressView().tint(.white).scaleEffect(0.8)
+            ProgressView().tint(theme.textSecondary).scaleEffect(0.8)
         }
         .padding(16)
-        .background(Color.white.opacity(0.05))
+        .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
@@ -174,7 +176,7 @@ private struct AnalisaCard: View {
         HStack(spacing: 14) {
             asetIcon
             VStack(alignment: .leading, spacing: 4) {
-                Text(aset.nama).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                Text(aset.nama).font(.subheadline.weight(.semibold)).foregroundStyle(theme.textPrimary)
                 Text(aset.kode?.uppercased() ?? "").font(.caption2).foregroundStyle(.gray)
             }
             Spacer()
@@ -187,7 +189,7 @@ private struct AnalisaCard: View {
             .foregroundStyle(Color(hex: "#EF4444").opacity(0.8))
         }
         .padding(16)
-        .background(Color.white.opacity(0.05))
+        .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
@@ -204,7 +206,7 @@ private struct AnalisaCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(aset.nama)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(theme.textPrimary)
                         .lineLimit(1)
                     Text(aset.kode?.uppercased() ?? "")
                         .font(.caption2)
@@ -227,27 +229,27 @@ private struct AnalisaCard: View {
                     HStack(spacing: 3) {
                         ForEach(0..<4, id: \.self) { i in
                             RoundedRectangle(cornerRadius: 2)
-                                .fill(i < hasil.score ? color : Color.white.opacity(0.15))
+                                .fill(i < hasil.score ? color : theme.cardBorder)
                                 .frame(width: 14, height: 5)
                         }
                         Text("\(hasil.score)/4")
                             .font(.caption2)
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(theme.textSecondary)
                             .padding(.leading, 2)
                     }
                 }
             }
             .padding(16)
 
-            Divider().background(Color.white.opacity(0.06))
+            Divider().background(theme.separator)
 
             // Quick stats
             HStack(spacing: 0) {
-                quickStat(label: "Harga", value: formatRupiah(hasil.hargaSaatIni))
-                Divider().background(Color.white.opacity(0.06)).frame(height: 28)
-                quickStat(label: "EMA20", value: formatRupiah(hasil.ema20),
+                quickStat(label: "Harga", value: formatRp(hasil.hargaSaatIni))
+                Divider().background(theme.separator).frame(height: 28)
+                quickStat(label: "EMA20", value: formatRp(hasil.ema20),
                           ok: hasil.hargaDiAtasEMA20)
-                Divider().background(Color.white.opacity(0.06)).frame(height: 28)
+                Divider().background(theme.separator).frame(height: 28)
                 quickStat(label: "RSI14",
                           value: String(format: "%.1f", hasil.rsi14),
                           ok: hasil.rsiDiAtas50)
@@ -256,7 +258,7 @@ private struct AnalisaCard: View {
 
             Image(systemName: "chevron.right")
                 .font(.system(size: 10))
-                .foregroundStyle(.white.opacity(0.2))
+                .foregroundStyle(theme.textSecondary.opacity(0.5))
                 .padding(.bottom, 10)
         }
         .background(color.opacity(0.04))
@@ -271,7 +273,7 @@ private struct AnalisaCard: View {
         VStack(spacing: 3) {
             Text(label)
                 .font(.caption2)
-                .foregroundStyle(.white.opacity(0.4))
+                .foregroundStyle(theme.textSecondary)
             HStack(spacing: 3) {
                 if let ok {
                     Image(systemName: ok ? "checkmark" : "xmark")
@@ -280,7 +282,7 @@ private struct AnalisaCard: View {
                 }
                 Text(value)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
@@ -299,20 +301,13 @@ private struct AnalisaCard: View {
         }
     }
 
-    private func formatRupiah(_ val: Double) -> String {
-        let n = NSNumber(value: val)
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        f.maximumFractionDigits = 0
-        f.locale = Locale(identifier: "id_ID")
-        return "Rp\(f.string(from: n) ?? "-")"
-    }
 }
 
 // MARK: - Detail Sheet
 
 struct AnalisaSahamDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
     let aset: Aset
     let hasil: HasilAnalisa
 
@@ -328,18 +323,18 @@ struct AnalisaSahamDetailSheet: View {
 
     var body: some View {
         ZStack {
-            Color(hex: "#0D0D0D").ignoresSafeArea()
+            theme.bgApp.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 // Custom header — tanpa NavigationStack agar tidak ada horizontal pop gesture
                 HStack {
                     Button("Tutup") { dismiss() }
                         .font(.body)
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(theme.textSecondary)
                     Spacer()
                     Text(aset.kode?.uppercased() ?? aset.nama)
                         .font(.headline)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(theme.textPrimary)
                     Spacer()
                     // Balance spacer agar title tetap center
                     Text("Tutup").font(.body).opacity(0)
@@ -348,7 +343,7 @@ struct AnalisaSahamDetailSheet: View {
                 .padding(.top, 16)
                 .padding(.bottom, 12)
 
-                Divider().background(Color.white.opacity(0.08))
+                Divider().background(theme.separator)
 
                 ScrollView(.vertical) {
                     VStack(spacing: 20) {
@@ -363,7 +358,7 @@ struct AnalisaSahamDetailSheet: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     // MARK: Header
@@ -382,7 +377,7 @@ struct AnalisaSahamDetailSheet: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(aset.nama)
                         .font(.headline)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(theme.textPrimary)
                     Text(aset.kode?.uppercased() ?? "")
                         .font(.caption)
                         .foregroundStyle(.gray)
@@ -400,20 +395,20 @@ struct AnalisaSahamDetailSheet: View {
                     HStack(spacing: 4) {
                         ForEach(0..<4, id: \.self) { i in
                             RoundedRectangle(cornerRadius: 2)
-                                .fill(i < hasil.score ? color : Color.white.opacity(0.12))
+                                .fill(i < hasil.score ? color : theme.cardBorder)
                                 .frame(width: 18, height: 6)
                         }
                     }
                 }
             }
 
-            Divider().background(Color.white.opacity(0.08))
+            Divider().background(theme.separator)
 
             HStack(spacing: 0) {
                 statItem(label: "Harga Kini", value: formatRp(hasil.hargaSaatIni))
-                Divider().background(Color.white.opacity(0.08)).frame(height: 36)
+                Divider().background(theme.separator).frame(height: 36)
                 statItem(label: "EMA 20", value: formatRp(hasil.ema20))
-                Divider().background(Color.white.opacity(0.08)).frame(height: 36)
+                Divider().background(theme.separator).frame(height: 36)
                 statItem(label: "RSI 14", value: String(format: "%.1f", hasil.rsi14))
             }
         }
@@ -451,7 +446,7 @@ struct AnalisaSahamDetailSheet: View {
                 sep
                 rowPnl(pnl: pnl, pct: pnlPct)
             }
-            .background(Color.white.opacity(0.05))
+            .background(theme.bgCard)
             .clipShape(RoundedRectangle(cornerRadius: 14))
         }
     }
@@ -502,14 +497,14 @@ struct AnalisaSahamDetailSheet: View {
             // Kondisi checklist
             VStack(spacing: 0) {
                 kondisiItem(ok: hasil.hargaDiAtasEMA20, label: "Harga di atas EMA20")
-                Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
+                Divider().background(theme.separator).padding(.leading, 44)
                 kondisiItem(ok: hasil.rsiDiAtas50, label: "RSI 14 di atas 50")
-                Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
+                Divider().background(theme.separator).padding(.leading, 44)
                 kondisiItem(ok: hasil.volumeDiAtasAvg, label: "Volume di atas rata-rata 20 hari")
-                Divider().background(Color.white.opacity(0.06)).padding(.leading, 44)
+                Divider().background(theme.separator).padding(.leading, 44)
                 kondisiItem(ok: hasil.candleBullish, label: "Candle bullish (Close > Open)")
             }
-            .background(Color.white.opacity(0.05))
+            .background(theme.bgCard)
             .clipShape(RoundedRectangle(cornerRadius: 14))
 
             // Score bar
@@ -517,7 +512,7 @@ struct AnalisaSahamDetailSheet: View {
                 HStack {
                     Text("Skor Teknikal")
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(theme.textSecondary)
                     Spacer()
                     Text("\(hasil.score) dari 4 kondisi terpenuhi")
                         .font(.caption.weight(.bold))
@@ -526,29 +521,29 @@ struct AnalisaSahamDetailSheet: View {
                 HStack(spacing: 5) {
                     ForEach(0..<4, id: \.self) { i in
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(i < hasil.score ? color : Color.white.opacity(0.1))
+                            .fill(i < hasil.score ? color : theme.separator)
                             .frame(maxWidth: .infinity)
                             .frame(height: 10)
                     }
                 }
             }
             .padding(14)
-            .background(Color.white.opacity(0.04))
+            .background(theme.bgCard)
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
 
     private func metricCard(label: String, value: String, sub: String, ok: Bool?) -> some View {
         let cardColor: Color = ok.map { $0 ? Color(hex: "#22C55E") : Color(hex: "#EF4444") }
-            ?? Color.white.opacity(0.4)
+            ?? theme.textSecondary
         let bgColor: Color = ok.map { $0 ? Color(hex: "#22C55E").opacity(0.08) : Color(hex: "#EF4444").opacity(0.08) }
-            ?? Color.white.opacity(0.05)
+            ?? theme.bgCard
 
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(label)
                     .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(theme.textSecondary)
                 Spacer()
                 if let ok {
                     Image(systemName: ok ? "checkmark.circle.fill" : "xmark.circle.fill")
@@ -558,7 +553,7 @@ struct AnalisaSahamDetailSheet: View {
             }
             Text(value)
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Text(sub)
@@ -587,17 +582,17 @@ struct AnalisaSahamDetailSheet: View {
 
             Text(label)
                 .font(.subheadline)
-                .foregroundStyle(ok ? .white : .white.opacity(0.4))
-                .strikethrough(!ok, color: .white.opacity(0.25))
+                .foregroundStyle(ok ? theme.textPrimary : theme.textSecondary)
+                .strikethrough(!ok, color: theme.textSecondary.opacity(0.4))
 
             Spacer()
 
             Text("+1")
                 .font(.caption.weight(.bold))
-                .foregroundStyle(ok ? okColor : Color.white.opacity(0.2))
+                .foregroundStyle(ok ? okColor : theme.textSecondary.opacity(0.5))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
-                .background(ok ? okColor.opacity(0.12) : Color.white.opacity(0.05))
+                .background(ok ? okColor.opacity(0.12) : theme.separator)
                 .clipShape(Capsule())
         }
         .padding(.horizontal, 14)
@@ -621,7 +616,7 @@ struct AnalisaSahamDetailSheet: View {
                     .frame(width: 32)
                 Text(msg)
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(theme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(16)
@@ -631,7 +626,7 @@ struct AnalisaSahamDetailSheet: View {
 
             Text("Ini bukan saran investasi. Selalu lakukan riset sendiri sebelum mengambil keputusan.")
                 .font(.caption2)
-                .foregroundStyle(.white.opacity(0.25))
+                .foregroundStyle(theme.textSecondary.opacity(0.6))
                 .padding(.top, 4)
         }
     }
@@ -639,14 +634,14 @@ struct AnalisaSahamDetailSheet: View {
     // MARK: Helpers
 
     private var sep: some View {
-        Divider().background(Color.white.opacity(0.06)).padding(.leading, 16)
+        Divider().background(theme.separator).padding(.leading, 16)
     }
 
     private func rowItem(label: String, value: String) -> some View {
         HStack {
-            Text(label).font(.subheadline).foregroundStyle(.white.opacity(0.6))
+            Text(label).font(.subheadline).foregroundStyle(theme.textSecondary)
             Spacer()
-            Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+            Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(theme.textPrimary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -657,7 +652,7 @@ struct AnalisaSahamDetailSheet: View {
         let c   = Color(hex: pos ? "#22C55E" : "#EF4444")
         return HStack {
             Text("Unrealized P&L")
-                .font(.subheadline).foregroundStyle(.white.opacity(0.6))
+                .font(.subheadline).foregroundStyle(theme.textSecondary)
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(pos ? "+" : "")\(pnl.idrFormatted)")
@@ -672,8 +667,8 @@ struct AnalisaSahamDetailSheet: View {
 
     private func statItem(label: String, value: String) -> some View {
         VStack(spacing: 4) {
-            Text(label).font(.caption2).foregroundStyle(.white.opacity(0.4))
-            Text(value).font(.caption.weight(.bold)).foregroundStyle(.white)
+            Text(label).font(.caption2).foregroundStyle(theme.textSecondary)
+            Text(value).font(.caption.weight(.bold)).foregroundStyle(theme.textPrimary)
                 .lineLimit(1).minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity)

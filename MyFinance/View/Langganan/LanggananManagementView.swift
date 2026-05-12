@@ -4,6 +4,7 @@ import SwiftData
 struct LanggananManagementView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     @Query(sort: \Langganan.urutan) private var allLangganan: [Langganan]
 
@@ -18,7 +19,7 @@ struct LanggananManagementView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
 
                 if allLangganan.isEmpty {
                     emptyState
@@ -34,7 +35,7 @@ struct LanggananManagementView: View {
                                         .tracking(0.5)
                                     Text(totalBulanan.idrFormatted)
                                         .font(.title2.weight(.bold))
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(theme.textPrimary)
                                 }
                                 Spacer()
                                 Text("\(allLangganan.filter { $0.isAktif }.count) AKTIF")
@@ -46,7 +47,7 @@ struct LanggananManagementView: View {
                                     .clipShape(Capsule())
                             }
                             .padding(16)
-                            .background(Color.white.opacity(0.05))
+                            .background(theme.bgCard)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                             .padding(.horizontal, 16)
 
@@ -55,11 +56,11 @@ struct LanggananManagementView: View {
                                 ForEach(allLangganan) { l in
                                     langgananRow(l)
                                     if l.id != allLangganan.last?.id {
-                                        Divider().background(Color.white.opacity(0.06)).padding(.leading, 60)
+                                        Divider().background(theme.separator).padding(.leading, 60)
                                     }
                                 }
                             }
-                            .background(Color.white.opacity(0.05))
+                            .background(theme.bgCard)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                             .padding(.horizontal, 16)
                         }
@@ -69,12 +70,12 @@ struct LanggananManagementView: View {
             }
             .navigationTitle("Bills")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Selesai") { dismiss() }
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(theme.textSecondary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 16) {
@@ -104,7 +105,7 @@ struct LanggananManagementView: View {
             .sheet(item: $editing) { l in AddEditLanggananView(existing: l) }
             .sheet(isPresented: $showReorder) { LanggananReorderSheet() }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     @ViewBuilder
@@ -131,17 +132,17 @@ struct LanggananManagementView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(l.nama)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
                 Text("Tgl \(l.tanggalTagih) tiap bulan")
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(theme.textSecondary)
             }
 
             Spacer()
 
             Text(l.nominal.idrFormatted)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
 
             Menu {
                 Button { editing = l } label: {
@@ -179,7 +180,7 @@ struct LanggananManagementView: View {
                 .foregroundStyle(.gray)
             Text("Belum ada bills")
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
             Text("Tambah Netflix, Spotify, iCloud, dan\nbills bulanan lainnya.")
                 .font(.subheadline)
                 .foregroundStyle(.gray)

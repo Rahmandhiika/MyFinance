@@ -3,6 +3,7 @@ import SwiftData
 
 struct TargetListView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.appTheme) private var theme
 
     @Query(sort: \Target.urutan) var allTargets: [Target]
 
@@ -23,7 +24,7 @@ struct TargetListView: View {
 
     var body: some View {
         ZStack {
-            Color(hex: "#0D0D0D").ignoresSafeArea()
+            theme.bgApp.ignoresSafeArea()
 
             if allTargets.isEmpty {
                 emptyState
@@ -49,8 +50,8 @@ struct TargetListView: View {
         }
         .navigationTitle("Target")
         .navigationBarTitleDisplayMode(.large)
-        .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbarBackground(theme.bgApp, for: .navigationBar)
+        .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 12) {
@@ -62,7 +63,7 @@ struct TargetListView: View {
                         } label: {
                             Text(isReordering ? "Selesai" : "Atur Urutan")
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(isReordering ? .white : accentGreen)
+                                .foregroundStyle(isReordering ? theme.textPrimary : accentGreen)
                         }
                     }
                     if !isReordering {
@@ -152,7 +153,7 @@ struct TargetListView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(target.nama)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
                     .lineLimit(1)
                 Text(String(format: "%.0f%%", target.progressPersen))
                     .font(.caption2)
@@ -167,7 +168,7 @@ struct TargetListView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(Color.white.opacity(0.06))
+        .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -182,7 +183,7 @@ struct TargetListView: View {
                     .tracking(0.5)
                 Text(totalTersimpan.idrFormatted)
                     .font(.title2.weight(.bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
             }
             Spacer()
             Text("\(allTargets.count) TARGET")
@@ -194,7 +195,7 @@ struct TargetListView: View {
                 .clipShape(Capsule())
         }
         .padding(16)
-        .background(Color.white.opacity(0.05))
+        .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
@@ -218,7 +219,7 @@ struct TargetListView: View {
                     .clipped()
             } else {
                 ZStack(alignment: .leading) {
-                    Color.white.opacity(0.05)
+                    theme.bgCard
                     Rectangle()
                         .fill(targetColor)
                         .frame(width: 3)
@@ -255,7 +256,7 @@ struct TargetListView: View {
                         HStack(spacing: 6) {
                             Text(target.nama)
                                 .font(.headline)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(hasFoto ? .white : theme.textPrimary)
                                 .lineLimit(1)
                                 .shadow(color: hasFoto ? .black.opacity(0.6) : .clear, radius: 4)
                             if isInvestasi {
@@ -276,12 +277,12 @@ struct TargetListView: View {
                             let daysLeft = max(Calendar.current.dateComponents([.day], from: Date(), to: deadline).day ?? 0, 0)
                             Label("\(daysLeft) hari lagi", systemImage: "calendar")
                                 .font(.caption2)
-                                .foregroundStyle(.white.opacity(hasFoto ? 0.8 : 0.4))
+                                .foregroundStyle(hasFoto ? .white.opacity(0.8) : theme.textSecondary)
                                 .shadow(color: hasFoto ? .black.opacity(0.5) : .clear, radius: 3)
                         } else {
                             Text("Tanpa deadline")
                                 .font(.caption2)
-                                .foregroundStyle(.white.opacity(hasFoto ? 0.7 : 0.3))
+                                .foregroundStyle(hasFoto ? .white.opacity(0.7) : theme.textSecondary)
                         }
                     }
 
@@ -294,7 +295,7 @@ struct TargetListView: View {
                             .shadow(color: hasFoto ? .black.opacity(0.6) : .clear, radius: 4)
                         Text("tercapai")
                             .font(.system(size: 9))
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(hasFoto ? .white.opacity(0.5) : theme.textSecondary)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -306,10 +307,10 @@ struct TargetListView: View {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(target.tersimpan.idrFormatted)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(hasFoto ? .white : theme.textPrimary)
                         Text("/ \(target.targetNominal.idrFormatted)")
                             .font(.caption)
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(hasFoto ? .white.opacity(0.5) : theme.textSecondary)
                         Spacer()
                     }
                     ProgressBarView(progress: progressValue, color: hasFoto ? .white : targetColor, height: 6)
@@ -334,7 +335,7 @@ struct TargetListView: View {
                         .foregroundStyle(target.tampilDiHome ? accentGreen : .gray)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background((target.tampilDiHome ? accentGreen : Color.white).opacity(hasFoto ? 0.2 : 0.08))
+                        .background(hasFoto ? (target.tampilDiHome ? accentGreen : Color.white).opacity(0.2) : (target.tampilDiHome ? accentGreen.opacity(0.08) : theme.separator))
                         .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
@@ -346,9 +347,9 @@ struct TargetListView: View {
                     } label: {
                         Image(systemName: "pencil")
                             .font(.system(size: 13))
-                            .foregroundStyle(hasFoto ? .white : .gray)
+                            .foregroundStyle(hasFoto ? .white : theme.textSecondary)
                             .frame(width: 30, height: 30)
-                            .background(Color.white.opacity(hasFoto ? 0.2 : 0.07))
+                            .background(hasFoto ? Color.white.opacity(0.2) : theme.separator)
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
@@ -381,7 +382,7 @@ struct TargetListView: View {
                 .foregroundStyle(.gray)
             Text("Belum ada target")
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
             Text("Yuk buat target tabungan pertamamu!")
                 .font(.subheadline)
                 .foregroundStyle(.gray)

@@ -4,6 +4,7 @@ import SwiftData
 struct TransferInternalSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
 
     @Query(sort: \Pocket.urutan) private var allPockets: [Pocket]
     @Query(sort: \Kategori.urutan) private var allKategori: [Kategori]
@@ -38,7 +39,7 @@ struct TransferInternalSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "#0D0D0D").ignoresSafeArea()
+                theme.bgApp.ignoresSafeArea()
 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -46,11 +47,11 @@ struct TransferInternalSheet: View {
                         VStack(spacing: 10) {
                             Text(nominalDisplay)
                                 .font(.system(size: 36, weight: .bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.5)
 
-                            CurrencyInputField(value: $nominal)
+                            CalcInputField(value: $nominal)
                                 .padding(.horizontal, 16)
 
                             QuickAmountButtons(nominal: $nominal)
@@ -97,16 +98,7 @@ struct TransferInternalSheet: View {
                                 adminQuickPick($biayaAdmin)
                             }
                             VStack(spacing: 0) {
-                                HStack(spacing: 8) {
-                                    Text("Rp")
-                                        .foregroundStyle(.white.opacity(0.5))
-                                        .font(.subheadline)
-                                        .padding(.leading, 14)
-                                    CurrencyInputField(value: $biayaAdmin)
-                                }
-                                .padding(.vertical, 10)
-                                .background(Color.white.opacity(0.07))
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                CalcInputField(value: $biayaAdmin, placeholder: "Ketuk untuk input biaya admin")
                                 if biayaAdmin > 0 {
                                     HStack(spacing: 4) {
                                         Image(systemName: "info.circle")
@@ -126,9 +118,9 @@ struct TransferInternalSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             sectionLabel("Catatan")
                             TextField("Tulis catatan...", text: $catatan)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textPrimary)
                                 .padding(12)
-                                .background(Color.white.opacity(0.07))
+                                .background(theme.separator)
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
                         .padding(.horizontal, 16)
@@ -150,8 +142,8 @@ struct TransferInternalSheet: View {
             }
             .navigationTitle("Transfer")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(hex: "#0D0D0D"), for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(theme.bgApp, for: .navigationBar)
+            .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Batal") { dismiss() }
@@ -165,7 +157,7 @@ struct TransferInternalSheet: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     @ViewBuilder

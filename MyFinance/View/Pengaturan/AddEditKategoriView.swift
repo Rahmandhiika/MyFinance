@@ -4,6 +4,7 @@ import SwiftData
 struct AddEditKategoriView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
     @Query(sort: \Kategori.urutan) private var allKategoris: [Kategori]
 
     var kategori: Kategori? = nil
@@ -32,9 +33,9 @@ struct AddEditKategoriView: View {
                         Text("NAMA").font(.caption).foregroundStyle(.gray)
                         TextField("contoh: Makanan & Minuman", text: $nama)
                             .padding(12)
-                            .background(Color.white.opacity(0.08))
+                            .background(theme.separator)
                             .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(theme.textPrimary)
                     }
 
                     // Tipe
@@ -60,8 +61,8 @@ struct AddEditKategoriView: View {
                                             .font(.subheadline)
                                             .padding(.horizontal, 16)
                                             .padding(.vertical, 10)
-                                            .background(klasifikasi == k ? Color(hex: warna) : Color.white.opacity(0.1))
-                                            .foregroundStyle(klasifikasi == k ? .white : .gray)
+                                            .background(klasifikasi == k ? Color(hex: warna) : theme.cardBorder)
+                                            .foregroundStyle(klasifikasi == k ? .white : theme.textSecondary)
                                             .clipShape(RoundedRectangle(cornerRadius: 10))
                                     }
                                 }
@@ -84,8 +85,8 @@ struct AddEditKategoriView: View {
                                             .padding(.horizontal, 12)
                                             .padding(.vertical, 8)
                                             .frame(maxWidth: .infinity)
-                                            .background(kelompokIncome == k ? Color(hex: warna) : Color.white.opacity(0.1))
-                                            .foregroundStyle(kelompokIncome == k ? .white : .gray)
+                                            .background(kelompokIncome == k ? Color(hex: warna) : theme.cardBorder)
+                                            .foregroundStyle(kelompokIncome == k ? .white : theme.textSecondary)
                                             .clipShape(RoundedRectangle(cornerRadius: 8))
                                     }
                                 }
@@ -129,7 +130,7 @@ struct AddEditKategoriView: View {
                 }
                 .padding()
             }
-            .background(Color(hex: "#0D0D0D"))
+            .background(theme.bgApp)
             .navigationTitle(isEditing ? "Edit Kategori" : "Kategori Baru")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -145,7 +146,7 @@ struct AddEditKategoriView: View {
             }
         }
         .onAppear { loadExisting() }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(theme.colorScheme)
     }
 
     private func loadExisting() {
@@ -212,7 +213,7 @@ struct AddEditKategoriView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.subheadline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.gray)
@@ -223,7 +224,7 @@ struct AddEditKategoriView: View {
                 .tint(Color(hex: color))
         }
         .padding(14)
-        .background(Color.white.opacity(0.05))
+        .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }

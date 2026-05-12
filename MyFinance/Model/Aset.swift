@@ -19,11 +19,12 @@ import Foundation
     var jumlahUnitReksadana: Decimal? = nil  // unit aktual (override kalkulasi otomatis)
 
     // MARK: - Saham AS (US Stocks / ETF — Pluang)
-    var totalInvestasiUSD: Decimal?   // total USD yang diinvest (misal $60)
+    var totalInvestasiUSD: Decimal?   // Amount aktual beli saham (pre-fee, USD) — dipakai hitung shares
     var hargaBeliPerShareUSD: Decimal? // harga per share saat beli (USD)
     var hargaSaatIniUSD: Decimal?     // harga terkini (USD, auto-fetch Yahoo)
-    var kursBeliUSD: Decimal?         // kurs IDR/USD saat beli
+    var kursBeliUSD: Decimal?         // kurs Pluang IDR/USD saat beli
     var kursSaatIniUSD: Decimal?      // kurs IDR/USD terkini (auto-fetch)
+    var biayaFeeUSD: Decimal? = nil   // transaction fee + taxes USD (Pluang) — agar modal akurat
 
     // MARK: - Valas
     var mataUangValas: MataUangValas?
@@ -36,6 +37,8 @@ import Foundation
     var tahunCetak: Int?             // nil untuk emas digital
     var beratGram: Decimal?
     var hargaBeliPerGram: Decimal?
+    var pajakBeliEmas: Decimal? = nil  // pajak/spread saat beli emas digital (Pluang)
+    var hargaSaatIniEmasPerGram: Decimal? = nil  // harga buyback/terkini per gram (update manual)
 
     // MARK: - Deposito
     var nominalDeposito: Decimal?
@@ -48,7 +51,7 @@ import Foundation
     // MARK: - Common
     var nilaiSaatIni: Decimal        // stored, diupdate oleh price service
     var urutan: Int = 0              // urutan tampil di list (drag reorder)
-    var portofolio: String? = nil    // nama portofolio/bucket opsional (mis. "Dana Pensiun")
+    var portofolio: String? = nil    // nama grup/portofolio (linked ke PortofolioConfig by name)
     var logoData: Data? = nil        // foto/logo custom yang di-upload user (optional)
     var catatSbgPengeluaran: Bool
     var pocketSumber: Pocket?        // pocket sumber (pembelian / deposito)
@@ -66,13 +69,13 @@ import Foundation
         case .saham:
             return (lot ?? 0) * (hargaPerLembar ?? 0) * 100
         case .sahamAS:
-            return (totalInvestasiUSD ?? 0) * (kursBeliUSD ?? 0)
+            return ((totalInvestasiUSD ?? 0) + (biayaFeeUSD ?? 0)) * (kursBeliUSD ?? 0)
         case .reksadana:
             return totalInvestasiReksadana ?? 0
         case .valas:
             return (jumlahValas ?? 0) * (kursBeliPerUnit ?? 0)
         case .emas:
-            return (beratGram ?? 0) * (hargaBeliPerGram ?? 0)
+            return (beratGram ?? 0) * (hargaBeliPerGram ?? 0) + (pajakBeliEmas ?? 0)
         case .deposito:
             return nominalDeposito ?? 0
         }
@@ -87,10 +90,24 @@ import Foundation
         return total / hargaBeli
     }
 
-    /// Nilai efektif: untuk deposito = nominal + bunga bersih s/d hari ini; lainnya = nilaiSaatIni
+    /// Nilai efektif: untuk deposito = nominal + bunga bersih s/d hari ini;
+    /// untuk sahamAS = shares × harga saat ini × kurs saat ini (computed live dari stored fields);
+    /// lainnya = nilaiSaatIni
     var nilaiEfektif: Decimal {
         if tipe == .deposito {
             return (nominalDeposito ?? 0) + bungaBersihDeposito
+        }
+        if tipe == .sahamAS,
+           let harga = hargaSaatIniUSD,
+           let kurs = kursSaatIniUSD,
+           harga > 0, kurs > 0 {
+            return jumlahSharesAS * harga * kurs
+        }
+        if tipe == .emas,
+           let hargaNow = hargaSaatIniEmasPerGram,
+           let berat = beratGram,
+           hargaNow > 0, berat > 0 {
+            return berat * hargaNow
         }
         return nilaiSaatIni
     }
@@ -100,6 +117,42 @@ import Foundation
     var returnPersen: Double {
         guard modal > 0 else { return 0 }
         return Double(truncating: (pnl / modal * 100) as NSDecimalNumber)
+    }
+
+    /// Nilai dalam mata uang asli aset (USD, SGD, dll) — nil jika IDR
+    var nilaiAsingDisplay: String? {
+        switch tipe {
+        case .sahamAS:
+            guard let harga = hargaSaatIniUSD else { return nil }
+            let val = jumlahSharesAS * harga
+            return "$\(val.unitFormatted(2))"
+        case .valas:
+            guard let mu = mataUangValas, let jml = jumlahValas else { return nil }
+            return "\(jml.unitFormatted(2)) \(mu.rawValue)"
+        default:
+            return nil
+        }
+    }
+
+    /// P&L dalam mata uang asli (USD/SGD) — nil jika IDR
+    var pnlAsingDisplay: String? {
+        switch tipe {
+        case .sahamAS:
+            guard let hargaBeli = hargaBeliPerShareUSD,
+                  let hargaNow = hargaSaatIniUSD else { return nil }
+            let pnlUSD = jumlahSharesAS * (hargaNow - hargaBeli)
+            let sign = pnlUSD >= 0 ? "+" : ""
+            return "\(sign)$\(pnlUSD.unitFormatted(2))"
+        case .valas:
+            guard let kursBeli = kursBeliPerUnit,
+                  let kursNow = kursSaatIni,
+                  let jml = jumlahValas else { return nil }
+            let pnlIDR = jml * (kursNow - kursBeli)
+            let sign = pnlIDR >= 0 ? "+" : ""
+            return "\(sign)\(pnlIDR.idrFormatted)"
+        default:
+            return nil
+        }
     }
 
     // MARK: - Computed: Deposito helpers
