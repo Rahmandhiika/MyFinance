@@ -14,12 +14,23 @@ struct TargetListView: View {
 
     private let accentGreen = Color(hex: "#22C55E")
 
-    var sortedTargets: [Target] {
-        allTargets.sorted { $0.urutan == $1.urutan ? $0.createdAt < $1.createdAt : $0.urutan < $1.urutan }
+    var activeTargets: [Target] {
+        allTargets
+            .filter { !$0.isSelesai }
+            .sorted { $0.urutan == $1.urutan ? $0.createdAt < $1.createdAt : $0.urutan < $1.urutan }
     }
 
+    var completedTargets: [Target] {
+        allTargets
+            .filter { $0.isSelesai }
+            .sorted { $0.createdAt > $1.createdAt }   // terbaru di atas
+    }
+
+    // untuk reorder — hanya aktif
+    var sortedTargets: [Target] { activeTargets }
+
     var totalTersimpan: Decimal {
-        allTargets.reduce(0) { $0 + $1.tersimpan }
+        allTargets.filter { !$0.isSelesai }.reduce(0) { $0 + $1.tersimpan }
     }
 
     var body: some View {
@@ -37,9 +48,23 @@ struct TargetListView: View {
                             reorderHint
                             reorderList
                         } else {
-                            ForEach(sortedTargets) { target in
-                                targetCard(target)
-                                    .onTapGesture { selectedTarget = target }
+                            // Aktif
+                            if activeTargets.isEmpty {
+                                Text("Semua wishlist sudah terbeli 🎉")
+                                    .font(.subheadline)
+                                    .foregroundStyle(theme.textSecondary)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                                    .padding(.vertical, 24)
+                            } else {
+                                ForEach(activeTargets) { target in
+                                    targetCard(target)
+                                        .onTapGesture { selectedTarget = target }
+                                }
+                            }
+
+                            // Selesai / Terbeli
+                            if !completedTargets.isEmpty {
+                                completedSection
                             }
                         }
                     }
@@ -186,7 +211,7 @@ struct TargetListView: View {
                     .foregroundStyle(theme.textPrimary)
             }
             Spacer()
-            Text("\(allTargets.count) WISHLIST")
+            Text("\(activeTargets.count) AKTIF")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(accentGreen)
                 .padding(.horizontal, 12)
@@ -197,6 +222,98 @@ struct TargetListView: View {
         .padding(16)
         .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    // MARK: - Completed Section
+
+    private var completedSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(accentGreen)
+                Text("SUDAH TERBELI")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.gray)
+                    .tracking(0.5)
+                Spacer()
+                Text("\(completedTargets.count)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(accentGreen)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(accentGreen.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+            .padding(.horizontal, 4)
+
+            ForEach(completedTargets) { target in
+                completedCard(target)
+                    .onTapGesture { selectedTarget = target }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func completedCard(_ target: Target) -> some View {
+        let targetColor = Color(hex: target.warna)
+        HStack(spacing: 12) {
+            // Icon
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(targetColor.opacity(0.1))
+                    .frame(width: 42, height: 42)
+                if let data = target.fotoData, let uiImg = UIImage(data: data) {
+                    Image(uiImage: uiImg)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 42, height: 42)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .opacity(0.6)
+                } else if let emoji = target.ikonCustom, !emoji.isEmpty {
+                    Text(emoji)
+                        .font(.system(size: 18))
+                        .opacity(0.5)
+                } else {
+                    Image(systemName: target.ikon)
+                        .font(.system(size: 15))
+                        .foregroundStyle(targetColor.opacity(0.5))
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(target.nama)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(theme.textSecondary)
+                    .lineLimit(1)
+                Text(target.targetNominal > 0 ? target.targetNominal.idrFormatted : "—")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+
+            Spacer()
+
+            // Terbeli badge
+            HStack(spacing: 3) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .bold))
+                Text("Terbeli")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundStyle(accentGreen)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(accentGreen.opacity(0.12))
+            .clipShape(Capsule())
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(theme.bgCard.opacity(0.6))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(theme.separator, lineWidth: 0.5)
+        }
     }
 
     // MARK: - Target Card
