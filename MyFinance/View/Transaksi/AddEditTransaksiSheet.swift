@@ -599,82 +599,88 @@ private struct WishlistPickerCard: View {
     private var hasFoto: Bool { target.fotoData != nil }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            // Background: foto atau warna solid
-            if let data = target.fotoData, let uiImg = UIImage(data: data) {
-                Image(uiImage: uiImg)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 130)
-                    .clipped()
-            } else {
-                ZStack(alignment: .leading) {
-                    theme.bgCard
-                    Rectangle()
-                        .fill(targetColor)
-                        .frame(width: 3)
-                }
-                .frame(height: 130)
-            }
-
-            // Gradient overlay (lebih tebal untuk foto)
-            LinearGradient(
-                colors: hasFoto
-                    ? [.clear, Color.black.opacity(0.5), Color.black.opacity(0.88)]
-                    : [.clear, Color.black.opacity(0.15), Color.black.opacity(0.4)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            // Content
-            VStack(alignment: .leading, spacing: 4) {
-                // Icon / emoji
-                ZStack {
-                    Circle()
-                        .fill(hasFoto ? Color.black.opacity(0.3) : targetColor.opacity(0.2))
-                        .frame(width: 30, height: 30)
-                    if let emoji = target.ikonCustom, !emoji.isEmpty {
-                        Text(emoji).font(.system(size: 14))
-                    } else {
-                        Image(systemName: target.ikon)
-                            .font(.system(size: 12))
-                            .foregroundStyle(hasFoto ? .white : targetColor)
-                    }
-                }
-
-                // Nama
-                Text(target.nama)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-                    .shadow(color: .black.opacity(0.5), radius: 3)
-
-                // Tersimpan / target
-                Text(target.targetNominal > 0
-                     ? "\(String(format: "%.0f", target.progressPersen))%"
-                     : "Rp -")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(hasFoto ? .white.opacity(0.8) : targetColor)
-
-                // Mini progress bar
-                GeometryReader { geo in
+        // Color anchor — ini yang menentukan ukuran card, semua overlay ikut dimensi ini
+        Color.clear
+            .frame(height: 130)
+            .overlay {
+                // Background: foto atau warna solid
+                if let data = target.fotoData, let uiImg = UIImage(data: data) {
+                    Image(uiImage: uiImg)
+                        .resizable()
+                        .scaledToFill()
+                        .clipped()
+                } else {
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color.white.opacity(0.2))
-                            .frame(height: 3)
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(hasFoto ? Color.white : targetColor)
-                            .frame(width: geo.size.width * progress, height: 3)
+                        theme.bgCard
+                        Rectangle()
+                            .fill(targetColor)
+                            .frame(width: 3)
                     }
                 }
-                .frame(height: 3)
             }
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .frame(height: 130)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+            // Gradient overlay
+            .overlay {
+                LinearGradient(
+                    colors: hasFoto
+                        ? [.clear, Color.black.opacity(0.45), Color.black.opacity(0.85)]
+                        : [.clear, Color.black.opacity(0.1), Color.black.opacity(0.38)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+            // Content — selalu di bawah, ukuran tidak mempengaruhi card height
+            .overlay(alignment: .bottom) {
+                VStack(alignment: .leading, spacing: 3) {
+                    // Icon / emoji
+                    ZStack {
+                        Circle()
+                            .fill(hasFoto ? Color.black.opacity(0.3) : targetColor.opacity(0.2))
+                            .frame(width: 28, height: 28)
+                        if let emoji = target.ikonCustom, !emoji.isEmpty {
+                            Text(emoji).font(.system(size: 13))
+                        } else {
+                            Image(systemName: target.ikon)
+                                .font(.system(size: 11))
+                                .foregroundStyle(hasFoto ? .white : targetColor)
+                        }
+                    }
+
+                    // Nama — 1 baris saja agar tinggi konsisten
+                    Text(target.nama)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .shadow(color: .black.opacity(0.5), radius: 3)
+
+                    HStack(spacing: 0) {
+                        // Persentase
+                        Text(target.targetNominal > 0
+                             ? "\(String(format: "%.0f", target.progressPersen))%"
+                             : "—")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(hasFoto ? .white.opacity(0.8) : targetColor)
+
+                        Spacer()
+                    }
+
+                    // Mini progress bar
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.white.opacity(0.2))
+                                .frame(height: 3)
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(hasFoto ? Color.white : targetColor)
+                                .frame(width: geo.size.width * progress, height: 3)
+                        }
+                    }
+                    .frame(height: 3)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay {
             RoundedRectangle(cornerRadius: 14)
                 .strokeBorder(
