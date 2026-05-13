@@ -255,7 +255,7 @@ struct AddEditTransaksiSheet: View {
     private var beliWishlistSection: some View {
         VStack(alignment: .leading, spacing: 14) {
 
-            // Picker wishlist
+            // Picker wishlist — 2-column photo card grid
             VStack(alignment: .leading, spacing: 10) {
                 sectionLabel("Pilih Wishlist")
                 if wishlistTargets.isEmpty {
@@ -267,18 +267,23 @@ struct AddEditTransaksiSheet: View {
                         .background(theme.bgCard)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                 } else {
-                    FlowLayout(spacing: 8, lineSpacing: 8) {
+                    LazyVGrid(
+                        columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+                        spacing: 10
+                    ) {
                         ForEach(wishlistTargets) { target in
-                            TargetChip(target: target, isSelected: selectedTarget?.id == target.id)
-                                .onTapGesture {
-                                    let isSame = selectedTarget?.id == target.id
-                                    selectedTarget = isSame ? nil : target
-                                    if !isSame {
-                                        // Pre-fill harga beli dari target nominal
-                                        nominal = target.targetNominal
-                                        wishlistDanaTarget = 0
-                                    }
+                            WishlistPickerCard(
+                                target: target,
+                                isSelected: selectedTarget?.id == target.id
+                            )
+                            .onTapGesture {
+                                let isSame = selectedTarget?.id == target.id
+                                selectedTarget = isSame ? nil : target
+                                if !isSame {
+                                    nominal = target.targetNominal
+                                    wishlistDanaTarget = 0
                                 }
+                            }
                         }
                     }
                 }
@@ -334,7 +339,6 @@ struct AddEditTransaksiSheet: View {
                             }
                             CalcInputField(value: $wishlistDanaTarget, placeholder: "0 — tidak pakai dana tabungan")
                                 .onChange(of: wishlistDanaTarget) { _, val in
-                                    // Cap di saldo tersimpan dan di harga beli
                                     let cap = min(linked.saldo, nominal)
                                     if val > cap { wishlistDanaTarget = cap }
                                 }
@@ -556,7 +560,7 @@ private struct SubTipeChip: View {
     }
 }
 
-// MARK: - Target chip
+// MARK: - Target chip (used for Nabung picker)
 
 private struct TargetChip: View {
     let target: Target
@@ -580,5 +584,117 @@ private struct TargetChip: View {
         .padding(.vertical, 8)
         .background(isSelected ? Color(hex: target.warna) : theme.bgCard)
         .clipShape(Capsule())
+    }
+}
+
+// MARK: - Wishlist Picker Card (2-column photo card)
+
+private struct WishlistPickerCard: View {
+    let target: Target
+    let isSelected: Bool
+    @Environment(\.appTheme) private var theme
+
+    private var targetColor: Color { Color(hex: target.warna) }
+    private var progress: Double { min(target.progressPersen / 100.0, 1.0) }
+    private var hasFoto: Bool { target.fotoData != nil }
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            // Background: foto atau warna solid
+            if let data = target.fotoData, let uiImg = UIImage(data: data) {
+                Image(uiImage: uiImg)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 130)
+                    .clipped()
+            } else {
+                ZStack(alignment: .leading) {
+                    theme.bgCard
+                    Rectangle()
+                        .fill(targetColor)
+                        .frame(width: 3)
+                }
+                .frame(height: 130)
+            }
+
+            // Gradient overlay (lebih tebal untuk foto)
+            LinearGradient(
+                colors: hasFoto
+                    ? [.clear, Color.black.opacity(0.5), Color.black.opacity(0.88)]
+                    : [.clear, Color.black.opacity(0.15), Color.black.opacity(0.4)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            // Content
+            VStack(alignment: .leading, spacing: 4) {
+                // Icon / emoji
+                ZStack {
+                    Circle()
+                        .fill(hasFoto ? Color.black.opacity(0.3) : targetColor.opacity(0.2))
+                        .frame(width: 30, height: 30)
+                    if let emoji = target.ikonCustom, !emoji.isEmpty {
+                        Text(emoji).font(.system(size: 14))
+                    } else {
+                        Image(systemName: target.ikon)
+                            .font(.system(size: 12))
+                            .foregroundStyle(hasFoto ? .white : targetColor)
+                    }
+                }
+
+                // Nama
+                Text(target.nama)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .shadow(color: .black.opacity(0.5), radius: 3)
+
+                // Tersimpan / target
+                Text(target.targetNominal > 0
+                     ? "\(String(format: "%.0f", target.progressPersen))%"
+                     : "Rp -")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(hasFoto ? .white.opacity(0.8) : targetColor)
+
+                // Mini progress bar
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.white.opacity(0.2))
+                            .frame(height: 3)
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(hasFoto ? Color.white : targetColor)
+                            .frame(width: geo.size.width * progress, height: 3)
+                    }
+                }
+                .frame(height: 3)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(height: 130)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(
+                    isSelected ? targetColor : Color.clear,
+                    lineWidth: 3
+                )
+        }
+        // Checkmark overlay saat selected
+        .overlay(alignment: .topTrailing) {
+            if isSelected {
+                ZStack {
+                    Circle()
+                        .fill(targetColor)
+                        .frame(width: 22, height: 22)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                .padding(8)
+            }
+        }
     }
 }
