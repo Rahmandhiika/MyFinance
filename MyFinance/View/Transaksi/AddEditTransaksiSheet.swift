@@ -140,12 +140,29 @@ struct AddEditTransaksiSheet: View {
                         if tipe == .pengeluaran && subTipe == .simpanKeTarget {
                             VStack(alignment: .leading, spacing: 10) {
                                 sectionLabel("Wishlist / Target")
-                                FlowLayout(spacing: 8, lineSpacing: 8) {
-                                    ForEach(allTargets.filter { !$0.isSelesai }) { target in
-                                        TargetChip(target: target, isSelected: selectedTarget?.id == target.id)
+                                let nabungTargets = allTargets.filter { !$0.isSelesai }
+                                if nabungTargets.isEmpty {
+                                    Text("Belum ada wishlist / target aktif")
+                                        .font(.caption)
+                                        .foregroundStyle(theme.textSecondary)
+                                        .padding(12)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(theme.bgCard)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                } else {
+                                    LazyVGrid(
+                                        columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+                                        spacing: 10
+                                    ) {
+                                        ForEach(nabungTargets) { target in
+                                            WishlistPickerCard(
+                                                target: target,
+                                                isSelected: selectedTarget?.id == target.id
+                                            )
                                             .onTapGesture {
                                                 selectedTarget = selectedTarget?.id == target.id ? nil : target
                                             }
+                                        }
                                     }
                                 }
                             }
