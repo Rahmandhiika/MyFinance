@@ -61,10 +61,8 @@ struct CalcKeypad: View {
         }
         .background(theme.bgApp)
         .onAppear {
-            // Seed with current value
-            if value > 0 {
-                currentInput = formatRaw(value)
-            }
+            // Seed with current value (termasuk 0 — biar user lihat angka yang sedang di-edit)
+            currentInput = value > 0 ? formatRaw(value) : "0"
         }
     }
 
@@ -214,8 +212,6 @@ struct CalcKeypad: View {
             .clipShape(RoundedRectangle(cornerRadius: 16))
         }
         .buttonStyle(.plain)
-        .disabled(confirmValue == 0)
-        .opacity(confirmValue == 0 ? 0.5 : 1)
     }
 
     // MARK: - Colors
@@ -396,7 +392,7 @@ struct CalcInputField: View {
                 }
                 Text(value > 0 ? value.decimalDisplayFormatted : placeholder)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(value > 0 ? theme.textPrimary : theme.textSecondary.opacity(0.5))
+                    .foregroundStyle(value > 0 ? theme.textPrimary : theme.textSecondary.opacity(0.6))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Spacer()
