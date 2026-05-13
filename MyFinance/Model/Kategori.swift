@@ -14,6 +14,7 @@ import Foundation
     var isNabung: Bool = false      // → masuk Nabung Bulan Ini
     var isAdmin: Bool = false       // → auto-assign ke biaya admin transfer/jual
     var isHasilAset: Bool = false   // → auto-assign ke pemasukan hasil jual aset
+    var isWishlist: Bool = false    // → auto-assign ke transaksi Beli Wishlist
     var createdAt: Date
 
     init(nama: String, tipe: TipeTransaksi, klasifikasi: KlasifikasiExpense? = nil,

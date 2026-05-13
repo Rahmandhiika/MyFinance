@@ -417,7 +417,7 @@ struct HomeView: View {
                 shortcutCard(label: "Analitik", icon: "chart.bar.fill", color: Color(hex: "#A78BFA"))
             }
             NavigationLink(destination: TargetListView()) {
-                shortcutCard(label: "Target", icon: "target", color: theme.accent)
+                shortcutCard(label: "Wishlist", icon: "heart.fill", color: theme.accent)
             }
             NavigationLink(destination: AsetListView()) {
                 shortcutCard(label: "Aset", icon: "briefcase.fill", color: Color(hex: "#F59E0B"))
@@ -676,7 +676,7 @@ struct HomeView: View {
     // MARK: - Goals Section
     private var goalsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionHeader(label: "TARGET AKTIF", icon: "target")
+            sectionHeader(label: "WISHLIST AKTIF", icon: "heart.fill")
 
             ForEach(activeTargets) { target in
                 goalCard(target: target)

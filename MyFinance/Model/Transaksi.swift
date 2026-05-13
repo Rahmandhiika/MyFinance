@@ -10,8 +10,9 @@ import Foundation
     var kategori: Kategori?
     var pocket: Pocket?
     var catatan: String?
-    var goalID: UUID?       // linked Target if subTipe != .normal
-    var otomatisID: UUID?   // linked TransaksiOtomatis if auto-generated
+    var goalID: UUID?                  // linked Target if subTipe != .normal
+    var otomatisID: UUID?              // linked TransaksiOtomatis if auto-generated
+    var wishlistDanaTarget: Decimal?   // dana terpakai dari linkedPocket target (beliWishlist)
     var createdAt: Date
 
     init(tanggal: Date = Date(), nominal: Decimal, tipe: TipeTransaksi,

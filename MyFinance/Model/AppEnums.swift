@@ -17,18 +17,25 @@ enum TipeTransaksi: String, Codable, CaseIterable, Identifiable {
 }
 
 enum SubTipeTransaksi: String, Codable, CaseIterable, Identifiable {
-    case normal = "normal"
-    case simpanKeTarget = "simpanKeTarget"
-    case pakaiDariTarget = "pakaiDariTarget"
+    case normal          = "normal"
+    case simpanKeTarget  = "simpanKeTarget"
+    case pakaiDariTarget = "pakaiDariTarget"  // legacy — hidden from UI, kept for data compat
+    case beliWishlist    = "beliWishlist"
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .normal: "Normal"
-        case .simpanKeTarget: "Simpan ke Target"
-        case .pakaiDariTarget: "Pakai dari Target"
+        case .normal:          "Normal"
+        case .simpanKeTarget:  "Nabung"
+        case .pakaiDariTarget: "Pakai dari Wishlist"
+        case .beliWishlist:    "Beli Wishlist"
         }
+    }
+
+    /// Tampil di picker form transaksi (pakaiDariTarget disembunyikan)
+    static var formCases: [SubTipeTransaksi] {
+        [.normal, .simpanKeTarget, .beliWishlist]
     }
 }
 

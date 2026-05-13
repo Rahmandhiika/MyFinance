@@ -178,7 +178,7 @@ struct TargetDetailSheet: View {
     @ViewBuilder
     private var biasaDetailRows: some View {
         VStack(spacing: 1) {
-            detailRow(label: "TARGET", value: target.targetNominal.idrFormatted, valueColor: .white)
+            detailRow(label: "HARGA WISHLIST", value: target.targetNominal.idrFormatted, valueColor: .white)
             detailRow(label: "DEADLINE", value: deadlineFormatted, valueColor: .white)
 
             // Pocket linked
@@ -215,7 +215,7 @@ struct TargetDetailSheet: View {
     @ViewBuilder
     private func investasiDetailRows(aset: Aset) -> some View {
         VStack(spacing: 1) {
-            detailRow(label: "TARGET", value: target.targetNominal.idrFormatted, valueColor: .white)
+            detailRow(label: "HARGA TARGET INVESTASI", value: target.targetNominal.idrFormatted, valueColor: .white)
             detailRow(label: "DEADLINE", value: deadlineFormatted, valueColor: .white)
             detailRow(label: "MODAL (BIAYA MASUK)", value: aset.modal.idrFormatted, valueColor: .white)
             detailRow(label: "NILAI SAAT INI", value: aset.nilaiEfektif.idrFormatted, valueColor: Color(hex: "#22D3EE"))
@@ -230,7 +230,7 @@ struct TargetDetailSheet: View {
             let retPrefix = ret >= 0 ? "+" : ""
             detailRow(label: "RETURN", value: String(format: "\(retPrefix)%.2f%%", ret), valueColor: retColor)
 
-            detailRow(label: "SISA MENUJU TARGET", value: target.sisa.idrFormatted, valueColor: Color(hex: "#F59E0B"))
+            detailRow(label: "SISA MENUJU TARGET INVESTASI", value: target.sisa.idrFormatted, valueColor: Color(hex: "#F59E0B"))
 
             // Deposito extra info
             if aset.tipe == .deposito {

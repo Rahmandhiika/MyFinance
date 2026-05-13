@@ -147,6 +147,11 @@ struct KategoriRow: View {
                             .font(.system(size: 11))
                             .foregroundStyle(Color(hex: "#22C55E"))
                     }
+                    if kategori.isWishlist {
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color(hex: "#EC4899"))
+                    }
                 }
                 if let k = kategori.klasifikasi {
                     Text(k.displayName)

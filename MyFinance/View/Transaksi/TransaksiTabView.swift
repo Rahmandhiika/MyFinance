@@ -465,11 +465,10 @@ private struct TransaksiRow: View {
                     .foregroundStyle(theme.textPrimary)
 
                 HStack(spacing: 6) {
-                    // Target badge — muncul kalau ada goalID
+                    // Wishlist/Target badge — muncul kalau ada goalID
                     if let target = linkedTarget {
-                        let isKeluar = transaksi.subTipe == .simpanKeTarget
                         HStack(spacing: 3) {
-                            Image(systemName: isKeluar ? "arrow.right.circle.fill" : "arrow.left.circle.fill")
+                            Image(systemName: subTipeBadgeIcon(transaksi.subTipe))
                                 .font(.system(size: 8))
                             Text(target.nama)
                                 .font(.caption2.weight(.medium))
@@ -515,6 +514,14 @@ private struct TransaksiRow: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .contentShape(Rectangle())
+    }
+
+    private func subTipeBadgeIcon(_ subTipe: SubTipeTransaksi) -> String {
+        switch subTipe {
+        case .beliWishlist:   return "heart.fill"
+        case .simpanKeTarget: return "arrow.right.circle.fill"
+        default:              return "arrow.left.circle.fill"
+        }
     }
 }
 

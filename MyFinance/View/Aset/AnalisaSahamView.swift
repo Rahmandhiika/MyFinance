@@ -9,6 +9,16 @@ private enum AnalisisState {
     case error(String)
 }
 
+// MARK: - Shared formatters
+
+private func formatRp(_ val: Double) -> String {
+    let f = NumberFormatter()
+    f.numberStyle = .decimal
+    f.maximumFractionDigits = 0
+    f.locale = Locale(identifier: "id_ID")
+    return "Rp\(f.string(from: NSNumber(value: val)) ?? "-")"
+}
+
 // MARK: - Detail Item (Identifiable wrapper — fixes blank black sheet bug)
 
 private struct AnalisaDetailItem: Identifiable {
@@ -672,14 +682,6 @@ struct AnalisaSahamDetailSheet: View {
                 .lineLimit(1).minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private func formatRp(_ val: Double) -> String {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        f.maximumFractionDigits = 0
-        f.locale = Locale(identifier: "id_ID")
-        return "Rp\(f.string(from: NSNumber(value: val)) ?? "-")"
     }
 
     private func formatVol(_ val: Double) -> String {

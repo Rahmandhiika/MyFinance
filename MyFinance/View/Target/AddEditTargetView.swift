@@ -163,7 +163,7 @@ struct AddEditTargetView: View {
                     .padding(.bottom, 32)
                 }
             }
-            .navigationTitle(isEditing ? "Edit Target" : "Bikin Target Baru")
+            .navigationTitle(isEditing ? "Edit Wishlist" : "Bikin Wishlist Baru")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(theme.bgApp, for: .navigationBar)
             .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
@@ -832,7 +832,7 @@ struct AddEditTargetView: View {
     // MARK: - Deadline & Ikon
 
     private var deadlineSection: some View {
-        formSection(label: "TARGET KAPAN TERCAPAI? (OPSIONAL)") {
+        formSection(label: "DEADLINE WISHLIST (OPSIONAL)") {
             VStack(spacing: 10) {
                 Toggle("Aktifkan deadline", isOn: $hasDeadline)
                     .toggleStyle(SwitchToggleStyle(tint: selectedColor))

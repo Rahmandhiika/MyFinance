@@ -13,9 +13,14 @@ struct AddEditTransaksiSheet: View {
     private var adminKategori: Kategori? {
         allKategoris.first { $0.isAdmin && $0.tipe == .pengeluaran }
     }
-
     private var nabungKategori: Kategori? {
         allKategoris.first { $0.isNabung && $0.tipe == .pengeluaran }
+    }
+    private var wishlistKategori: Kategori? {
+        allKategoris.first { $0.isWishlist && $0.tipe == .pengeluaran }
+    }
+    private var wishlistTargets: [Target] {
+        allTargets.filter { !$0.isSelesai && $0.jenisTarget == .biasa }
     }
 
     // Edit mode
@@ -35,6 +40,7 @@ struct AddEditTransaksiSheet: View {
     @State private var catatan: String = ""
     @State private var tanggal: Date = Date()
     @State private var biayaAdmin: Decimal = 0
+    @State private var wishlistDanaTarget: Decimal = 0
 
     init(transaksi: Transaksi? = nil,
          prefilledSubTipe: SubTipeTransaksi? = nil,
@@ -55,7 +61,9 @@ struct AddEditTransaksiSheet: View {
     }
 
     private var canSave: Bool {
-        nominal > 0 && selectedPocket != nil
+        guard selectedPocket != nil else { return false }
+        if subTipe == .beliWishlist { return nominal > 0 && selectedTarget != nil }
+        return nominal > 0
     }
 
     private var nominalDisplay: String {
@@ -114,26 +122,24 @@ struct AddEditTransaksiSheet: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 sectionLabel("Sub Tipe")
                                 HStack(spacing: 8) {
-                                    ForEach(SubTipeTransaksi.allCases) { st in
-                                        SubTipeChip(
-                                            label: st.displayName,
-                                            isSelected: subTipe == st
-                                        )
-                                        .onTapGesture {
-                                            subTipe = st
-                                            selectedTarget = nil
-                                            selectedKategori = nil
-                                        }
+                                    ForEach(SubTipeTransaksi.formCases) { st in
+                                        SubTipeChip(label: st.displayName, isSelected: subTipe == st)
+                                            .onTapGesture {
+                                                subTipe = st
+                                                selectedTarget = nil
+                                                selectedKategori = nil
+                                                wishlistDanaTarget = 0
+                                            }
                                     }
                                 }
                             }
                             .padding(.horizontal, 16)
                         }
 
-                        // Target picker (when subTipe != normal)
-                        if tipe == .pengeluaran && subTipe != .normal {
+                        // Nabung: target picker biasa + investasi
+                        if tipe == .pengeluaran && subTipe == .simpanKeTarget {
                             VStack(alignment: .leading, spacing: 10) {
-                                sectionLabel("Target")
+                                sectionLabel("Wishlist / Target")
                                 FlowLayout(spacing: 8, lineSpacing: 8) {
                                     ForEach(allTargets.filter { !$0.isSelesai }) { target in
                                         TargetChip(target: target, isSelected: selectedTarget?.id == target.id)
@@ -146,7 +152,12 @@ struct AddEditTransaksiSheet: View {
                             .padding(.horizontal, 16)
                         }
 
-                        // Kategori grid (when subTipe == normal)
+                        // Beli Wishlist section
+                        if tipe == .pengeluaran && subTipe == .beliWishlist {
+                            beliWishlistSection
+                        }
+
+                        // Kategori grid (hanya normal)
                         if subTipe == .normal {
                             VStack(alignment: .leading, spacing: 10) {
                                 sectionLabel("Kategori")
@@ -239,6 +250,114 @@ struct AddEditTransaksiSheet: View {
         .preferredColorScheme(theme.colorScheme)
     }
 
+    // MARK: - Beli Wishlist Section
+
+    private var beliWishlistSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+
+            // Picker wishlist
+            VStack(alignment: .leading, spacing: 10) {
+                sectionLabel("Pilih Wishlist")
+                if wishlistTargets.isEmpty {
+                    Text("Belum ada wishlist aktif")
+                        .font(.caption)
+                        .foregroundStyle(theme.textSecondary)
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(theme.bgCard)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                } else {
+                    FlowLayout(spacing: 8, lineSpacing: 8) {
+                        ForEach(wishlistTargets) { target in
+                            TargetChip(target: target, isSelected: selectedTarget?.id == target.id)
+                                .onTapGesture {
+                                    let isSame = selectedTarget?.id == target.id
+                                    selectedTarget = isSame ? nil : target
+                                    if !isSame {
+                                        // Pre-fill harga beli dari target nominal
+                                        nominal = target.targetNominal
+                                        wishlistDanaTarget = 0
+                                    }
+                                }
+                        }
+                    }
+                }
+            }
+
+            // Info harga target + field harga beli
+            if let target = selectedTarget {
+                VStack(alignment: .leading, spacing: 10) {
+
+                    // Harga target info
+                    HStack(spacing: 8) {
+                        Image(systemName: "tag.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color(hex: target.warna))
+                        Text("Harga Target")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(theme.textSecondary)
+                        Spacer()
+                        Text(target.targetNominal > 0 ? target.targetNominal.idrFormatted : "Tidak diset")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(Color(hex: target.warna))
+                    }
+                    .padding(12)
+                    .background(Color(hex: target.warna).opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                    // Harga beli (nominal)
+                    VStack(alignment: .leading, spacing: 6) {
+                        sectionLabel("Harga Beli (aktual)")
+                        CalcInputField(value: $nominal)
+                        if target.targetNominal > 0 && nominal != target.targetNominal {
+                            let selisih = nominal - target.targetNominal
+                            HStack(spacing: 4) {
+                                Image(systemName: selisih > 0 ? "arrow.up.circle" : "arrow.down.circle")
+                                    .font(.caption2)
+                                    .foregroundStyle(selisih > 0 ? Color(hex: "#F59E0B") : Color(hex: "#22C55E"))
+                                Text("\(selisih > 0 ? "+" : "")\(selisih.idrFormatted) dari harga target")
+                                    .font(.caption2)
+                                    .foregroundStyle(selisih > 0 ? Color(hex: "#F59E0B") : Color(hex: "#22C55E"))
+                            }
+                        }
+                    }
+
+                    // Dana dari wishlist (hanya jika ada linkedPocket dengan saldo)
+                    if let linked = target.linkedPocket, linked.saldo > 0 {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                sectionLabel("Dana dari Wishlist (opsional)")
+                                Spacer()
+                                Text("Tersimpan: \(linked.saldo.idrFormatted)")
+                                    .font(.caption2)
+                                    .foregroundStyle(theme.textSecondary)
+                            }
+                            CalcInputField(value: $wishlistDanaTarget, placeholder: "0 — tidak pakai dana tabungan")
+                                .onChange(of: wishlistDanaTarget) { _, val in
+                                    // Cap di saldo tersimpan dan di harga beli
+                                    let cap = min(linked.saldo, nominal)
+                                    if val > cap { wishlistDanaTarget = cap }
+                                }
+                            if wishlistDanaTarget > 0 {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "info.circle")
+                                        .font(.caption2).foregroundStyle(.gray)
+                                    let sisaDariPocket = nominal - wishlistDanaTarget
+                                    Text("Keluar dari pocket: \(sisaDariPocket.idrFormatted) · Dari tabungan: \(wishlistDanaTarget.idrFormatted)")
+                                        .font(.caption2).foregroundStyle(.gray)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(14)
+                .background(theme.bgCard)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
     // MARK: - Admin Quick Pick
 
     @ViewBuilder
@@ -287,6 +406,7 @@ struct AddEditTransaksiSheet: View {
             if let gid = t.goalID {
                 selectedTarget = allTargets.first { $0.id == gid }
             }
+            wishlistDanaTarget = t.wishlistDanaTarget ?? 0
         } else if let preSubTipe = prefilledSubTipe {
             // Pre-fill for target flows
             tipe = .pengeluaran
@@ -300,19 +420,38 @@ struct AddEditTransaksiSheet: View {
     private func saveTransaksi() {
         guard let pocket = selectedPocket else { return }
 
-        // Transaksi simpan/pakai target otomatis pakai kategori nabung
-        let finalKategori: Kategori? = subTipe != .normal ? nabungKategori : selectedKategori
+        // Determine kategori berdasarkan sub tipe
+        let finalKategori: Kategori?
+        switch subTipe {
+        case .beliWishlist:   finalKategori = wishlistKategori
+        case .simpanKeTarget: finalKategori = nabungKategori
+        default:              finalKategori = selectedKategori
+        }
 
         if let existing = editingTransaksi {
             // Revert old pocket saldo
             if let oldPocket = existing.pocket {
                 if existing.tipe == .pengeluaran {
-                    oldPocket.saldo += existing.nominal
+                    if existing.subTipe == .beliWishlist {
+                        // Pocket hanya kena (nominal - danaTarget)
+                        let oldDana = existing.wishlistDanaTarget ?? 0
+                        oldPocket.saldo += (existing.nominal - oldDana)
+                        // Kembalikan dana ke linkedPocket target lama
+                        if let oldGoalID = existing.goalID,
+                           let oldTarget = allTargets.first(where: { $0.id == oldGoalID }),
+                           oldDana > 0,
+                           let linked = oldTarget.linkedPocket {
+                            linked.saldo += oldDana
+                            oldTarget.isSelesai = false
+                        }
+                    } else {
+                        oldPocket.saldo += existing.nominal
+                    }
                 } else {
                     oldPocket.saldo -= existing.nominal
                 }
             }
-            // Update
+            // Update fields
             existing.nominal = nominal
             existing.tipe = tipe
             existing.subTipe = subTipe
@@ -321,6 +460,16 @@ struct AddEditTransaksiSheet: View {
             existing.catatan = catatan.isEmpty ? nil : catatan
             existing.tanggal = tanggal
             existing.goalID = selectedTarget?.id
+            existing.wishlistDanaTarget = subTipe == .beliWishlist && wishlistDanaTarget > 0
+                ? wishlistDanaTarget : nil
+
+            // Re-apply beliWishlist effect untuk edit
+            if subTipe == .beliWishlist, let target = selectedTarget {
+                if wishlistDanaTarget > 0, let linked = target.linkedPocket {
+                    linked.saldo -= wishlistDanaTarget
+                }
+                target.isSelesai = true
+            }
         } else {
             let t = Transaksi(
                 tanggal: tanggal,
@@ -332,10 +481,12 @@ struct AddEditTransaksiSheet: View {
                 catatan: catatan.isEmpty ? nil : catatan,
                 goalID: selectedTarget?.id
             )
+            t.wishlistDanaTarget = subTipe == .beliWishlist && wishlistDanaTarget > 0
+                ? wishlistDanaTarget : nil
             modelContext.insert(t)
 
-            // SimpanKeTarget record
-            if tipe == .pengeluaran, let target = selectedTarget, subTipe != .normal {
+            // SimpanKeTarget record (hanya untuk simpanKeTarget)
+            if tipe == .pengeluaran, subTipe == .simpanKeTarget, let target = selectedTarget {
                 let record = SimpanKeTarget(
                     target: target,
                     tanggal: tanggal,
@@ -343,17 +494,26 @@ struct AddEditTransaksiSheet: View {
                     catatan: catatan.isEmpty ? nil : catatan
                 )
                 modelContext.insert(record)
-
-                // Tambah saldo pocket yang ter-link ke target biasa
-                if subTipe == .simpanKeTarget, let linkedPocket = target.linkedPocket {
+                // Tambah saldo linkedPocket target
+                if let linkedPocket = target.linkedPocket {
                     linkedPocket.saldo += nominal
                 }
+            }
+
+            // Beli Wishlist: kurangi linkedPocket, tandai target selesai
+            if subTipe == .beliWishlist, let target = selectedTarget {
+                if wishlistDanaTarget > 0, let linked = target.linkedPocket {
+                    linked.saldo -= wishlistDanaTarget
+                }
+                target.isSelesai = true
             }
         }
 
         // Adjust pocket saldo
         if tipe == .pengeluaran {
-            pocket.saldo -= nominal
+            // beliWishlist: pocket hanya kena bagian yang tidak ditanggung dana wishlist
+            let deductAmount = subTipe == .beliWishlist ? (nominal - wishlistDanaTarget) : nominal
+            pocket.saldo -= deductAmount
         } else {
             pocket.saldo += nominal
         }

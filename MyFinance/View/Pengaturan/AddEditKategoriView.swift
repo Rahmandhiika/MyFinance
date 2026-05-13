@@ -20,6 +20,7 @@ struct AddEditKategoriView: View {
     @State private var isNabung = false
     @State private var isAdmin = false
     @State private var isHasilAset = false
+    @State private var isWishlist = false
 
     var isEditing: Bool { kategori != nil }
     var canSave: Bool { !nama.trimmingCharacters(in: .whitespaces).isEmpty }
@@ -111,6 +112,13 @@ struct AddEditKategoriView: View {
                                 title: "Tandai sebagai Biaya Admin",
                                 subtitle: "Auto-assign ke biaya admin transfer & jual aset"
                             )
+                            kategoriToggle(
+                                isOn: $isWishlist,
+                                icon: "heart.fill",
+                                color: "#EC4899",
+                                title: "Tandai sebagai Beli Wishlist",
+                                subtitle: "Auto-assign ke transaksi pembelian wishlist"
+                            )
                         }
                     }
 
@@ -164,6 +172,7 @@ struct AddEditKategoriView: View {
         isNabung = k.isNabung
         isAdmin = k.isAdmin
         isHasilAset = k.isHasilAset
+        isWishlist = k.isWishlist
     }
 
     private func save() {
@@ -178,6 +187,7 @@ struct AddEditKategoriView: View {
             k.isNabung = tipe == .pengeluaran ? isNabung : false
             k.isAdmin = tipe == .pengeluaran ? isAdmin : false
             k.isHasilAset = tipe == .pemasukan ? isHasilAset : false
+            k.isWishlist = tipe == .pengeluaran ? isWishlist : false
         } else {
             let urutan = allKategoris.filter { $0.tipe == tipe }.count
             let newK = Kategori(
@@ -193,6 +203,7 @@ struct AddEditKategoriView: View {
             newK.isNabung = tipe == .pengeluaran ? isNabung : false
             newK.isAdmin = tipe == .pengeluaran ? isAdmin : false
             newK.isHasilAset = tipe == .pemasukan ? isHasilAset : false
+            newK.isWishlist = tipe == .pengeluaran ? isWishlist : false
             context.insert(newK)
         }
         try? context.save()

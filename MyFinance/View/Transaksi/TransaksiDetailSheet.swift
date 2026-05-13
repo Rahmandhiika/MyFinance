@@ -96,6 +96,7 @@ struct TransaksiDetailSheet: View {
 
                         if let target = linkedTarget {
                             Divider().background(theme.separator)
+                            let labelWishlist = transaksi.subTipe == .beliWishlist ? "Wishlist" : "Target"
                             HStack(spacing: 12) {
                                 ZStack {
                                     Circle()
@@ -109,7 +110,7 @@ struct TransaksiDetailSheet: View {
                                     }
                                 }
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("Target")
+                                    Text(labelWishlist)
                                         .font(.caption)
                                         .foregroundStyle(.gray)
                                     Text(target.nama)
@@ -127,6 +128,18 @@ struct TransaksiDetailSheet: View {
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
+
+                            // Dana dari wishlist (beliWishlist)
+                            if transaksi.subTipe == .beliWishlist,
+                               let dana = transaksi.wishlistDanaTarget, dana > 0 {
+                                Divider().background(theme.separator)
+                                detailRow(
+                                    icon: "banknote",
+                                    iconColor: Color(hex: target.warna),
+                                    label: "Dana dari Tabungan Wishlist",
+                                    value: dana.idrFormatted
+                                )
+                            }
                         }
                     }
                     .background(theme.bgCard)
@@ -212,7 +225,13 @@ struct TransaksiDetailSheet: View {
         // 1. Revert saldo pocket sumber
         if let pocket = transaksi.pocket {
             if transaksi.tipe == .pengeluaran {
-                pocket.saldo += transaksi.nominal
+                if transaksi.subTipe == .beliWishlist {
+                    // Pocket hanya kena (nominal - danaTarget) saat transaksi dibuat
+                    let dana = transaksi.wishlistDanaTarget ?? 0
+                    pocket.saldo += (transaksi.nominal - dana)
+                } else {
+                    pocket.saldo += transaksi.nominal
+                }
             } else {
                 pocket.saldo -= transaksi.nominal
             }
@@ -222,18 +241,28 @@ struct TransaksiDetailSheet: View {
         if transaksi.subTipe != .normal, let target = linkedTarget {
             let cal = Calendar.current
 
-            // Hapus SimpanKeTarget record yang matching (tanggal ±1 menit, nominal sama)
-            if let record = target.riwayat.first(where: {
-                cal.isDate($0.tanggal, equalTo: transaksi.tanggal, toGranularity: .minute)
-                && $0.nominal == transaksi.nominal
-            }) {
-                modelContext.delete(record)
-            }
+            if transaksi.subTipe == .beliWishlist {
+                // Kembalikan dana ke linkedPocket wishlist
+                let dana = transaksi.wishlistDanaTarget ?? 0
+                if dana > 0, let linked = target.linkedPocket {
+                    linked.saldo += dana
+                }
+                // Un-complete target
+                target.isSelesai = false
+            } else {
+                // Hapus SimpanKeTarget record yang matching (tanggal ±1 menit, nominal sama)
+                if let record = target.riwayat.first(where: {
+                    cal.isDate($0.tanggal, equalTo: transaksi.tanggal, toGranularity: .minute)
+                    && $0.nominal == transaksi.nominal
+                }) {
+                    modelContext.delete(record)
+                }
 
-            // Rollback linkedPocket target biasa (hanya simpanKeTarget yang menambah saldo)
-            if transaksi.subTipe == .simpanKeTarget,
-               let linkedPocket = target.linkedPocket {
-                linkedPocket.saldo -= transaksi.nominal
+                // Rollback linkedPocket target biasa (hanya simpanKeTarget yang menambah saldo)
+                if transaksi.subTipe == .simpanKeTarget,
+                   let linkedPocket = target.linkedPocket {
+                    linkedPocket.saldo -= transaksi.nominal
+                }
             }
         }
 

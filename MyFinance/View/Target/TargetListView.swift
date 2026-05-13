@@ -48,7 +48,7 @@ struct TargetListView: View {
                 }
             }
         }
-        .navigationTitle("Target")
+        .navigationTitle("Wishlist")
         .navigationBarTitleDisplayMode(.large)
         .toolbarBackground(theme.bgApp, for: .navigationBar)
         .toolbarColorScheme(theme.colorScheme == .dark ? .dark : .light, for: .navigationBar)
@@ -186,7 +186,7 @@ struct TargetListView: View {
                     .foregroundStyle(theme.textPrimary)
             }
             Spacer()
-            Text("\(allTargets.count) TARGET")
+            Text("\(allTargets.count) WISHLIST")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(accentGreen)
                 .padding(.horizontal, 12)
@@ -380,17 +380,17 @@ struct TargetListView: View {
             Image(systemName: "target")
                 .font(.system(size: 48))
                 .foregroundStyle(.gray)
-            Text("Belum ada target")
+            Text("Belum ada wishlist")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(theme.textPrimary)
-            Text("Yuk buat target tabungan pertamamu!")
+            Text("Yuk buat wishlist pertamamu!")
                 .font(.subheadline)
                 .foregroundStyle(.gray)
                 .multilineTextAlignment(.center)
             Button {
                 showAddSheet = true
             } label: {
-                Text("+ Bikin Target")
+                Text("+ Bikin Wishlist")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.black)
                     .padding(.horizontal, 24)
