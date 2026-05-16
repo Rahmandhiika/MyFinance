@@ -21,7 +21,8 @@ class ModelContainerService {
             PembayaranLangganan.self,
             UserProfile.self,
             PortofolioConfig.self,
-            NetWorthSnapshot.self
+            NetWorthSnapshot.self,
+            SavedAIInsight.self
         ])
 
         let storeURL = URL.applicationSupportDirectory

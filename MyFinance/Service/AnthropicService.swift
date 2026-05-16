@@ -9,8 +9,43 @@ struct AIChatMessage: Identifiable, Equatable {
     let role: Role
     let content: String
     let timestamp: Date = Date()
+    var toolCall: AIToolCall? = nil     // non-nil kalau AI minta jalankan tool
+    var isToolResult: Bool = false      // pesan berisi hasil eksekusi tool
 
     enum Role { case user, assistant }
+}
+
+// MARK: - AI Tool Call
+
+struct AIToolCall: Equatable {
+    let toolUseId: String
+    let name: AIToolName
+    let input: [String: String]         // parameter dari AI
+    var status: Status = .pending
+
+    enum Status { case pending, confirmed, rejected, executed }
+}
+
+enum AIToolName: String, CaseIterable {
+    case setAnggaran          = "set_anggaran"
+    case renameKategori       = "rename_kategori"
+    case pindahKategoriTx     = "pindah_kategori_transaksi"
+
+    var displayName: String {
+        switch self {
+        case .setAnggaran:       return "Set Budget"
+        case .renameKategori:    return "Rename Kategori"
+        case .pindahKategoriTx:  return "Pindah Kategori Transaksi"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .setAnggaran:       return "chart.bar.fill"
+        case .renameKategori:    return "tag.fill"
+        case .pindahKategoriTx:  return "arrow.triangle.2.circlepath"
+        }
+    }
 }
 
 // MARK: - Anthropic Service
@@ -26,36 +61,119 @@ final class AnthropicService: ObservableObject {
     private let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
     private let model    = "claude-haiku-4-5"
 
-    // MARK: - Send Message
+    // MARK: - Send Message (returns text or tool call)
 
-    /// Kirim pesan ke Claude dengan context keuangan user
     func sendMessage(
         userMessage: String,
         history: [AIChatMessage],
         financialContext: String,
         apiKey: String
-    ) async throws -> String {
+    ) async throws -> AIChatMessage {
         guard !apiKey.trimmingCharacters(in: .whitespaces).isEmpty else {
             throw AnthropicError.missingAPIKey
         }
-
         isLoading = true
         defer { isLoading = false }
 
-        // Build messages array dari history
-        var messages: [[String: String]] = history.map { msg in
-            ["role": msg.role == .user ? "user" : "assistant", "content": msg.content]
-        }
-        messages.append(["role": "user", "content": userMessage])
-
-        let systemPrompt = buildSystemPrompt(context: financialContext)
+        let messages = buildMessages(history: history, newUserMessage: userMessage)
         let body: [String: Any] = [
             "model": model,
             "max_tokens": 1024,
-            "system": systemPrompt,
+            "system": buildSystemPrompt(context: financialContext),
+            "tools": aiTools,
             "messages": messages
         ]
 
+        let raw = try await postToAnthropic(body: body, apiKey: apiKey)
+        return parseResponse(raw)
+    }
+
+    // MARK: - Continue after tool result
+
+    /// Kirim hasil eksekusi tool balik ke Claude, dapat respons akhir
+    func continueAfterTool(
+        history: [AIChatMessage],
+        toolCall: AIToolCall,
+        resultText: String,
+        financialContext: String,
+        apiKey: String
+    ) async throws -> AIChatMessage {
+        isLoading = true
+        defer { isLoading = false }
+
+        // Rebuild messages including tool_use + tool_result
+        var messages = buildMessages(history: history.filter { !$0.isToolResult }, newUserMessage: nil)
+
+        // Append assistant tool_use block
+        messages.append([
+            "role": "assistant",
+            "content": [[
+                "type": "tool_use",
+                "id": toolCall.toolUseId,
+                "name": toolCall.name.rawValue,
+                "input": toolCall.input
+            ]]
+        ])
+        // Append tool_result
+        messages.append([
+            "role": "user",
+            "content": [[
+                "type": "tool_result",
+                "tool_use_id": toolCall.toolUseId,
+                "content": resultText
+            ]]
+        ])
+
+        let body: [String: Any] = [
+            "model": model,
+            "max_tokens": 512,
+            "system": buildSystemPrompt(context: financialContext),
+            "tools": aiTools,
+            "messages": messages
+        ]
+
+        let raw = try await postToAnthropic(body: body, apiKey: apiKey)
+        return parseResponse(raw)
+    }
+
+    // MARK: - Generate Insight Card
+
+    func generateInsight(type: AIInsightType, financialContext: String, apiKey: String) async throws -> String {
+        let result = try await sendMessage(
+            userMessage: type.prompt,
+            history: [],
+            financialContext: financialContext,
+            apiKey: apiKey
+        )
+        return result.content
+    }
+
+    // MARK: - Helpers
+
+    private func buildMessages(history: [AIChatMessage], newUserMessage: String?) -> [[String: Any]] {
+        var messages: [[String: Any]] = history.compactMap { msg in
+            guard !msg.isToolResult else { return nil }
+            if let tc = msg.toolCall, msg.role == .assistant {
+                // reconstruct tool_use assistant message
+                return [
+                    "role": "assistant",
+                    "content": [[
+                        "type": "tool_use",
+                        "id": tc.toolUseId,
+                        "name": tc.name.rawValue,
+                        "input": tc.input
+                    ]]
+                ]
+            }
+            return ["role": msg.role == .user ? "user" : "assistant", "content": msg.content]
+        }
+        if let newMsg = newUserMessage {
+            messages.append(["role": "user", "content": newMsg])
+        }
+        return messages
+    }
+
+    private func postToAnthropic(body: [String: Any], apiKey: String) async throws -> AnthropicRawResponse {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
@@ -64,36 +182,76 @@ final class AnthropicService: ObservableObject {
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let http = response as? HTTPURLResponse else {
-            throw AnthropicError.networkError
-        }
-
+        guard let http = response as? HTTPURLResponse else { throw AnthropicError.networkError }
         if http.statusCode == 401 { throw AnthropicError.invalidAPIKey }
         if http.statusCode == 429 { throw AnthropicError.rateLimited }
-        guard http.statusCode == 200 else {
-            throw AnthropicError.httpError(http.statusCode)
-        }
-
-        let result = try JSONDecoder().decode(AnthropicResponse.self, from: data)
-        return result.content.first?.text ?? ""
+        guard http.statusCode == 200 else { throw AnthropicError.httpError(http.statusCode) }
+        return try JSONDecoder().decode(AnthropicRawResponse.self, from: data)
     }
 
-    // MARK: - Generate Insight Card
+    private func parseResponse(_ raw: AnthropicRawResponse) -> AIChatMessage {
+        // Check for tool_use block first
+        for block in raw.content {
+            if block.type == "tool_use",
+               let toolName = AIToolName(rawValue: block.name ?? ""),
+               let id = block.id,
+               let inputDict = block.input {
+                // Convert input to [String: String]
+                let strInput = inputDict.reduce(into: [String: String]()) { result, pair in
+                    if case let .string(s) = pair.value { result[pair.key] = s }
+                    else { result[pair.key] = "\(pair.value)" }
+                }
+                let toolCall = AIToolCall(toolUseId: id, name: toolName, input: strInput)
+                return AIChatMessage(role: .assistant, content: "", toolCall: toolCall)
+            }
+        }
+        // Normal text response
+        let text = raw.content.first(where: { $0.type == "text" })?.text ?? ""
+        return AIChatMessage(role: .assistant, content: text)
+    }
 
-    /// Generate satu insight card — prompt spesifik per tipe
-    func generateInsight(
-        type: AIInsightType,
-        financialContext: String,
-        apiKey: String
-    ) async throws -> String {
-        let prompt = type.prompt
-        return try await sendMessage(
-            userMessage: prompt,
-            history: [],
-            financialContext: financialContext,
-            apiKey: apiKey
-        )
+    // MARK: - Tool Definitions
+
+    private var aiTools: [[String: Any]] {
+        [
+            [
+                "name": AIToolName.setAnggaran.rawValue,
+                "description": "Set atau update budget (anggaran) untuk kategori pengeluaran tertentu. Gunakan kalau user minta set/ubah budget.",
+                "input_schema": [
+                    "type": "object",
+                    "properties": [
+                        "kategori_nama": ["type": "string", "description": "Nama kategori yang ingin diset budgetnya"],
+                        "nominal": ["type": "string", "description": "Nominal budget dalam rupiah, angka saja tanpa titik/koma"]
+                    ],
+                    "required": ["kategori_nama", "nominal"]
+                ]
+            ],
+            [
+                "name": AIToolName.renameKategori.rawValue,
+                "description": "Ganti nama kategori transaksi. Gunakan kalau user minta rename kategori.",
+                "input_schema": [
+                    "type": "object",
+                    "properties": [
+                        "nama_lama": ["type": "string", "description": "Nama kategori saat ini"],
+                        "nama_baru": ["type": "string", "description": "Nama baru yang diinginkan"]
+                    ],
+                    "required": ["nama_lama", "nama_baru"]
+                ]
+            ],
+            [
+                "name": AIToolName.pindahKategoriTx.rawValue,
+                "description": "Pindahkan transaksi-transaksi terakhir dari satu kategori ke kategori lain. Gunakan kalau user minta recategorize transaksi.",
+                "input_schema": [
+                    "type": "object",
+                    "properties": [
+                        "dari_kategori": ["type": "string", "description": "Nama kategori asal"],
+                        "ke_kategori":   ["type": "string", "description": "Nama kategori tujuan"],
+                        "jumlah":        ["type": "string", "description": "Berapa transaksi terakhir yang dipindah, default 5"]
+                    ],
+                    "required": ["dari_kategori", "ke_kategori"]
+                ]
+            ]
+        ]
     }
 
     // MARK: - System Prompt
@@ -114,7 +272,8 @@ final class AnthropicService: ObservableObject {
         - Gunakan emoji secukupnya biar lebih hidup tapi jangan berlebihan
         - Respons singkat dan padat — max 3-4 paragraf kecuali diminta detail
         - Tone: seperti teman yang paham keuangan, bukan robot atau konsultan formal
-        - Kalau user tanya di luar topik keuangan, arahkan kembali ke topik keuangan mereka
+        - Kalau user minta ubah data (budget, kategori, dll) — gunakan tool yang tersedia
+        - Sebelum panggil tool, jelaskan dulu apa yang akan kamu lakukan dalam 1 kalimat singkat
         """
     }
 }
@@ -331,9 +490,29 @@ enum AnthropicError: LocalizedError {
 
 // MARK: - Response Models
 
-private struct AnthropicResponse: Decodable {
+private struct AnthropicRawResponse: Decodable {
     let content: [ContentBlock]
+
     struct ContentBlock: Decodable {
-        let text: String
+        let type: String
+        let text: String?
+        let id: String?
+        let name: String?
+        let input: [String: JSONValue]?
+    }
+}
+
+enum JSONValue: Decodable {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case null
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if let s = try? c.decode(String.self)  { self = .string(s); return }
+        if let n = try? c.decode(Double.self)  { self = .number(n); return }
+        if let b = try? c.decode(Bool.self)    { self = .bool(b);   return }
+        self = .null
     }
 }
