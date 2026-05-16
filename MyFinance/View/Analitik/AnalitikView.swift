@@ -20,6 +20,9 @@ struct AnalitikView: View {
     // Per Kategori tab
     @State private var kategoriTab: TipeTransaksi = .pengeluaran
 
+    // Multi-month trend
+    @State private var trendPeriod: Int = 6
+
     // Siklus Gajian mode — persisted
     @AppStorage("useSiklusGajian") private var useSiklusGajian: Bool = false
 
@@ -100,6 +103,12 @@ struct AnalitikView: View {
 
                     // Per Hari
                     perHariSection
+
+                    // Multi-bulan trend
+                    multiMonthTrendSection
+
+                    // Kategori trend lintas bulan
+                    kategoriTrendSection
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 32)
@@ -1110,6 +1119,313 @@ struct AnalitikView: View {
             totals[idx, default: 0] += Double(truncating: t.nominal as NSDecimalNumber)
         }
         return (0..<7).map { i in (weekday: i, label: labels[i], total: totals[i] ?? 0) }
+    }
+
+    // MARK: - Multi-Month Trend Data
+
+    private struct MonthTrendPoint: Identifiable {
+        let id = UUID()
+        let month: Date
+        let label: String         // "Jan", "Feb", dst
+        let pengeluaran: Double
+        let pemasukan: Double
+        var savingRate: Double { pemasukan > 0 ? (pemasukan - pengeluaran) / pemasukan * 100 : 0 }
+    }
+
+    private var multiMonthData: [MonthTrendPoint] {
+        let cal = Calendar.current
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "id_ID")
+        df.dateFormat = "MMM"
+
+        return (0..<trendPeriod).reversed().compactMap { offset in
+            let monthDate = selectedMonth.addingMonths(-offset)
+            var startComps = cal.dateComponents([.year, .month], from: monthDate)
+            startComps.day = 1
+            guard let monthStart = cal.date(from: startComps) else { return nil }
+            let monthEnd = monthStart.addingMonths(1)
+
+            let txs = allTransaksi.filter { $0.tanggal >= monthStart && $0.tanggal < monthEnd }
+            let out  = Double(truncating: txs.filter { $0.tipe == .pengeluaran }.reduce(Decimal(0)) { $0 + $1.nominal } as NSDecimalNumber)
+            let inc  = Double(truncating: txs.filter { $0.tipe == .pemasukan  }.reduce(Decimal(0)) { $0 + $1.nominal } as NSDecimalNumber)
+            return MonthTrendPoint(month: monthDate, label: df.string(from: monthDate), pengeluaran: out, pemasukan: inc)
+        }
+    }
+
+    // Top 4 kategori pengeluaran selama periode tren, tiap bulan totalnya berapa
+    private struct KategoriTrendPoint: Identifiable {
+        let id = UUID()
+        let monthLabel: String
+        let kategoriNama: String
+        let warna: String
+        let total: Double
+    }
+
+    private var topKategoriNama: [(nama: String, warna: String)] {
+        // Hitung total tiap kategori selama trendPeriod bulan terakhir
+        let cal = Calendar.current
+        let oldestMonth = selectedMonth.addingMonths(-(trendPeriod - 1))
+        var oldestComps = cal.dateComponents([.year, .month], from: oldestMonth)
+        oldestComps.day = 1
+        guard let oldest = cal.date(from: oldestComps) else { return [] }
+        let txs = allTransaksi.filter { $0.tipe == .pengeluaran && $0.tanggal >= oldest }
+        var totals: [String: (warna: String, total: Decimal)] = [:]
+        for t in txs {
+            let key = t.kategori?.nama ?? "Lainnya"
+            let warna = t.kategori?.warna ?? "#6B7280"
+            totals[key] = (warna: warna, total: (totals[key]?.total ?? 0) + t.nominal)
+        }
+        return totals.sorted { $0.value.total > $1.value.total }
+            .prefix(4)
+            .map { (nama: $0.key, warna: $0.value.warna) }
+    }
+
+    private var kategoriTrendData: [KategoriTrendPoint] {
+        let cal = Calendar.current
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "id_ID")
+        df.dateFormat = "MMM"
+        let top = topKategoriNama
+
+        var result: [KategoriTrendPoint] = []
+        for offset in stride(from: trendPeriod - 1, through: 0, by: -1) {
+            let monthDate = selectedMonth.addingMonths(-offset)
+            var startComps = cal.dateComponents([.year, .month], from: monthDate)
+            startComps.day = 1
+            guard let monthStart = cal.date(from: startComps) else { continue }
+            let monthEnd = monthStart.addingMonths(1)
+
+            let monthLabel = df.string(from: monthDate)
+            let txs = allTransaksi.filter {
+                $0.tipe == .pengeluaran && $0.tanggal >= monthStart && $0.tanggal < monthEnd
+            }
+            for k in top {
+                let total = Double(truncating: txs
+                    .filter { ($0.kategori?.nama ?? "Lainnya") == k.nama }
+                    .reduce(Decimal(0)) { $0 + $1.nominal } as NSDecimalNumber)
+                result.append(KategoriTrendPoint(monthLabel: monthLabel, kategoriNama: k.nama, warna: k.warna, total: total))
+            }
+        }
+        return result
+    }
+
+    // MARK: - Multi-Month Trend Section
+
+    private var multiMonthTrendSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // Header
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.caption)
+                        .foregroundStyle(theme.accent)
+                    Text("TREN MULTI BULAN")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(theme.textSecondary)
+                        .tracking(1)
+                }
+                Spacer()
+                // Period picker
+                HStack(spacing: 4) {
+                    ForEach([3, 6, 12], id: \.self) { p in
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) { trendPeriod = p }
+                        } label: {
+                            Text("\(p)B")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(trendPeriod == p ? .black : theme.textSecondary)
+                                .padding(.horizontal, 10).padding(.vertical, 4)
+                                .background(trendPeriod == p ? theme.accent : theme.separator)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            if multiMonthData.allSatisfy({ $0.pengeluaran == 0 && $0.pemasukan == 0 }) {
+                emptyChartPlaceholder
+            } else {
+                // Grouped bar chart
+                Chart {
+                    ForEach(multiMonthData) { item in
+                        BarMark(x: .value("Bulan", item.label),
+                                y: .value("Pengeluaran", item.pengeluaran))
+                            .foregroundStyle(Color(hex: "#FF6B6B").opacity(0.85))
+                            .position(by: .value("Tipe", "Keluar"))
+                            .cornerRadius(3)
+
+                        BarMark(x: .value("Bulan", item.label),
+                                y: .value("Pemasukan", item.pemasukan))
+                            .foregroundStyle(Color(hex: "#4ADE80").opacity(0.85))
+                            .position(by: .value("Tipe", "Masuk"))
+                            .cornerRadius(3)
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks { value in
+                        if let label = value.as(String.self) {
+                            AxisValueLabel {
+                                Text(label).font(.system(size: 10)).foregroundStyle(theme.textSecondary)
+                            }
+                        }
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks { value in
+                        if let v = value.as(Double.self) {
+                            AxisValueLabel {
+                                Text(v.shortFormatted).font(.system(size: 10)).foregroundStyle(theme.textSecondary)
+                            }
+                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5)).foregroundStyle(theme.separator)
+                        }
+                    }
+                }
+                .chartLegend(.hidden)
+                .chartBackground { _ in Color.clear }
+                .frame(height: 200)
+
+                // Legend
+                HStack(spacing: 16) {
+                    LegendDot(color: Color(hex: "#FF6B6B"), label: "Pengeluaran")
+                    LegendDot(color: Color(hex: "#4ADE80"), label: "Pemasukan")
+                    Spacer()
+                }
+
+                // Summary row: avg, best month, worst month
+                let nonZeroVals = multiMonthData.filter { $0.pengeluaran > 0 }.map { $0.pengeluaran }
+                let avgOut: Double = nonZeroVals.isEmpty ? 0 : nonZeroVals.reduce(0, +) / Double(nonZeroVals.count)
+                let best  = multiMonthData.filter { $0.pengeluaran > 0 }.min(by: { $0.pengeluaran < $1.pengeluaran })
+                let worst = multiMonthData.max(by: { $0.pengeluaran < $1.pengeluaran })
+
+                HStack(spacing: 0) {
+                    trendStatBox(label: "Rata-rata", value: avgOut.shortFormatted, color: theme.textPrimary)
+                    Divider().frame(height: 36).background(theme.separator)
+                    trendStatBox(label: "Terbaik 🏆", value: best.map { "\($0.label) \($0.pengeluaran.shortFormatted)" } ?? "-", color: Color(hex: "#4ADE80"))
+                    Divider().frame(height: 36).background(theme.separator)
+                    trendStatBox(label: "Terburuk ⚠️", value: worst.map { "\($0.label) \($0.pengeluaran.shortFormatted)" } ?? "-", color: Color(hex: "#FF6B6B"))
+                }
+                .padding(.vertical, 4)
+                .background(theme.separator.opacity(0.4))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+        }
+        .padding(16)
+        .background(theme.bgCard)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func trendStatBox(label: String, value: String, color: Color) -> some View {
+        VStack(spacing: 3) {
+            Text(label)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(theme.textSecondary)
+            Text(value)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+
+    // MARK: - Kategori Trend Section
+
+    private var kategoriTrendSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 6) {
+                Image(systemName: "chart.bar.doc.horizontal")
+                    .font(.caption)
+                    .foregroundStyle(Color(hex: "#A78BFA"))
+                Text("TREN PER KATEGORI")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(theme.textSecondary)
+                    .tracking(1)
+                Spacer()
+                Text("Top 4 · \(trendPeriod) bln")
+                    .font(.caption2)
+                    .foregroundStyle(theme.textSecondary)
+            }
+
+            let top = topKategoriNama
+            if top.isEmpty {
+                emptyChartPlaceholder
+            } else {
+                Chart(kategoriTrendData) { point in
+                    LineMark(
+                        x: .value("Bulan", point.monthLabel),
+                        y: .value("Total", point.total)
+                    )
+                    .foregroundStyle(by: .value("Kategori", point.kategoriNama))
+                    .interpolationMethod(.catmullRom)
+                    .symbol(by: .value("Kategori", point.kategoriNama))
+                }
+                .chartForegroundStyleScale(
+                    domain: top.map { $0.nama },
+                    range: top.map { Color(hex: $0.warna) }
+                )
+                .chartXAxis {
+                    AxisMarks { value in
+                        if let label = value.as(String.self) {
+                            AxisValueLabel {
+                                Text(label).font(.system(size: 10)).foregroundStyle(theme.textSecondary)
+                            }
+                        }
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks { value in
+                        if let v = value.as(Double.self) {
+                            AxisValueLabel {
+                                Text(v.shortFormatted).font(.system(size: 10)).foregroundStyle(theme.textSecondary)
+                            }
+                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5)).foregroundStyle(theme.separator)
+                        }
+                    }
+                }
+                .chartLegend(position: .bottom, alignment: .leading, spacing: 8)
+                .chartBackground { _ in Color.clear }
+                .frame(height: 200)
+
+                // Change vs first month in period
+                VStack(spacing: 8) {
+                    ForEach(top, id: \.nama) { k in
+                        let points = kategoriTrendData.filter { $0.kategoriNama == k.nama }
+                        let first  = points.first?.total ?? 0
+                        let last   = points.last?.total ?? 0
+                        let pct    = first > 0 ? (last - first) / first * 100 : 0
+
+                        HStack(spacing: 10) {
+                            Circle().fill(Color(hex: k.warna)).frame(width: 8, height: 8)
+                            Text(k.nama)
+                                .font(.system(size: 13))
+                                .foregroundStyle(theme.textPrimary)
+                            Spacer()
+                            Text(last.shortFormatted)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(theme.textPrimary)
+                            if first > 0 {
+                                HStack(spacing: 2) {
+                                    Image(systemName: pct > 0 ? "arrow.up.right" : (pct < 0 ? "arrow.down.right" : "equal"))
+                                        .font(.system(size: 9, weight: .bold))
+                                    Text(pct == 0 ? "=" : "\(String(format: "%.0f", abs(pct)))%")
+                                        .font(.system(size: 11, weight: .bold))
+                                }
+                                .foregroundStyle(pct > 5 ? Color(hex: "#FF6B6B") : (pct < -5 ? Color(hex: "#4ADE80") : theme.textSecondary))
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background((pct > 5 ? Color(hex: "#FF6B6B") : (pct < -5 ? Color(hex: "#4ADE80") : theme.separator)).opacity(0.12))
+                                .clipShape(Capsule())
+                            }
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+        .padding(16)
+        .background(theme.bgCard)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     // MARK: - Helpers
