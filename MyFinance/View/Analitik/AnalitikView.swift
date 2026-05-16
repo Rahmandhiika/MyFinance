@@ -1243,21 +1243,24 @@ struct AnalitikView: View {
                 }
             }
 
+            if selectedMonthIsCurrentMonth { partialMonthBanner }
+
             if multiMonthData.allSatisfy({ $0.pengeluaran == 0 && $0.pemasukan == 0 }) {
                 emptyChartPlaceholder
             } else {
                 // Grouped bar chart
                 Chart {
                     ForEach(multiMonthData) { item in
+                        let isCurrent = selectedMonthIsCurrentMonth && item.id == multiMonthData.last?.id
                         BarMark(x: .value("Bulan", item.label),
                                 y: .value("Pengeluaran", item.pengeluaran))
-                            .foregroundStyle(Color(hex: "#FF6B6B").opacity(0.85))
+                            .foregroundStyle(Color(hex: "#FF6B6B").opacity(isCurrent ? 0.45 : 0.85))
                             .position(by: .value("Tipe", "Keluar"))
                             .cornerRadius(3)
 
                         BarMark(x: .value("Bulan", item.label),
                                 y: .value("Pemasukan", item.pemasukan))
-                            .foregroundStyle(Color(hex: "#4ADE80").opacity(0.85))
+                            .foregroundStyle(Color(hex: "#4ADE80").opacity(isCurrent ? 0.45 : 0.85))
                             .position(by: .value("Tipe", "Masuk"))
                             .cornerRadius(3)
                     }
@@ -1293,10 +1296,12 @@ struct AnalitikView: View {
                 }
 
                 // Summary row: avg, best month, worst month
-                let nonZeroVals = multiMonthData.filter { $0.pengeluaran > 0 }.map { $0.pengeluaran }
+                // Kalau selectedMonth = bulan ini, exclude dari best/worst supaya data parsial tidak bias
+                let completedData = selectedMonthIsCurrentMonth ? multiMonthData.dropLast() : ArraySlice(multiMonthData)
+                let nonZeroVals = completedData.filter { $0.pengeluaran > 0 }.map { $0.pengeluaran }
                 let avgOut: Double = nonZeroVals.isEmpty ? 0 : nonZeroVals.reduce(0, +) / Double(nonZeroVals.count)
-                let best  = multiMonthData.filter { $0.pengeluaran > 0 }.min(by: { $0.pengeluaran < $1.pengeluaran })
-                let worst = multiMonthData.max(by: { $0.pengeluaran < $1.pengeluaran })
+                let best  = completedData.filter { $0.pengeluaran > 0 }.min(by: { $0.pengeluaran < $1.pengeluaran })
+                let worst = completedData.filter { $0.pengeluaran > 0 }.max(by: { $0.pengeluaran < $1.pengeluaran })
 
                 HStack(spacing: 0) {
                     trendStatBox(label: "Rata-rata", value: avgOut.shortFormatted, color: theme.textPrimary)
@@ -1348,6 +1353,8 @@ struct AnalitikView: View {
                     .foregroundStyle(theme.textSecondary)
             }
 
+            if selectedMonthIsCurrentMonth { partialMonthBanner }
+
             let top = topKategoriNama
             if top.isEmpty {
                 emptyChartPlaceholder
@@ -1358,8 +1365,9 @@ struct AnalitikView: View {
                         y: .value("Total", point.total)
                     )
                     .foregroundStyle(by: .value("Kategori", point.kategoriNama))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.linear)
                     .symbol(by: .value("Kategori", point.kategoriNama))
+                    .opacity(selectedMonthIsCurrentMonth && point.monthLabel == multiMonthData.last?.label ? 0.45 : 1.0)
                 }
                 .chartForegroundStyleScale(
                     domain: top.map { $0.nama },
@@ -1368,8 +1376,11 @@ struct AnalitikView: View {
                 .chartXAxis {
                     AxisMarks { value in
                         if let label = value.as(String.self) {
+                            let isCurrent = selectedMonthIsCurrentMonth && label == multiMonthData.last?.label
                             AxisValueLabel {
-                                Text(label).font(.system(size: 10)).foregroundStyle(theme.textSecondary)
+                                Text(isCurrent ? "\(label)*" : label)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(isCurrent ? Color(hex: "#FBBF24") : theme.textSecondary)
                             }
                         }
                     }
@@ -1389,11 +1400,15 @@ struct AnalitikView: View {
                 .frame(height: 200)
 
                 // Change vs first month in period
+                // Kalau bulan ini sedang berjalan, bandingkan last completed month vs first
+                let completedPoints = selectedMonthIsCurrentMonth ? kategoriTrendData.filter { $0.monthLabel != multiMonthData.last?.label } : kategoriTrendData
                 VStack(spacing: 8) {
                     ForEach(top, id: \.nama) { k in
-                        let points = kategoriTrendData.filter { $0.kategoriNama == k.nama }
+                        let points = completedPoints.filter { $0.kategoriNama == k.nama }
+                        let allPoints = kategoriTrendData.filter { $0.kategoriNama == k.nama }
                         let first  = points.first?.total ?? 0
                         let last   = points.last?.total ?? 0
+                        let currentVal = allPoints.last?.total ?? 0
                         let pct    = first > 0 ? (last - first) / first * 100 : 0
 
                         HStack(spacing: 10) {
@@ -1402,10 +1417,17 @@ struct AnalitikView: View {
                                 .font(.system(size: 13))
                                 .foregroundStyle(theme.textPrimary)
                             Spacer()
-                            Text(last.shortFormatted)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(theme.textPrimary)
-                            if first > 0 {
+                            // Kalau bulan ini berjalan, tampilkan nilai sebagian dengan tanda *
+                            if selectedMonthIsCurrentMonth {
+                                Text("\(currentVal.shortFormatted)*")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(theme.textSecondary)
+                            } else {
+                                Text(last.shortFormatted)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(theme.textPrimary)
+                            }
+                            if first > 0 && last > 0 {
                                 HStack(spacing: 2) {
                                     Image(systemName: pct > 0 ? "arrow.up.right" : (pct < 0 ? "arrow.down.right" : "equal"))
                                         .font(.system(size: 9, weight: .bold))
@@ -1426,6 +1448,31 @@ struct AnalitikView: View {
         .padding(16)
         .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: - Current month helper
+
+    /// True kalau selectedMonth = bulan ini (data belum lengkap)
+    private var selectedMonthIsCurrentMonth: Bool {
+        Calendar.current.isDate(selectedMonth, equalTo: Date(), toGranularity: .month)
+    }
+
+    @ViewBuilder
+    private var partialMonthBanner: some View {
+        let df = DateFormatter()
+        let _ = { df.locale = Locale(identifier: "id_ID"); df.dateFormat = "MMMM" }()
+        HStack(spacing: 6) {
+            Image(systemName: "clock.badge.exclamationmark.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(Color(hex: "#FBBF24"))
+            Text("\(df.string(from: selectedMonth)) belum selesai — data bulan ini masih sebagian")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color(hex: "#FBBF24"))
+            Spacer()
+        }
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .background(Color(hex: "#FBBF24").opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     // MARK: - Helpers
