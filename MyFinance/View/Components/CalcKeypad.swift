@@ -107,10 +107,10 @@ struct CalcKeypad: View {
     private var keypadGrid: some View {
         let rows: [[CalcKey]] = [
             [.op("÷"), .op("×"), .clear, .backspace],
-            [.digit("7"), .digit("8"), .digit("9"), .op("+")],
+            [.digit("1"), .digit("2"), .digit("3"), .op("+")],
             [.digit("4"), .digit("5"), .digit("6"), .op("−")],
-            [.digit("1"), .digit("2"), .digit("3"), .percent],
-            [.digit("0"), .triple0, .decimal, .equals]
+            [.digit("7"), .digit("8"), .digit("9"), .percent],
+            [.triple0, .digit("0"), .decimal, .equals]
         ]
 
         return VStack(spacing: btnSpacing) {
