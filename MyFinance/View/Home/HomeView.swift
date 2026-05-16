@@ -412,23 +412,18 @@ struct HomeView: View {
 
     // MARK: - Shortcut Row
     private var shortcutRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                NavigationLink(destination: AnalitikView()) {
-                    shortcutCard(label: "Analitik", icon: "chart.bar.fill", color: Color(hex: "#A78BFA"))
-                }
-                NavigationLink(destination: TargetListView()) {
-                    shortcutCard(label: "Wishlist", icon: "heart.fill", color: theme.accent)
-                }
-                NavigationLink(destination: AsetListView()) {
-                    shortcutCard(label: "Aset", icon: "briefcase.fill", color: Color(hex: "#F59E0B"))
-                }
-                NavigationLink(destination: RoadmapView()) {
-                    shortcutCardBadge(label: "Roadmap", icon: "sparkles", color: Color(hex: "#A78BFA"))
-                }
+        HStack(spacing: 12) {
+            NavigationLink(destination: AnalitikView()) {
+                shortcutCard(label: "Analitik", icon: "chart.bar.fill", color: Color(hex: "#A78BFA"))
             }
-            .padding(.horizontal, 16)
+            NavigationLink(destination: TargetListView()) {
+                shortcutCard(label: "Wishlist", icon: "heart.fill", color: theme.accent)
+            }
+            NavigationLink(destination: AsetListView()) {
+                shortcutCard(label: "Aset", icon: "briefcase.fill", color: Color(hex: "#F59E0B"))
+            }
         }
+        .padding(.horizontal)
     }
 
     private func shortcutCard(label: String, icon: String, color: Color) -> some View {
@@ -446,47 +441,13 @@ struct HomeView: View {
                 .fontWeight(.medium)
                 .foregroundStyle(theme.textPrimary)
         }
-        .frame(width: 80)
+        .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
         .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
                 .stroke(theme.cardBorder, lineWidth: 1)
-        )
-    }
-
-    // Shortcut card dengan badge "NEW"
-    private func shortcutCardBadge(label: String, icon: String, color: Color) -> some View {
-        VStack(spacing: 8) {
-            ZStack(alignment: .topTrailing) {
-                Circle()
-                    .fill(color.opacity(0.15))
-                    .frame(width: 44, height: 44)
-                Image(systemName: icon)
-                    .foregroundStyle(color)
-                    .font(.system(size: 18))
-                Text("NEW")
-                    .font(.system(size: 7, weight: .black))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 2)
-                    .background(color)
-                    .clipShape(Capsule())
-                    .offset(x: 6, y: -4)
-            }
-            Text(label)
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundStyle(theme.textPrimary)
-        }
-        .frame(width: 80)
-        .padding(.vertical, 14)
-        .background(theme.bgCard)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(color.opacity(0.3), lineWidth: 1)
         )
     }
 
