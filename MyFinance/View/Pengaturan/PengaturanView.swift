@@ -12,7 +12,6 @@ struct PengaturanView: View {
     @State private var showAnggaran = false
     @State private var showLangganan = false
     @State private var showBackupRestore = false
-    @State private var showRoadmap = false
     @State private var showResetConfirm = false
     @State private var showFinalConfirm = false
     @State private var isResetting = false
@@ -175,23 +174,6 @@ struct PengaturanView: View {
 
                 // INFO APLIKASI
                 Section("INFO") {
-                    Button { showRoadmap = true } label: {
-                        HStack {
-                            Label("Roadmap & Coming Soon", systemImage: "sparkles")
-                                .foregroundStyle(theme.textPrimary)
-                            Spacer()
-                            Text("Level Up")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(Color(hex: "#22C55E"))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(Color(hex: "#22C55E").opacity(0.12))
-                                .clipShape(Capsule())
-                            Image(systemName: "chevron.right").foregroundStyle(theme.textSecondary)
-                        }
-                    }
-                    .listRowBackground(theme.bgListRow)
-
                     HStack {
                         Label("Versi", systemImage: "info.circle.fill")
                             .foregroundStyle(theme.textPrimary)
@@ -247,7 +229,6 @@ struct PengaturanView: View {
         .sheet(isPresented: $showAnggaran) { AnggaranManagementView() }
         .sheet(isPresented: $showLangganan) { LanggananManagementView() }
         .sheet(isPresented: $showBackupRestore) { NavigationStack { BackupRestoreView() } }
-        .sheet(isPresented: $showRoadmap) { NavigationStack { RoadmapView() } }
         .alert("Reset Semua Data?", isPresented: $showResetConfirm) {
             Button("Batalkan", role: .cancel) {}
             Button("Lanjutkan", role: .destructive) { showFinalConfirm = true }
