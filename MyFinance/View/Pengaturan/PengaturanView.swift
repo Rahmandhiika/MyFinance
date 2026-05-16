@@ -160,6 +160,19 @@ struct PengaturanView: View {
                     .listRowBackground(theme.bgListRow)
                 }
 
+                // AI & INTEGRASI
+                Section("AI & INTEGRASI") {
+                    NavigationLink(destination: APIKeySettingView()) {
+                        HStack {
+                            Label("AI Advisor", systemImage: "brain.head.profile")
+                                .foregroundStyle(theme.textPrimary)
+                            Spacer()
+                            Image(systemName: "chevron.right").foregroundStyle(theme.textSecondary)
+                        }
+                    }
+                    .listRowBackground(theme.bgListRow)
+                }
+
                 // INFO APLIKASI
                 Section("INFO") {
                     Button { showRoadmap = true } label: {

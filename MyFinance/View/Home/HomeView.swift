@@ -412,16 +412,57 @@ struct HomeView: View {
 
     // MARK: - Shortcut Row
     private var shortcutRow: some View {
-        HStack(spacing: 12) {
-            NavigationLink(destination: AnalitikView()) {
-                shortcutCard(label: "Analitik", icon: "chart.bar.fill", color: Color(hex: "#A78BFA"))
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                NavigationLink(destination: AnalitikView()) {
+                    shortcutCard(label: "Analitik", icon: "chart.bar.fill", color: Color(hex: "#A78BFA"))
+                }
+                NavigationLink(destination: TargetListView()) {
+                    shortcutCard(label: "Wishlist", icon: "heart.fill", color: theme.accent)
+                }
+                NavigationLink(destination: AsetListView()) {
+                    shortcutCard(label: "Aset", icon: "briefcase.fill", color: Color(hex: "#F59E0B"))
+                }
             }
-            NavigationLink(destination: TargetListView()) {
-                shortcutCard(label: "Wishlist", icon: "heart.fill", color: theme.accent)
+            // AI shortcut — full width
+            NavigationLink(destination: AIAdvisorView()) {
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(hex: "#A78BFA").opacity(0.15))
+                            .frame(width: 36, height: 36)
+                        Image(systemName: "brain.head.profile")
+                            .foregroundStyle(Color(hex: "#A78BFA"))
+                            .font(.system(size: 16))
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("AI Advisor")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(theme.textPrimary)
+                        Text("Analisa & saran keuangan personal")
+                            .font(.caption)
+                            .foregroundStyle(theme.textSecondary)
+                    }
+                    Spacer()
+                    HStack(spacing: 4) {
+                        Circle().fill(Color(hex: "#22C55E")).frame(width: 6, height: 6)
+                        Text("Online")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color(hex: "#22C55E"))
+                    }
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(Color(hex: "#22C55E").opacity(0.1))
+                    .clipShape(Capsule())
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(theme.textSecondary)
+                }
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .background(theme.bgCard)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "#A78BFA").opacity(0.3), lineWidth: 1))
             }
-            NavigationLink(destination: AsetListView()) {
-                shortcutCard(label: "Aset", icon: "briefcase.fill", color: Color(hex: "#F59E0B"))
-            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal)
     }
