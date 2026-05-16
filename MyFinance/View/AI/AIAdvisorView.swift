@@ -237,9 +237,11 @@ struct AIAdvisorView: View {
                 ("📉", "Kategori mana yang paling boros?"),
                 ("💡", "Kasih saran hemat bulan ini"),
                 ("📊", "Gimana performa investasi aku?"),
-                ("🔔", "Ada yang perlu aku perhatiin?")
+                ("🔔", "Ada yang perlu aku perhatiin?"),
+                ("🧾", "Catat: beli kopi 35rb pake GoPay tadi"),
+                ("✏️", "Ubah budget makan jadi 1,5 juta")
             ]
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
                 ForEach(prompts, id: \.1) { emoji, text in
                     Button {
                         Task { await sendToAI(text) }
@@ -370,6 +372,68 @@ struct AIAdvisorView: View {
             txToMove.forEach { $0.kategori = keKat }
             try? modelContext.save()
             resultText = "Berhasil memindahkan \(txToMove.count) transaksi dari '\(dariNama)' ke '\(keNama)'"
+
+        case .buatTransaksi:
+            let nominalStr  = toolCall.input["nominal"] ?? "0"
+            let nominal     = Decimal(string: nominalStr.filter(\.isNumber)) ?? 0
+            let tipeStr     = toolCall.input["tipe"] ?? "pengeluaran"
+            let tipe: TipeTransaksi = tipeStr == "pemasukan" ? .pemasukan : .pengeluaran
+            let catatan     = toolCall.input["catatan"]
+            let katNama     = toolCall.input["kategori_nama"] ?? ""
+            let pocketNama  = toolCall.input["pocket_nama"] ?? ""
+            let tanggalStr  = toolCall.input["tanggal"] ?? ""
+
+            // Parse tanggal dari ISO string
+            let parsedDate: Date = {
+                // Try full datetime first (YYYY-MM-DDTHH:mm or YYYY-MM-DDTHH:mm:ss)
+                let fullFmt = ISO8601DateFormatter()
+                fullFmt.formatOptions = [.withInternetDateTime, .withColonSeparatorInTime]
+                if let d = fullFmt.date(from: tanggalStr) { return d }
+
+                // Try with dash separator for partial ISO
+                let altFmt = DateFormatter()
+                altFmt.locale = Locale(identifier: "en_US_POSIX")
+                for fmt in ["yyyy-MM-dd'T'HH:mm", "yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd"] {
+                    altFmt.dateFormat = fmt
+                    if let d = altFmt.date(from: tanggalStr) { return d }
+                }
+                return Date()
+            }()
+
+            // Match kategori dan pocket (fuzzy lowercase)
+            let matchedKat = allKategori.first {
+                !katNama.isEmpty && $0.nama.lowercased().contains(katNama.lowercased())
+                    || katNama.lowercased().contains($0.nama.lowercased())
+            } ?? allKategori.first { $0.nama.lowercased() == katNama.lowercased() }
+
+            let matchedPocket: Pocket? = {
+                guard !pocketNama.isEmpty else { return nil }
+                let lower = pocketNama.lowercased()
+                return allPockets.first { $0.nama.lowercased().contains(lower) || lower.contains($0.nama.lowercased()) }
+            }()
+
+            let newTx = Transaksi(
+                tanggal:  parsedDate,
+                nominal:  nominal,
+                tipe:     tipe,
+                kategori: matchedKat,
+                pocket:   matchedPocket,
+                catatan:  catatan
+            )
+
+            // Adjust pocket saldo
+            if let pocket = matchedPocket {
+                if tipe == .pengeluaran { pocket.saldo -= nominal }
+                else                   { pocket.saldo += nominal }
+            }
+
+            modelContext.insert(newTx)
+            try? modelContext.save()
+
+            let df = DateFormatter(); df.locale = Locale(identifier: "id_ID"); df.dateFormat = "d MMM yyyy, HH:mm"
+            let katLabel    = matchedKat?.nama    ?? (katNama.isEmpty    ? "-" : katNama)
+            let pocketLabel = matchedPocket?.nama ?? (pocketNama.isEmpty ? "-" : pocketNama)
+            resultText = "Berhasil membuat transaksi: \(catatan ?? "Tanpa catatan") \(nominal.idrFormatted) (\(tipeStr)) · \(katLabel) · \(pocketLabel) · \(df.string(from: parsedDate))"
         }
 
         // Mark as executed

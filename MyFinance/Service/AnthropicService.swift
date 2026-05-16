@@ -30,12 +30,14 @@ enum AIToolName: String, CaseIterable {
     case setAnggaran          = "set_anggaran"
     case renameKategori       = "rename_kategori"
     case pindahKategoriTx     = "pindah_kategori_transaksi"
+    case buatTransaksi        = "buat_transaksi"
 
     var displayName: String {
         switch self {
         case .setAnggaran:       return "Set Budget"
         case .renameKategori:    return "Rename Kategori"
         case .pindahKategoriTx:  return "Pindah Kategori Transaksi"
+        case .buatTransaksi:     return "Buat Transaksi"
         }
     }
 
@@ -44,6 +46,7 @@ enum AIToolName: String, CaseIterable {
         case .setAnggaran:       return "chart.bar.fill"
         case .renameKategori:    return "tag.fill"
         case .pindahKategoriTx:  return "arrow.triangle.2.circlepath"
+        case .buatTransaksi:     return "plus.circle.fill"
         }
     }
 }
@@ -250,6 +253,22 @@ final class AnthropicService: ObservableObject {
                     ],
                     "required": ["dari_kategori", "ke_kategori"]
                 ]
+            ],
+            [
+                "name": AIToolName.buatTransaksi.rawValue,
+                "description": "Buat transaksi baru (pengeluaran atau pemasukan). Gunakan kalau user menyebut pengeluaran/pembelian/pembayaran atau penerimaan uang. Selalu ekstrak nominal, tipe, nama merchant/keterangan, pocket, dan tanggal dari konteks user.",
+                "input_schema": [
+                    "type": "object",
+                    "properties": [
+                        "nominal":       ["type": "string", "description": "Nominal transaksi dalam rupiah, angka saja tanpa titik/koma. Contoh: 87000"],
+                        "tipe":          ["type": "string", "description": "Tipe transaksi: 'pengeluaran' atau 'pemasukan'"],
+                        "catatan":       ["type": "string", "description": "Keterangan/nama merchant transaksi. Contoh: Chagee, Gojek, Gaji"],
+                        "kategori_nama": ["type": "string", "description": "Nama kategori yang sesuai berdasarkan konteks. Inferensikan dari daftar kategori user."],
+                        "pocket_nama":   ["type": "string", "description": "Nama pocket/rekening yang digunakan. Inferensikan dari kata kunci: mandiri=Mandiri/Bank Mandiri, gopay=GoPay, dll."],
+                        "tanggal":       ["type": "string", "description": "Tanggal transaksi format ISO 8601: YYYY-MM-DD atau YYYY-MM-DDTHH:mm. Konversi 'kemarin', 'hari ini', 'tadi', atau tanggal spesifik sesuai konteks."]
+                    ],
+                    "required": ["nominal", "tipe", "tanggal"]
+                ]
             ]
         ]
     }
@@ -257,9 +276,15 @@ final class AnthropicService: ObservableObject {
     // MARK: - System Prompt
 
     private func buildSystemPrompt(context: String) -> String {
-        """
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withFullDate]
+        let todayISO = isoFormatter.string(from: Date())
+
+        return """
         Kamu adalah MyFinance AI — asisten keuangan personal yang cerdas dan ramah.
         Kamu berbicara dalam Bahasa Indonesia yang santai tapi profesional.
+
+        TANGGAL HARI INI: \(todayISO)
 
         DATA KEUANGAN USER:
         \(context)
@@ -273,6 +298,11 @@ final class AnthropicService: ObservableObject {
         - Respons singkat dan padat — max 3-4 paragraf kecuali diminta detail
         - Tone: seperti teman yang paham keuangan, bukan robot atau konsultan formal
         - Kalau user minta ubah data (budget, kategori, dll) — gunakan tool yang tersedia
+        - Kalau user menyebut pengeluaran/pembelian/bayar sesuatu — langsung panggil tool buat_transaksi
+        - Kalau ada kata "kemarin" → tanggal hari ini dikurangi 1, "hari ini"/"tadi" → tanggal hari ini
+        - Kalau ada jam yang disebutkan (jam 3 sore = 15:00) → sertakan waktu di field tanggal
+        - Inferensikan pocket dari nama bank/ewallet yang disebutkan user (mandiri, gopay, ovo, bca, dll)
+        - Inferensikan kategori dari jenis transaksi (chagee/kopi/boba → F&B/Makan&Minum, dll)
         - Sebelum panggil tool, jelaskan dulu apa yang akan kamu lakukan dalam 1 kalimat singkat
         """
     }
