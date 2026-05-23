@@ -19,6 +19,14 @@ struct AsetListView: View {
     @State private var deleteBlockedAlert: (nama: String, count: Int)? = nil
     @State private var showAddGrup = false
     @State private var showPerformaAll = false
+    @State private var showTargetAlokasi = false
+    @AppStorage("targetAlokasiJSON") private var targetAlokasiJSON: String = "{}"
+
+    private var targetAlokasi: [String: Double] {
+        guard let data = targetAlokasiJSON.data(using: .utf8),
+              let dict = try? JSONDecoder().decode([String: Double].self, from: data) else { return [:] }
+        return dict
+    }
 
     // MARK: - Computed Totals (aset bebas saja, tidak termasuk linked target)
 
@@ -397,6 +405,17 @@ struct AsetListView: View {
                 Text("ALOKASI ASET")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(theme.textSecondary)
+                Spacer()
+                Button { showTargetAlokasi = true } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "slider.horizontal.3").font(.system(size: 10, weight: .semibold))
+                        Text("Set Target").font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundStyle(theme.accent)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(theme.accent.opacity(0.1))
+                    .clipShape(Capsule())
+                }
             }
 
             HStack(alignment: .center, spacing: 20) {
@@ -412,9 +431,11 @@ struct AsetListView: View {
                 }
                 .frame(width: 90, height: 90)
 
-                // Legend
+                // Legend dengan target deviation
                 VStack(alignment: .leading, spacing: 7) {
                     ForEach(alokasiData) { item in
+                        let currentPct = item.nilai / (Double(truncating: totalNilai as NSDecimalNumber)) * 100
+                        let targetPct  = targetAlokasi[item.label]
                         HStack(spacing: 8) {
                             RoundedRectangle(cornerRadius: 3)
                                 .fill(item.color)
@@ -424,14 +445,39 @@ struct AsetListView: View {
                                 .foregroundStyle(theme.textSecondary)
                                 .lineLimit(1)
                             Spacer()
-                            VStack(alignment: .trailing, spacing: 1) {
+                            VStack(alignment: .trailing, spacing: 2) {
                                 Text(item.pct)
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(theme.textPrimary)
-                                Text(item.nilaiFormatted)
-                                    .font(.caption2)
-                                    .foregroundStyle(theme.textSecondary)
+                                if let target = targetPct {
+                                    let delta = currentPct - target
+                                    let sign  = delta > 0 ? "+" : ""
+                                    let color: Color = abs(delta) <= 5 ? Color(hex: "#22C55E")
+                                                     : delta > 0     ? Color(hex: "#F59E0B")
+                                                                      : Color(hex: "#60A5FA")
+                                    Text("\(sign)\(String(format: "%.0f", delta))% vs target")
+                                        .font(.system(size: 9, weight: .semibold))
+                                        .foregroundStyle(color)
+                                }
                             }
+                        }
+                    }
+                }
+            }
+
+            // Rebalancing hints
+            let hints = rebalancingHints
+            if !hints.isEmpty {
+                Divider().background(theme.separator)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("REBALANCING")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(theme.textSecondary)
+                        .tracking(0.5)
+                    ForEach(hints, id: \.self) { hint in
+                        HStack(alignment: .top, spacing: 6) {
+                            Text("·").foregroundStyle(Color(hex: "#F59E0B"))
+                            Text(hint).font(.caption).foregroundStyle(theme.textSecondary).fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
@@ -441,6 +487,25 @@ struct AsetListView: View {
         .background(theme.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.cardBorder, lineWidth: 1))
+        .sheet(isPresented: $showTargetAlokasi) {
+            TargetAlokasiSheet(alokasiData: alokasiData, targetAlokasiJSON: $targetAlokasiJSON)
+        }
+    }
+
+    private var rebalancingHints: [String] {
+        guard !targetAlokasi.isEmpty, totalNilai > 0 else { return [] }
+        let totalD = Double(truncating: totalNilai as NSDecimalNumber)
+        return alokasiData.compactMap { item in
+            guard let target = targetAlokasi[item.label] else { return nil }
+            let current = item.nilai / totalD * 100
+            let delta   = current - target
+            guard abs(delta) > 5 else { return nil }
+            if delta > 0 {
+                return "\(item.label) \(String(format: "%.0f%%", current)) → over target \(String(format: "%.0f%%", target)), pertimbangkan kurangi."
+            } else {
+                return "\(item.label) \(String(format: "%.0f%%", current)) → under target \(String(format: "%.0f%%", target)), pertimbangkan tambah."
+            }
+        }
     }
 
     // MARK: - Performa Card

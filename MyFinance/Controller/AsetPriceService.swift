@@ -111,6 +111,43 @@ class AsetPriceService {
         return nil
     }
 
+    // MARK: - Fundamental Data (saham IDN & AS)
+
+    struct SahamFundamental {
+        let pe: Double?           // P/E ratio (trailing)
+        let eps: Double?          // EPS (trailing)
+        let marketCap: Double?    // Market cap (raw)
+        let dividendYield: Double? // Dividend yield (0.02 = 2%)
+    }
+
+    func fetchFundamental(ticker: String) async -> SahamFundamental? {
+        let symbol = ticker.uppercased().hasSuffix(".JK") ? ticker.uppercased() : ticker.uppercased()
+        guard let url = URL(string: "https://query1.finance.yahoo.com/v10/finance/quoteSummary/\(symbol)?modules=summaryDetail,defaultKeyStatistics") else { return nil }
+
+        do {
+            var req = URLRequest(url: url, timeoutInterval: 10)
+            req.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+            let (data, _) = try await URLSession.shared.data(for: req)
+            guard let json     = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let result   = (json["quoteSummary"] as? [String: Any])?["result"] as? [[String: Any]],
+                  let first    = result.first else { return nil }
+
+            let summary = first["summaryDetail"] as? [String: Any]
+            let stats   = first["defaultKeyStatistics"] as? [String: Any]
+
+            func raw(_ dict: [String: Any]?, _ key: String) -> Double? {
+                (dict?[key] as? [String: Any])?["raw"] as? Double
+            }
+
+            return SahamFundamental(
+                pe:            raw(summary, "trailingPE"),
+                eps:           raw(stats,   "trailingEps"),
+                marketCap:     raw(summary, "marketCap"),
+                dividendYield: raw(summary, "dividendYield")
+            )
+        } catch { return nil }
+    }
+
     /// Fetch semua kurs sekaligus untuk ditampilkan di form
     func fetchAllKurs() async -> [MataUangValas: Decimal] {
         var result: [MataUangValas: Decimal] = [:]

@@ -35,8 +35,10 @@ struct AsetDetailSheet: View {
     @State private var showBeliEmas = false
     @State private var showTambahReksadana = false
     @State private var showBeliValas = false
-    @State private var isRefreshingNAV = false
+    @State private var isRefreshingNAV    = false
     @State private var navRefreshError: String? = nil
+    @State private var fundamental: AsetPriceService.SahamFundamental? = nil
+    @State private var isFetchingFundamental = false
 
     var body: some View {
         NavigationStack {
@@ -385,6 +387,7 @@ struct AsetDetailSheet: View {
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
         Divider().background(theme.separator)
+        fundamentalCard
     }
 
     @ViewBuilder
@@ -526,6 +529,7 @@ struct AsetDetailSheet: View {
             )
             Divider().background(theme.separator)
         }
+        fundamentalCard
     }
 
     @ViewBuilder
@@ -971,6 +975,76 @@ struct AsetDetailSheet: View {
         aset.nilaiSaatIni = aset.estimasiUnitReksadana * nav
         try? modelContext.save()
         navInput = ""
+    }
+
+    // MARK: - Fundamental Card
+
+    @ViewBuilder
+    private var fundamentalCard: some View {
+        if aset.tipe == .saham || aset.tipe == .sahamAS {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    Image(systemName: "chart.bar.doc.horizontal")
+                        .font(.caption).foregroundStyle(Color(hex: "#60A5FA"))
+                    Text("DATA FUNDAMENTAL")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(theme.textSecondary)
+                        .tracking(1)
+                    Spacer()
+                    if isFetchingFundamental {
+                        ProgressView().scaleEffect(0.7).tint(Color(hex: "#60A5FA"))
+                    } else if fundamental == nil, let kode = aset.kode {
+                        Button {
+                            isFetchingFundamental = true
+                            Task {
+                                fundamental = await AsetPriceService.shared.fetchFundamental(ticker: kode)
+                                isFetchingFundamental = false
+                            }
+                        } label: {
+                            Text("Load")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color(hex: "#60A5FA"))
+                                .padding(.horizontal, 10).padding(.vertical, 4)
+                                .background(Color(hex: "#60A5FA").opacity(0.12))
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
+
+                if let f = fundamental {
+                    HStack(spacing: 0) {
+                        fundamentalStat(label: "P/E", value: f.pe.map { String(format: "%.1f×", $0) } ?? "–")
+                        Divider().frame(height: 36)
+                        fundamentalStat(label: "EPS", value: f.eps.map { (aset.tipe == .sahamAS ? "$" : "Rp") + String(format: "%.2f", $0) } ?? "–")
+                        Divider().frame(height: 36)
+                        fundamentalStat(label: "Dividen", value: f.dividendYield.map { String(format: "%.2f%%", $0 * 100) } ?? "–")
+                        Divider().frame(height: 36)
+                        fundamentalStat(label: "Mkt Cap", value: f.marketCap.map { Decimal($0).shortFormatted } ?? "–")
+                    }
+                    .padding(.vertical, 4)
+                    .background(theme.separator.opacity(0.5))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                } else if !isFetchingFundamental {
+                    Text("Tap Load untuk fetch data fundamental.")
+                        .font(.caption).foregroundStyle(theme.textSecondary.opacity(0.6))
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            Divider().background(theme.separator)
+        }
+    }
+
+    private func fundamentalStat(label: String, value: String) -> some View {
+        VStack(spacing: 3) {
+            Text(label)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(theme.textSecondary)
+            Text(value)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(theme.textPrimary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
     }
 
     private func refreshNAVFromBibit(kode: String) async {
