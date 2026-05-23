@@ -78,6 +78,7 @@ struct AnalitikView: View {
                     monthNavigator
                     cycleToggle
 
+
                     // Summary 2x2
                     summaryGrid
 
@@ -112,6 +113,10 @@ struct AnalitikView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 32)
+            }
+            .refreshable {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                // SwiftData @Query auto-refresh — cukup haptic trigger
             }
         }
         .navigationTitle("Analitik")

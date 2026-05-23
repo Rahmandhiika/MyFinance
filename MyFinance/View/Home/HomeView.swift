@@ -324,18 +324,28 @@ struct HomeView: View {
 
             Spacer()
 
-            // Hide balance toggle
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    hideBalance.toggle()
+            HStack(spacing: 8) {
+                // Hide balance toggle
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { hideBalance.toggle() }
+                } label: {
+                    Image(systemName: hideBalance ? "eye.slash.fill" : "eye.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(hideBalance ? theme.textSecondary : theme.textPrimary.opacity(0.6))
+                        .frame(width: 36, height: 36)
+                        .background(theme.separator)
+                        .clipShape(Circle())
                 }
-            } label: {
-                Image(systemName: hideBalance ? "eye.slash.fill" : "eye.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(hideBalance ? theme.textSecondary : theme.textPrimary.opacity(0.6))
-                    .frame(width: 36, height: 36)
-                    .background(theme.separator)
-                    .clipShape(Circle())
+
+                // Pengaturan shortcut
+                NavigationLink(destination: PengaturanView()) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(theme.textSecondary)
+                        .frame(width: 36, height: 36)
+                        .background(theme.separator)
+                        .clipShape(Circle())
+                }
             }
         }
         .padding(.horizontal)

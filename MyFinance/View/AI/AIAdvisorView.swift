@@ -592,7 +592,10 @@ private struct AIInsightCard: View {
                 Spacer()
                 switch state {
                 case .loading:
-                    ProgressView().scaleEffect(0.8).tint(Color(hex: type.color))
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(theme.separator)
+                        .frame(width: 80, height: 14)
+                        .shimmer()
                 case .loaded:
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption.weight(.semibold)).foregroundStyle(theme.textSecondary)
@@ -703,13 +706,19 @@ private struct AIToolConfirmationCard: View {
 
             if !isDone {
                 HStack(spacing: 8) {
-                    Button(action: onReject) {
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        onReject()
+                    } label: {
                         Text("Batalkan").font(.subheadline.weight(.semibold)).foregroundStyle(theme.textSecondary)
                             .frame(maxWidth: .infinity).padding(.vertical, 10)
                             .background(theme.separator).clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                     .buttonStyle(.plain)
-                    Button(action: onConfirm) {
+                    Button {
+                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+                        onConfirm()
+                    } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark")
                             Text("Jalankan")
@@ -779,6 +788,7 @@ private struct ChatBubble: View {
                 if message.role == .assistant, let onSave {
                     Button {
                         guard !saved else { return }
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         onSave(); saved = true
                     } label: {
                         HStack(spacing: 3) {
@@ -807,6 +817,40 @@ private struct ChatBubble: View {
             }
         }
     }
+}
+
+// MARK: - Shimmer Modifier
+
+private struct ShimmerModifier: ViewModifier {
+    @State private var phase: CGFloat = -1
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                GeometryReader { geo in
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear,                         location: 0),
+                            .init(color: .white.opacity(0.35),           location: 0.4),
+                            .init(color: .clear,                         location: 0.8)
+                        ],
+                        startPoint: .init(x: phase, y: 0),
+                        endPoint:   .init(x: phase + 0.8, y: 0)
+                    )
+                    .blendMode(.overlay)
+                }
+            )
+            .clipped()
+            .onAppear {
+                withAnimation(.linear(duration: 1.4).repeatForever(autoreverses: false)) {
+                    phase = 1.5
+                }
+            }
+    }
+}
+
+private extension View {
+    func shimmer() -> some View { modifier(ShimmerModifier()) }
 }
 
 // MARK: - Typing Indicator
@@ -855,12 +899,27 @@ private struct SavedInsightRow: View {
                 }
                 Text(insight.content).font(.caption).foregroundStyle(theme.textSecondary).lineLimit(3).lineSpacing(2)
             }
-            Button(action: onDelete) {
-                Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(theme.textSecondary.opacity(0.5))
-                    .padding(4)
+            Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                onDelete()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(theme.textSecondary.opacity(0.5))
+                    // Perbesar hit area ke 44×44pt (Apple HIG minimum)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
         }
         .padding(10).background(theme.bgCard).clipShape(RoundedRectangle(cornerRadius: 10))
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive) {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                onDelete()
+            } label: {
+                Label("Hapus", systemImage: "trash")
+            }
+        }
     }
 }
 

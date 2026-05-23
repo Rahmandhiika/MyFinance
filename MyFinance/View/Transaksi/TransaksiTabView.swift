@@ -171,6 +171,10 @@ struct TransaksiTabView: View {
                                 }
                                 .padding(.top, 4)
                             }
+                            .refreshable {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                ModelContainerService.shared.executeAutoTransaksi()
+                            }
                         }
                     } else {
                         // Analytics bulan lalu — per kategori
