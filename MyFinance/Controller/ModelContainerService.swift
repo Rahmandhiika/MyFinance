@@ -46,13 +46,28 @@ class ModelContainerService {
         }
     }
 
+    // MARK: - Save helper (logs errors instead of silently swallowing them)
+
+    /// Simpan context. Gagal → print warning, bukan crash.
+    /// Ganti semua `try? context.save()` dengan ini supaya error bisa dideteksi saat debug.
+    @discardableResult
+    func save(_ context: ModelContext) -> Bool {
+        do {
+            try context.save()
+            return true
+        } catch {
+            print("⚠️ MyFinance: ModelContext.save() gagal — \(error)")
+            return false
+        }
+    }
+
     /// Dipanggil saat app pertama buka — hanya seed jika belum ada data
     func ensureUserProfile() {
         let context = container.mainContext
         let count = (try? context.fetchCount(FetchDescriptor<UserProfile>())) ?? 0
         if count == 0 {
             context.insert(UserProfile(nama: "Dika", greetingText: "Halo"))
-            try? context.save()
+            save(context)
         }
         ensureKategoriPocket()
         executeAutoTransaksi()
@@ -109,7 +124,7 @@ class ModelContainerService {
             didCreate = true
         }
 
-        if didCreate { try? context.save() }
+        if didCreate { save(context) }
     }
 
     /// Dipanggil setelah reset — selalu seed ulang dari nol
@@ -127,7 +142,7 @@ class ModelContainerService {
         for (index, nama) in defaults.enumerated() {
             context.insert(KategoriPocket(nama: nama, urutan: index))
         }
-        try? context.save()
+        save(context)
     }
 
     private func ensureKategoriPocket() {
@@ -146,7 +161,7 @@ class ModelContainerService {
             for (index, nama) in defaults.enumerated() {
                 context.insert(KategoriPocket(nama: nama, urutan: index))
             }
-            try? context.save()
+            save(context)
         }
     }
 }

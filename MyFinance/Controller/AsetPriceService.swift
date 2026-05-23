@@ -35,8 +35,8 @@ class AsetPriceService {
 
         case .saham:
             guard let harga = await fetchSahamPrice(kode: aset.kode ?? aset.nama) else { return }
-            let lot = NSDecimalNumber(decimal: aset.lot ?? 0).doubleValue
-            aset.nilaiSaatIni = Decimal(Double(truncating: harga as NSDecimalNumber) * lot * 100)
+            // Decimal × Decimal — no Double roundtrip, precision preserved
+            aset.nilaiSaatIni = harga * (aset.lot ?? 0) * 100
 
         case .sahamAS:
             guard let kode = aset.kode, !kode.isEmpty else { return }

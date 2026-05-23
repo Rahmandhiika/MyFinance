@@ -112,7 +112,7 @@ struct AnalisaSahamView: View {
                         let hasil = try await StockAnalysisService.shared.analisa(kode: kode)
                         await MainActor.run { states[kode] = .success(hasil) }
                     } catch let e as AnalisisError {
-                        await MainActor.run { states[kode] = .error(e.localizedDescription ?? "Error") }
+                        await MainActor.run { states[kode] = .error(e.localizedDescription) }
                     } catch {
                         await MainActor.run { states[kode] = .error("Tidak ada koneksi internet") }
                     }

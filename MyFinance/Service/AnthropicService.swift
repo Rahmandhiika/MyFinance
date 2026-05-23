@@ -1,6 +1,6 @@
 import Foundation
 import SwiftData
-import Combine
+import Observation
 
 // MARK: - Chat Message Model
 
@@ -53,13 +53,13 @@ enum AIToolName: String, CaseIterable {
 
 // MARK: - Anthropic Service
 
-@MainActor
-final class AnthropicService: ObservableObject {
+@Observable @MainActor
+final class AnthropicService {
     static let shared = AnthropicService()
     private init() {}
 
-    @Published var isLoading = false
-    @Published var errorMessage: String? = nil
+    var isLoading = false
+    var errorMessage: String? = nil
 
     private let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
     private let model    = "claude-haiku-4-5"
@@ -369,11 +369,7 @@ struct FinancialContextBuilder {
         // --- Aset ---
         var asetContext = ""
         for a in aset {
-            let plPct: Double = {
-                let modal = Double(truncating: a.modal as NSDecimalNumber)
-                let nilai = Double(truncating: a.nilaiSaatIni as NSDecimalNumber)
-                return modal > 0 ? (nilai - modal) / modal * 100 : 0
-            }()
+            let plPct = a.returnPersen   // Decimal-based, no Double roundtrip
             switch a.tipe {
             case .saham:
                 let lot = a.lot ?? 0

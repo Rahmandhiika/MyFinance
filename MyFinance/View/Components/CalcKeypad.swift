@@ -289,7 +289,7 @@ struct CalcKeypad: View {
 
     private func pressPercent() {
         let current = Decimal(string: currentInput) ?? 0
-        if let op = pendingOp {
+        if pendingOp != nil {
             // Kontekstual: 1.000.000 × 50% → 50% dari accumulator
             let pct = current / 100 * accumulator
             currentInput = formatRaw(pct)
