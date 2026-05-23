@@ -26,6 +26,28 @@ struct AnalitikView: View {
     // Siklus Gajian mode — persisted
     @AppStorage("useSiklusGajian") private var useSiklusGajian: Bool = false
 
+    // CSV export — generated on-demand, not on every render
+    @State private var cachedCSVURL: URL? = nil
+
+    // MARK: - Static cached DateFormatters
+    // DateFormatter creation is expensive (~0.3ms). Cache as static so they're shared
+    // across all renders of this view without re-allocation.
+    private static let dfMonthShort: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "id_ID"); f.dateFormat = "MMM"; return f
+    }()
+    private static let dfDMY: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "id_ID"); f.dateFormat = "d MMM yyyy"; return f
+    }()
+    private static let dfDM: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "id_ID"); f.dateFormat = "d MMM"; return f
+    }()
+    private static let dfMonthYear: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "id_ID"); f.dateFormat = "MMMM yyyy"; return f
+    }()
+    private static let dfCSV: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f
+    }()
+
     // MARK: - User settings
 
     private var tanggalGajian: Int {
@@ -123,12 +145,24 @@ struct AnalitikView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                ShareLink(item: csvFileURL) {
-                    Image(systemName: "square.and.arrow.up")
-                        .foregroundStyle(theme.textSecondary)
+                if let url = cachedCSVURL {
+                    ShareLink(item: url) {
+                        Image(systemName: "square.and.arrow.up")
+                            .foregroundStyle(theme.textSecondary)
+                    }
+                } else {
+                    // Belum generate — tap untuk generate & share
+                    Button { cachedCSVURL = buildCSVFileURL() } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .foregroundStyle(theme.textSecondary)
+                    }
                 }
             }
         }
+        // Regenerate CSV hanya saat bulan ganti atau jumlah transaksi berubah
+        .onAppear { cachedCSVURL = buildCSVFileURL() }
+        .onChange(of: selectedMonth) { cachedCSVURL = buildCSVFileURL() }
+        .onChange(of: allTransaksi.count) { cachedCSVURL = nil }   // invalidate — akan re-gen saat tap
     }
 
     // MARK: - Month Navigator
@@ -171,14 +205,9 @@ struct AnalitikView: View {
 
     private var periodLabel: String {
         let cal = Calendar.current
-        let df = DateFormatter()
-        df.locale = Locale(identifier: "id_ID")
-
         if useSiklusGajian {
-            df.dateFormat = "d MMM"
-            let startStr = df.string(from: cycleStartDate)
-            df.dateFormat = "d MMM yyyy"
-            let endStr = df.string(from: cycleEndDate)
+            let startStr = Self.dfDM.string(from: cycleStartDate)
+            let endStr   = Self.dfDMY.string(from: cycleEndDate)
             return "\(startStr) – \(endStr)"
         } else {
             let comps = cal.dateComponents([.year, .month], from: selectedMonth)
@@ -186,8 +215,7 @@ struct AnalitikView: View {
                   let range = cal.range(of: .day, in: .month, for: start) else {
                 return selectedMonth.indonesianMonthYear
             }
-            df.dateFormat = "MMMM yyyy"
-            return "1 – \(range.count) \(df.string(from: start))"
+            return "1 – \(range.count) \(Self.dfMonthYear.string(from: start))"
         }
     }
 
@@ -1047,28 +1075,29 @@ struct AnalitikView: View {
     // MARK: - CSV Export
 
     private var csvString: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
+        // Gunakan cached static formatter — hindari alloc baru tiap kali
         var lines = ["Tanggal,Tipe,Kategori,Nominal,Catatan,Pocket"]
         for t in monthTransaksi.sorted(by: { $0.tanggal < $1.tanggal }) {
-            let tanggal = formatter.string(from: t.tanggal)
-            let tipe = t.tipe == .pengeluaran ? "Pengeluaran" : "Pemasukan"
-            let kat = t.kategori?.nama ?? "-"
+            let tanggal = Self.dfCSV.string(from: t.tanggal)
+            let tipe    = t.tipe == .pengeluaran ? "Pengeluaran" : "Pemasukan"
+            let kat     = t.kategori?.nama ?? "-"
             let nominal = "\(t.nominal)"
             let catatan = (t.catatan ?? "").replacingOccurrences(of: ",", with: ";")
-            let pocket = t.pocket?.nama ?? "-"
+            let pocket  = t.pocket?.nama ?? "-"
             lines.append("\(tanggal),\(tipe),\(kat),\(nominal),\(catatan),\(pocket)")
         }
         return lines.joined(separator: "\n")
     }
 
-    private var csvFileURL: URL {
-        let dir = FileManager.default.temporaryDirectory
+    /// Tulis CSV ke temp file dan return URL-nya.
+    /// Dipanggil hanya saat month berubah atau user tap tombol share — bukan tiap render.
+    private func buildCSVFileURL() -> URL {
+        let dir   = FileManager.default.temporaryDirectory
         let label = useSiklusGajian
             ? "siklus_\(tanggalGajian)_\(selectedMonth.indonesianMonthYear)"
             : selectedMonth.indonesianMonthYear
-        let name = "transaksi_\(label.replacingOccurrences(of: " ", with: "_").lowercased()).csv"
-        let url = dir.appendingPathComponent(name)
+        let name  = "transaksi_\(label.replacingOccurrences(of: " ", with: "_").lowercased()).csv"
+        let url   = dir.appendingPathComponent(name)
         try? csvString.write(to: url, atomically: true, encoding: .utf8)
         return url
     }
@@ -1077,17 +1106,29 @@ struct AnalitikView: View {
 
     private var dailyData: [(date: Date, pengeluaran: Double, pemasukan: Double, bersih: Double)] {
         let cal = Calendar.current
+
+        // O(n) — group transactions by day start once, avoid re-scanning per day
+        var grouped: [Date: (pengeluaran: Double, pemasukan: Double)] = [:]
+        for tx in monthTransaksi {
+            let day    = cal.startOfDay(for: tx.tanggal)
+            let amount = Double(truncating: tx.nominal as NSDecimalNumber)
+            var entry  = grouped[day] ?? (0, 0)
+            if tx.tipe == .pengeluaran { entry.pengeluaran += amount }
+            else                       { entry.pemasukan   += amount }
+            grouped[day] = entry
+        }
+
+        // O(days) — iterate calendar days and lookup
         var result: [(date: Date, pengeluaran: Double, pemasukan: Double, bersih: Double)] = []
         var current = cal.startOfDay(for: cycleStartDate)
-        let end = cal.startOfDay(for: cycleEndDate)
-
+        let end     = cal.startOfDay(for: cycleEndDate)
         while current <= end {
-            let next = cal.date(byAdding: .day, value: 1, to: current)!
-            let dayTx = monthTransaksi.filter { $0.tanggal >= current && $0.tanggal < next }
-            let keluar = Double(truncating: dayTx.filter { $0.tipe == .pengeluaran }.reduce(Decimal(0)) { $0 + $1.nominal } as NSDecimalNumber)
-            let masuk  = Double(truncating: dayTx.filter { $0.tipe == .pemasukan  }.reduce(Decimal(0)) { $0 + $1.nominal } as NSDecimalNumber)
-            result.append((date: current, pengeluaran: keluar, pemasukan: masuk, bersih: masuk - keluar))
-            current = next
+            let entry  = grouped[current] ?? (0, 0)
+            result.append((date: current,
+                           pengeluaran: entry.pengeluaran,
+                           pemasukan:   entry.pemasukan,
+                           bersih:      entry.pemasukan - entry.pengeluaran))
+            current = cal.date(byAdding: .day, value: 1, to: current)!
         }
         return result
     }
@@ -1139,21 +1180,27 @@ struct AnalitikView: View {
 
     private var multiMonthData: [MonthTrendPoint] {
         let cal = Calendar.current
-        let df = DateFormatter()
-        df.locale = Locale(identifier: "id_ID")
-        df.dateFormat = "MMM"
+
+        // O(n) — pre-group all transactions by "yyyy-M" key (avoids N filter passes)
+        var txByMonth: [String: (out: Double, inc: Double)] = [:]
+        for tx in allTransaksi {
+            let c   = cal.dateComponents([.year, .month], from: tx.tanggal)
+            let key = "\(c.year!)-\(c.month!)"
+            let amt = Double(truncating: tx.nominal as NSDecimalNumber)
+            var entry = txByMonth[key] ?? (0, 0)
+            if tx.tipe == .pengeluaran { entry.out += amt } else { entry.inc += amt }
+            txByMonth[key] = entry
+        }
 
         return (0..<trendPeriod).reversed().compactMap { offset in
             let monthDate = selectedMonth.addingMonths(-offset)
-            var startComps = cal.dateComponents([.year, .month], from: monthDate)
-            startComps.day = 1
-            guard let monthStart = cal.date(from: startComps) else { return nil }
-            let monthEnd = monthStart.addingMonths(1)
-
-            let txs = allTransaksi.filter { $0.tanggal >= monthStart && $0.tanggal < monthEnd }
-            let out  = Double(truncating: txs.filter { $0.tipe == .pengeluaran }.reduce(Decimal(0)) { $0 + $1.nominal } as NSDecimalNumber)
-            let inc  = Double(truncating: txs.filter { $0.tipe == .pemasukan  }.reduce(Decimal(0)) { $0 + $1.nominal } as NSDecimalNumber)
-            return MonthTrendPoint(month: monthDate, label: df.string(from: monthDate), pengeluaran: out, pemasukan: inc)
+            let c   = cal.dateComponents([.year, .month], from: monthDate)
+            let key = "\(c.year!)-\(c.month!)"
+            let entry = txByMonth[key] ?? (0, 0)
+            return MonthTrendPoint(month: monthDate,
+                                   label: Self.dfMonthShort.string(from: monthDate),
+                                   pengeluaran: entry.out,
+                                   pemasukan: entry.inc)
         }
     }
 
@@ -1187,27 +1234,24 @@ struct AnalitikView: View {
 
     private var kategoriTrendData: [KategoriTrendPoint] {
         let cal = Calendar.current
-        let df = DateFormatter()
-        df.locale = Locale(identifier: "id_ID")
-        df.dateFormat = "MMM"
         let top = topKategoriNama
+
+        // O(n) — pre-group by "yyyy-M,kategori" key
+        var txByMonthKat: [String: Double] = [:]
+        for tx in allTransaksi where tx.tipe == .pengeluaran {
+            let c   = cal.dateComponents([.year, .month], from: tx.tanggal)
+            let key = "\(c.year!)-\(c.month!),\(tx.kategori?.nama ?? "Lainnya")"
+            txByMonthKat[key, default: 0] += Double(truncating: tx.nominal as NSDecimalNumber)
+        }
 
         var result: [KategoriTrendPoint] = []
         for offset in stride(from: trendPeriod - 1, through: 0, by: -1) {
-            let monthDate = selectedMonth.addingMonths(-offset)
-            var startComps = cal.dateComponents([.year, .month], from: monthDate)
-            startComps.day = 1
-            guard let monthStart = cal.date(from: startComps) else { continue }
-            let monthEnd = monthStart.addingMonths(1)
-
-            let monthLabel = df.string(from: monthDate)
-            let txs = allTransaksi.filter {
-                $0.tipe == .pengeluaran && $0.tanggal >= monthStart && $0.tanggal < monthEnd
-            }
+            let monthDate  = selectedMonth.addingMonths(-offset)
+            let c          = cal.dateComponents([.year, .month], from: monthDate)
+            let monthPrefix = "\(c.year!)-\(c.month!)"
+            let monthLabel = Self.dfMonthShort.string(from: monthDate)
             for k in top {
-                let total = Double(truncating: txs
-                    .filter { ($0.kategori?.nama ?? "Lainnya") == k.nama }
-                    .reduce(Decimal(0)) { $0 + $1.nominal } as NSDecimalNumber)
+                let total = txByMonthKat["\(monthPrefix),\(k.nama)"] ?? 0
                 result.append(KategoriTrendPoint(monthLabel: monthLabel, kategoriNama: k.nama, warna: k.warna, total: total))
             }
         }

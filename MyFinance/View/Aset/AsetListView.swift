@@ -161,7 +161,7 @@ struct AsetListView: View {
                     .padding(.top, 8)
                 }
                 .refreshable {
-                    await priceService.refreshAll(allAset)
+                    await priceService.refreshAll(allAset, force: true)
                 }
             }
 
@@ -294,7 +294,7 @@ struct AsetListView: View {
 
     private var refreshButton: some View {
         Button {
-            Task { await priceService.refreshAll(allAset) }
+            Task { await priceService.refreshAll(allAset, force: true) }
         } label: {
             Image(systemName: "arrow.clockwise")
                 .font(.subheadline.weight(.semibold))

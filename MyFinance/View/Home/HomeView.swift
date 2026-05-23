@@ -238,49 +238,14 @@ struct HomeView: View {
     // MARK: - Auto Snapshot
 
     /// Tiap buka Home, upsert snapshot bulan INI dengan data terkini.
-    /// Bulan-bulan sebelumnya otomatis "membeku" karena kita hanya update bulan aktif.
-    /// Contoh: selama Mei, snapshot Mei terus di-update. Saat Juni tiba, Mei sudah membeku.
+    /// Business logic dipindah ke ModelContainerService — view hanya passing values.
     private func autoSnapshot() {
-        let cal = Calendar.current
-        let now = Date()
-        let currentMonth = cal.component(.month, from: now)
-        let currentYear  = cal.component(.year,  from: now)
-
-        // Hapus snapshot bulan-bulan di masa depan (artefak bug lama)
-        let allSnaps = (try? modelContext.fetch(FetchDescriptor<NetWorthSnapshot>())) ?? []
-        for snap in allSnaps {
-            let snapDate = DateComponents(calendar: cal, year: snap.tahun, month: snap.bulan).date ?? now
-            if snapDate > now {
-                modelContext.delete(snap)
-            }
-        }
-
-        var descriptor = FetchDescriptor<NetWorthSnapshot>(
-            predicate: #Predicate { $0.bulan == currentMonth && $0.tahun == currentYear }
+        ModelContainerService.shared.captureNetWorthSnapshot(
+            cash: cash,
+            totalAset: totalAset,
+            hutang: hutang,
+            danaTersimpan: danaTersimpan
         )
-        descriptor.fetchLimit = 1
-        let existing = (try? modelContext.fetch(descriptor)) ?? []
-
-        if let snapshot = existing.first {
-            // Update snapshot bulan ini dengan nilai terbaru
-            snapshot.cash          = cash
-            snapshot.totalAset     = totalAset
-            snapshot.hutang        = hutang
-            snapshot.danaTersimpan = danaTersimpan
-            snapshot.totalKekayaan = cash + totalAset + danaTersimpan - hutang
-        } else {
-            // Bulan baru — buat snapshot fresh
-            let snapshot = NetWorthSnapshot(
-                bulan: currentMonth,
-                tahun: currentYear,
-                cash: cash,
-                totalAset: totalAset,
-                hutang: hutang,
-                danaTersimpan: danaTersimpan
-            )
-            modelContext.insert(snapshot)
-        }
-        try? modelContext.save()
     }
 
     // MARK: - Balance Mask Helper

@@ -145,6 +145,49 @@ class ModelContainerService {
         save(context)
     }
 
+    // MARK: - Net Worth Snapshot
+
+    /// Upsert snapshot kekayaan bersih untuk bulan saat ini.
+    /// Dipanggil dari HomeView.onAppear — business logic dikeluarkan dari view layer.
+    func captureNetWorthSnapshot(cash: Decimal, totalAset: Decimal,
+                                 hutang: Decimal, danaTersimpan: Decimal) {
+        let context = container.mainContext
+        let cal     = Calendar.current
+        let now     = Date()
+        let currentMonth = cal.component(.month, from: now)
+        let currentYear  = cal.component(.year,  from: now)
+
+        // Bersihkan snapshot di masa depan (artefak bug lama)
+        if let allSnaps = try? context.fetch(FetchDescriptor<NetWorthSnapshot>()) {
+            for snap in allSnaps {
+                let snapDate = DateComponents(calendar: cal, year: snap.tahun, month: snap.bulan).date ?? now
+                if snapDate > now { context.delete(snap) }
+            }
+        }
+
+        var descriptor = FetchDescriptor<NetWorthSnapshot>(
+            predicate: #Predicate { $0.bulan == currentMonth && $0.tahun == currentYear }
+        )
+        descriptor.fetchLimit = 1
+        let existing = (try? context.fetch(descriptor)) ?? []
+
+        if let snapshot = existing.first {
+            snapshot.cash          = cash
+            snapshot.totalAset     = totalAset
+            snapshot.hutang        = hutang
+            snapshot.danaTersimpan = danaTersimpan
+            snapshot.totalKekayaan = cash + totalAset + danaTersimpan - hutang
+        } else {
+            let snapshot = NetWorthSnapshot(
+                bulan: currentMonth, tahun: currentYear,
+                cash: cash, totalAset: totalAset,
+                hutang: hutang, danaTersimpan: danaTersimpan
+            )
+            context.insert(snapshot)
+        }
+        save(context)
+    }
+
     private func ensureKategoriPocket() {
         let context = container.mainContext
         let descriptor = FetchDescriptor<KategoriPocket>()

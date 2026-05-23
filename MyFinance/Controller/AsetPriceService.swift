@@ -5,13 +5,35 @@ import Observation
 class AsetPriceService {
     static let shared = AsetPriceService()
     var isLoading = false
-    var lastUpdated: Date? = nil
 
-    private init() {}
+    /// Waktu terakhir harga diupdate — dipersist via UserDefaults sehingga
+    /// setelah restart app harga lama masih "dihitung fresh" selama < freshnessInterval.
+    var lastUpdated: Date? = nil {
+        didSet {
+            if let d = lastUpdated {
+                UserDefaults.standard.set(d, forKey: "asetPriceLastUpdated")
+            }
+        }
+    }
+
+    /// Harga dianggap masih fresh selama 15 menit. Setelah itu, auto-refresh dijalankan lagi.
+    private let freshnessInterval: TimeInterval = 15 * 60
+
+    private init() {
+        // Restore lastUpdated dari sesi sebelumnya — hindari fetch ulang tiap buka app
+        lastUpdated = UserDefaults.standard.object(forKey: "asetPriceLastUpdated") as? Date
+    }
 
     // MARK: - Refresh All (concurrent — all fetches start simultaneously)
 
-    func refreshAll(_ asets: [Aset]) async {
+    /// - Parameter force: true = selalu fetch, abaikan cache (tombol refresh manual / pull-to-refresh).
+    ///                    false (default) = skip kalau data masih fresh (< 15 menit).
+    func refreshAll(_ asets: [Aset], force: Bool = false) async {
+        // Staleness guard — skip kalau bukan force dan data masih fresh
+        if !force, let last = lastUpdated,
+           Date().timeIntervalSince(last) < freshnessInterval {
+            return
+        }
         isLoading = true
         defer {
             isLoading = false
