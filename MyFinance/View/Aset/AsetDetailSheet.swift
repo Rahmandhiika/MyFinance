@@ -35,6 +35,8 @@ struct AsetDetailSheet: View {
     @State private var showBeliEmas = false
     @State private var showTambahReksadana = false
     @State private var showBeliValas = false
+    @State private var isRefreshingNAV = false
+    @State private var navRefreshError: String? = nil
 
     var body: some View {
         NavigationStack {
@@ -122,6 +124,14 @@ struct AsetDetailSheet: View {
             } else {
                 Text("Data aset ini akan dihapus permanen dan tidak bisa dipulihkan.")
             }
+        }
+        .alert("Gagal Refresh NAV", isPresented: Binding(
+            get: { navRefreshError != nil },
+            set: { if !$0 { navRefreshError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(navRefreshError ?? "")
         }
         .alert("Update NAV Reksadana", isPresented: $showUpdateNAV) {
             TextField("NAV per unit (Rp)", text: $navInput)
@@ -545,20 +555,45 @@ struct AsetDetailSheet: View {
                 }
             }
             Spacer()
-            Button {
-                navInput = aset.navSaatIni.map { "\($0)" } ?? ""
-                showUpdateNAV = true
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "pencil")
-                        .font(.caption.weight(.semibold))
-                    Text("Update NAV")
-                        .font(.caption.weight(.semibold))
+            HStack(spacing: 6) {
+                // Auto-fetch dari Bibit (hanya kalau ada kode produk)
+                if let kode = aset.kode, !kode.isEmpty {
+                    Button {
+                        Task { await refreshNAVFromBibit(kode: kode) }
+                    } label: {
+                        HStack(spacing: 4) {
+                            if isRefreshingNAV {
+                                ProgressView().scaleEffect(0.6).tint(Color(hex: "#60A5FA"))
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.caption.weight(.semibold))
+                            }
+                            Text("Bibit")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .foregroundStyle(Color(hex: "#60A5FA"))
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(Color(hex: "#60A5FA").opacity(0.12))
+                        .clipShape(Capsule())
+                    }
+                    .disabled(isRefreshingNAV)
                 }
-                .foregroundStyle(Color(hex: "#22C55E"))
-                .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(Color(hex: "#22C55E").opacity(0.12))
-                .clipShape(Capsule())
+
+                Button {
+                    navInput = aset.navSaatIni.map { "\($0)" } ?? ""
+                    showUpdateNAV = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "pencil")
+                            .font(.caption.weight(.semibold))
+                        Text("Manual")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(Color(hex: "#22C55E"))
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(Color(hex: "#22C55E").opacity(0.12))
+                    .clipShape(Capsule())
+                }
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
@@ -936,6 +971,20 @@ struct AsetDetailSheet: View {
         aset.nilaiSaatIni = aset.estimasiUnitReksadana * nav
         try? modelContext.save()
         navInput = ""
+    }
+
+    private func refreshNAVFromBibit(kode: String) async {
+        isRefreshingNAV = true
+        navRefreshError = nil
+        defer { isRefreshingNAV = false }
+        do {
+            let result = try await BibitService.shared.fetchNAV(productID: kode)
+            aset.navSaatIni   = Decimal(result.nav)
+            aset.nilaiSaatIni = aset.estimasiUnitReksadana * Decimal(result.nav)
+            try? modelContext.save()
+        } catch {
+            navRefreshError = error.localizedDescription
+        }
     }
 
     private func saveHargaBeli() {

@@ -33,7 +33,16 @@ class ModelContainerService {
         do {
             container = try ModelContainer(for: schema, configurations: config)
         } catch {
-            fatalError("Failed to create ModelContainer: \(error)")
+            // Persistent store gagal (misal schema migration) — fallback ke in-memory
+            // agar app tidak crash. Data tidak akan persist di sesi ini, tapi app tetap jalan.
+            print("⚠️ MyFinance: persistent store gagal (\(error)). Fallback ke in-memory store.")
+            do {
+                let fallbackConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                container = try ModelContainer(for: schema, configurations: fallbackConfig)
+            } catch {
+                // In-memory pun gagal — baru boleh crash
+                fatalError("Failed to create even in-memory ModelContainer: \(error)")
+            }
         }
     }
 
@@ -46,6 +55,61 @@ class ModelContainerService {
             try? context.save()
         }
         ensureKategoriPocket()
+        executeAutoTransaksi()
+    }
+
+    /// Jalankan transaksi otomatis yang belum dibuat bulan ini
+    func executeAutoTransaksi() {
+        let context = container.mainContext
+        let cal     = Calendar.current
+        let now     = Date()
+        let todayDay = cal.component(.day, from: now)
+
+        guard let autoTxs = try? context.fetch(FetchDescriptor<TransaksiOtomatis>()) else { return }
+        let aktif = autoTxs.filter { $0.isAktif }
+        guard !aktif.isEmpty else { return }
+
+        // Ambil semua transaksi bulan ini — untuk deteksi duplikat
+        var comps = cal.dateComponents([.year, .month], from: now); comps.day = 1
+        guard let startOfMonth = cal.date(from: comps),
+              let endOfMonth   = cal.date(byAdding: .month, value: 1, to: startOfMonth) else { return }
+
+        let monthDesc = FetchDescriptor<Transaksi>(
+            predicate: #Predicate { $0.tanggal >= startOfMonth && $0.tanggal < endOfMonth }
+        )
+        let existingTx      = (try? context.fetch(monthDesc)) ?? []
+        let executedThisMonth = Set(existingTx.compactMap { $0.otomatisID })
+
+        var didCreate = false
+        for auto in aktif {
+            // Hanya jalankan kalau sudah lewat tanggal tagih & belum ada bulan ini
+            guard todayDay >= auto.setiapTanggal else { continue }
+            guard !executedThisMonth.contains(auto.id) else { continue }
+
+            var txComps = cal.dateComponents([.year, .month], from: now)
+            txComps.day = auto.setiapTanggal
+            let txDate  = cal.date(from: txComps) ?? now
+
+            let newTx = Transaksi(
+                tanggal:  txDate,
+                nominal:  auto.nominal,
+                tipe:     auto.tipe,
+                kategori: auto.kategori,
+                pocket:   auto.pocket,
+                catatan:  auto.catatan
+            )
+            newTx.otomatisID = auto.id
+
+            if let pocket = auto.pocket {
+                if auto.tipe == .pengeluaran { pocket.saldo -= auto.nominal }
+                else                         { pocket.saldo += auto.nominal }
+            }
+
+            context.insert(newTx)
+            didCreate = true
+        }
+
+        if didCreate { try? context.save() }
     }
 
     /// Dipanggil setelah reset — selalu seed ulang dari nol

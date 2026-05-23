@@ -177,7 +177,7 @@ final class AnthropicService: ObservableObject {
     }
 
     private func postToAnthropic(body: [String: Any], apiKey: String) async throws -> AnthropicRawResponse {
-        var request = URLRequest(url: endpoint)
+        var request = URLRequest(url: endpoint, timeoutInterval: 30)
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")

@@ -440,6 +440,7 @@ struct AddEditTransaksiSheet: View {
 
     private func saveTransaksi() {
         guard let pocket = selectedPocket else { return }
+        guard nominal > 0 else { return }
 
         // Determine kategori berdasarkan sub tipe
         let finalKategori: Kategori?

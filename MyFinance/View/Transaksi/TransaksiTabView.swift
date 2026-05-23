@@ -154,11 +154,7 @@ struct TransaksiTabView: View {
                     if isCurrentMonth {
                         // List transaksi — hanya bulan ini
                         if groupedItems.isEmpty {
-                            Spacer()
-                            Text("Belum ada transaksi")
-                                .foregroundStyle(theme.textSecondary)
-                                .font(.subheadline)
-                            Spacer()
+                            emptyTransaksiState
                         } else {
                             ScrollView {
                                 LazyVStack(spacing: 0, pinnedViews: .sectionHeaders) {
@@ -314,6 +310,24 @@ struct TransaksiTabView: View {
     }
 
     // MARK: - Summary card
+
+    private var emptyTransaksiState: some View {
+        VStack(spacing: 14) {
+            Spacer()
+            Image(systemName: "tray")
+                .font(.system(size: 40))
+                .foregroundStyle(theme.textSecondary.opacity(0.4))
+            Text("Belum ada transaksi")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(theme.textSecondary)
+            Text("Tap + untuk catat pengeluaran atau pemasukan pertama di bulan ini.")
+                .font(.caption)
+                .foregroundStyle(theme.textSecondary.opacity(0.6))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+            Spacer()
+        }
+    }
 
     private var summaryCard: some View {
         VStack(spacing: 12) {

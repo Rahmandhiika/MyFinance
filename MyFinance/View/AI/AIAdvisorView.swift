@@ -403,10 +403,10 @@ struct AIAdvisorView: View {
     // MARK: - Logic: Tool Execution
 
     private func executeTool(_ toolCall: AIToolCall, messageId: UUID) {
-        // Update status jadi confirmed
-        if let idx = chatMessages.firstIndex(where: { $0.id == messageId }) {
-            chatMessages[idx].toolCall?.status = .confirmed
-        }
+        // Guard idempotency — hanya jalankan kalau masih .pending
+        guard let idx = chatMessages.firstIndex(where: { $0.id == messageId }),
+              chatMessages[idx].toolCall?.status == .pending else { return }
+        chatMessages[idx].toolCall?.status = .confirmed
 
         var resultText = ""
         switch toolCall.name {
@@ -497,6 +497,18 @@ struct AIAdvisorView: View {
                 catatan:  catatan
             )
 
+            // Check saldo negatif sebelum mutasi
+            var warnings: [String] = []
+            if tipe == .pengeluaran, let pocket = matchedPocket, pocket.saldo < nominal {
+                let hasilSaldo = pocket.saldo - nominal
+                warnings.append("⚠️ Saldo \(pocket.nama) akan jadi \(hasilSaldo.idrFormatted) (negatif).")
+            }
+
+            // Pocket tidak ketemu tapi user nyebut nama pocket
+            if matchedPocket == nil && !pocketNama.isEmpty {
+                warnings.append("⚠️ Pocket '\(pocketNama)' tidak ditemukan — saldo tidak disesuaikan. Cek nama pocket di app.")
+            }
+
             // Adjust pocket saldo
             if let pocket = matchedPocket {
                 if tipe == .pengeluaran { pocket.saldo -= nominal }
@@ -507,9 +519,10 @@ struct AIAdvisorView: View {
             try? modelContext.save()
 
             let df = DateFormatter(); df.locale = Locale(identifier: "id_ID"); df.dateFormat = "d MMM yyyy, HH:mm"
-            let katLabel    = matchedKat?.nama    ?? (katNama.isEmpty    ? "-" : katNama)
-            let pocketLabel = matchedPocket?.nama ?? (pocketNama.isEmpty ? "-" : pocketNama)
-            resultText = "Berhasil membuat transaksi: \(catatan ?? "Tanpa catatan") \(nominal.idrFormatted) (\(tipeStr)) · \(katLabel) · \(pocketLabel) · \(df.string(from: parsedDate))"
+            let katLabel    = matchedKat?.nama    ?? (katNama.isEmpty ? "-" : katNama)
+            let pocketLabel = matchedPocket?.nama ?? (pocketNama.isEmpty ? "tidak dipilih" : "\(pocketNama) (tidak ditemukan)")
+            let warningNote = warnings.isEmpty ? "" : " | \(warnings.joined(separator: " "))"
+            resultText = "Berhasil membuat transaksi: \(catatan ?? "Tanpa catatan") \(nominal.idrFormatted) (\(tipeStr)) · \(katLabel) · \(pocketLabel) · \(df.string(from: parsedDate))\(warningNote)"
         }
 
         // Mark as executed
@@ -650,7 +663,7 @@ private struct AIToolConfirmationCard: View {
     let onReject: () -> Void
 
     var body: some View {
-        let isDone = toolCall.status == .executed || toolCall.status == .rejected
+        let isDone = toolCall.status == .executed || toolCall.status == .rejected || toolCall.status == .confirmed
 
         VStack(alignment: .leading, spacing: 12) {
             // Header
@@ -708,9 +721,16 @@ private struct AIToolConfirmationCard: View {
                     .buttonStyle(.plain)
                 }
             } else {
-                Text(toolCall.status == .executed ? "✅ Perubahan berhasil dijalankan" : "❌ Dibatalkan")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(toolCall.status == .executed ? Color(hex: "#22C55E") : theme.textSecondary)
+                HStack(spacing: 6) {
+                    if toolCall.status == .confirmed {
+                        ProgressView().scaleEffect(0.7).tint(Color(hex: "#22C55E"))
+                        Text("Sedang dijalankan...").font(.caption.weight(.semibold)).foregroundStyle(theme.textSecondary)
+                    } else {
+                        Text(toolCall.status == .executed ? "✅ Perubahan berhasil dijalankan" : "❌ Dibatalkan")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(toolCall.status == .executed ? Color(hex: "#22C55E") : theme.textSecondary)
+                    }
+                }
             }
         }
         .padding(14)
