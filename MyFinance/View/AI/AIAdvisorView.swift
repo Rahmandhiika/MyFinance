@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Speech
 
 // MARK: - Main View
 
@@ -24,6 +25,8 @@ struct AIAdvisorView: View {
     @State private var isTyping:      Bool   = false
     @State private var insightStates: [AIInsightType: InsightState] = [:]
     @State private var showSaved:     Bool   = false
+    @State private var speechService  = SpeechRecognitionService()
+    @State private var micWavePhase:  Bool   = false
 
     private var financialContext: String {
         FinancialContextBuilder.build(
@@ -265,11 +268,65 @@ struct AIAdvisorView: View {
     private var chatInputBar: some View {
         VStack(spacing: 0) {
             Divider().background(theme.separator)
-            HStack(spacing: 10) {
+
+            // Live waveform saat recording
+            if speechService.isRecording {
+                HStack(spacing: 4) {
+                    Image(systemName: "waveform").font(.caption).foregroundStyle(Color(hex: "#22C55E"))
+                    Text(speechService.transcribedText.isEmpty ? "Dengerin..." : speechService.transcribedText)
+                        .font(.caption).foregroundStyle(theme.textSecondary)
+                        .lineLimit(1).truncationMode(.tail)
+                    Spacer()
+                    // Mini waveform bars
+                    HStack(spacing: 2) {
+                        ForEach(0..<5, id: \.self) { i in
+                            RoundedRectangle(cornerRadius: 1.5)
+                                .fill(Color(hex: "#22C55E"))
+                                .frame(width: 3, height: micWavePhase ? CGFloat([8,14,10,16,8][i]) : CGFloat([4,7,5,8,4][i]))
+                                .animation(.easeInOut(duration: 0.35 + Double(i) * 0.08).repeatForever(autoreverses: true), value: micWavePhase)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16).padding(.top, 8)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            HStack(spacing: 8) {
+                // Mic button
+                Button {
+                    if speechService.isRecording {
+                        speechService.stopRecording()
+                        // Jika ada hasil, pindah ke inputText
+                        if !speechService.transcribedText.isEmpty {
+                            inputText = speechService.transcribedText
+                            speechService.transcribedText = ""
+                        }
+                    } else {
+                        inputText = ""
+                        Task {
+                            await speechService.requestPermission()
+                            try? speechService.startRecording()
+                            micWavePhase = true
+                        }
+                    }
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(speechService.isRecording ? Color(hex: "#22C55E") : theme.bgCard)
+                            .frame(width: 38, height: 38)
+                            .overlay(Circle().stroke(speechService.isRecording ? Color.clear : theme.cardBorder, lineWidth: 1))
+                        Image(systemName: speechService.isRecording ? "stop.fill" : "mic.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(speechService.isRecording ? .black : theme.textSecondary)
+                    }
+                }
+                .buttonStyle(.plain)
+
                 TextField("Tanya sesuatu...", text: $inputText, axis: .vertical)
                     .font(.subheadline).foregroundStyle(theme.textPrimary).lineLimit(1...4)
                     .padding(.horizontal, 14).padding(.vertical, 10)
                     .background(theme.bgCard).clipShape(RoundedRectangle(cornerRadius: 22))
+
                 Button {
                     let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !text.isEmpty, !isTyping else { return }
@@ -283,6 +340,25 @@ struct AIAdvisorView: View {
                 .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isTyping)
             }
             .padding(.horizontal, 14).padding(.vertical, 10).background(theme.bgApp)
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: speechService.isRecording)
+        .onChange(of: speechService.isRecording) { _, isNowRecording in
+            // Saat recording berhenti otomatis (silence timer) — auto-send kalau ada teks
+            if !isNowRecording && !speechService.transcribedText.isEmpty {
+                let text = speechService.transcribedText
+                speechService.transcribedText = ""
+                micWavePhase = false
+                inputText = ""
+                Task { await sendToAI(text) }
+            } else if !isNowRecording {
+                micWavePhase = false
+            }
+        }
+        .onChange(of: speechService.transcribedText) { _, newText in
+            // Live preview di inputField saat recording
+            if speechService.isRecording {
+                inputText = newText
+            }
         }
     }
 

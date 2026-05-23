@@ -14,8 +14,8 @@ struct MainTabView: View {
                 .tabItem { Label("Transaksi", systemImage: "list.bullet") }
                 .tag(1)
 
-            VoiceTabView()
-                .tabItem { Label("", systemImage: "mic.fill") }
+            NavigationStack { AIAdvisorView() }
+                .tabItem { Label("AI", systemImage: "brain.head.profile") }
                 .tag(2)
 
             PocketTabView()
