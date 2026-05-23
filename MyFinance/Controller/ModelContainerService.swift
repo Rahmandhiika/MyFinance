@@ -61,7 +61,9 @@ class ModelContainerService {
         }
     }
 
-    /// Dipanggil saat app pertama buka — hanya seed jika belum ada data
+    /// Dipanggil saat app pertama buka — hanya seed jika belum ada data.
+    /// `executeAutoTransaksi` di-defer ke background Task agar tidak memblokir
+    /// synchronous launch path dan HomeView bisa muncul secepat mungkin.
     func ensureUserProfile() {
         let context = container.mainContext
         let count = (try? context.fetchCount(FetchDescriptor<UserProfile>())) ?? 0
@@ -70,7 +72,7 @@ class ModelContainerService {
             save(context)
         }
         ensureKategoriPocket()
-        executeAutoTransaksi()
+        Task { self.executeAutoTransaksi() }
     }
 
     /// Jalankan transaksi otomatis yang belum dibuat bulan ini

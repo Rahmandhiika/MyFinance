@@ -20,14 +20,18 @@ struct MarketIndexData: Identifiable {
     var isPositive: Bool { changeAbs >= 0 }
 
     var priceFormatted: String {
+        Self.priceFormatter.string(from: NSNumber(value: currentPrice)) ?? "\(currentPrice)"
+    }
+
+    private static let priceFormatter: NumberFormatter = {
         let f = NumberFormatter()
         f.numberStyle = .decimal
         f.minimumFractionDigits = 2
         f.maximumFractionDigits = 2
         f.groupingSeparator = "."
         f.decimalSeparator = ","
-        return f.string(from: NSNumber(value: currentPrice)) ?? "\(currentPrice)"
-    }
+        return f
+    }()
 
     var changePctFormatted: String {
         String(format: "%+.2f%%", changePct)
@@ -50,10 +54,15 @@ class MarketIndexService {
     var lastUpdated: Date?
     var errorMessage: String?
 
+    /// Market data dianggap fresh selama 10 menit.
+    private let freshnessInterval: TimeInterval = 10 * 60
+
     private init() {}
 
     func refresh() async {
         guard !isLoading else { return }
+        // Staleness guard — skip kalau data masih fresh
+        if let last = lastUpdated, Date().timeIntervalSince(last) < freshnessInterval { return }
         await MainActor.run { isLoading = true; errorMessage = nil }
 
         async let ihsgTask  = fetchIndex(symbol: "^JKSE",  name: "IHSG",    flag: "🇮🇩")

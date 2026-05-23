@@ -17,10 +17,15 @@ extension Date {
         Calendar.current.date(byAdding: .month, value: months, to: self) ?? self
     }
 
+    // Static cached formatter — reused across every month label render in the app.
+    private static let idMonthYearFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "id_ID")
+        f.dateFormat = "MMMM yyyy"
+        return f
+    }()
+
     var indonesianMonthYear: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "id_ID")
-        formatter.dateFormat = "MMMM yyyy"
-        return formatter.string(from: self)
+        Date.idMonthYearFormatter.string(from: self)
     }
 }
