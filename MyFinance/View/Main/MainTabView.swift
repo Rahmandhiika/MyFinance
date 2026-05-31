@@ -22,8 +22,8 @@ struct MainTabView: View {
                 .tabItem { Label("Pocket", systemImage: "wallet.pass.fill") }
                 .tag(3)
 
-            NavigationStack { AnalitikView() }
-                .tabItem { Label("Analitik", systemImage: "chart.bar.fill") }
+            NavigationStack { PengaturanView() }
+                .tabItem { Label("Pengaturan", systemImage: "gearshape.fill") }
                 .tag(4)
         }
         .tint(theme.tabBarTint)
