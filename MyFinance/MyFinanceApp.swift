@@ -8,6 +8,8 @@ struct MyFinanceApp: App {
 
     init() {
         containerService.ensureUserProfile()
+        // Bersihkan key UserDefaults lama yang sudah tidak dipakai
+        UserDefaults.standard.removeObject(forKey: "asetPriceLastUpdated")
     }
 
     var body: some Scene {
