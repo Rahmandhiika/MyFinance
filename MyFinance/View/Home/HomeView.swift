@@ -122,6 +122,20 @@ struct HomeView: View {
         Calendar.current.isDate(selectedMonth, equalTo: Date(), toGranularity: .month)
     }
 
+    /// Total pengeluaran per kategori untuk bulan SEBELUM selectedMonth.
+    /// Dipakai di pastMonthKategoriSection untuk delta comparison.
+    private var prevMonthKategoriTotals: [UUID: Decimal] {
+        let prev = selectedMonth.addingMonths(-1)
+        var totals: [UUID: Decimal] = [:]
+        for tx in allTransaksi
+            where tx.tipe == .pengeluaran && tx.tanggal.isSameMonth(as: prev) {
+            if let katID = tx.kategori?.id {
+                totals[katID, default: 0] += tx.nominal
+            }
+        }
+        return totals
+    }
+
     // MARK: - Kekayaan Computed (non-tx, kept as individual props)
 
     private var danaTersimpan: Decimal { allTargets.reduce(0) { $0 + $1.tersimpan } }
@@ -658,6 +672,23 @@ struct HomeView: View {
 
                 Spacer()
 
+                // Alert badge — muncul saat >= 80%
+                if over {
+                    Text("Over!")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5).padding(.vertical, 2)
+                        .background(theme.danger)
+                        .clipShape(Capsule())
+                } else if prog >= 0.8 {
+                    Text(String(format: "%.0f%%", prog * 100))
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5).padding(.vertical, 2)
+                        .background(Color(hex: "#F59E0B"))
+                        .clipShape(Capsule())
+                }
+
                 Text(masked("\(pakai.shortFormatted) / \(anggaran.nominal.shortFormatted)"))
                     .font(.caption2)
                     .foregroundStyle(over ? theme.danger : theme.textSecondary)
@@ -907,6 +938,7 @@ struct HomeView: View {
 
     private func pastMonthKategoriSection(_ stats: MonthStats) -> some View {
         let totalPengeluaran = stats.pengeluaran
+        let prevTotals = prevMonthKategoriTotals
         return VStack(alignment: .leading, spacing: 12) {
             sectionHeader(label: "PENGELUARAN PER KATEGORI", icon: "chart.pie.fill")
 
@@ -922,12 +954,17 @@ struct HomeView: View {
 
             Divider().background(theme.separator)
 
-            // Semua kategori pengeluaran
+            // Semua kategori pengeluaran + delta vs bulan sebelumnya
             ForEach(Array(stats.semuaKategori.enumerated()), id: \.offset) { _, pair in
                 let (kat, amount) = pair
                 let pct = totalPengeluaran > 0
                     ? Double(truncating: (amount / totalPengeluaran) as NSDecimalNumber)
                     : 0
+                let prevAmount = prevTotals[kat.id] ?? 0
+                let delta      = amount - prevAmount
+                let deltaIsUp  = delta > 0
+                let hasPrev    = prevAmount > 0
+
                 VStack(spacing: 4) {
                     HStack(spacing: 10) {
                         ZStack {
@@ -946,13 +983,28 @@ struct HomeView: View {
                             .font(.subheadline)
                             .foregroundStyle(theme.textPrimary)
                         Spacer()
-                        VStack(alignment: .trailing, spacing: 1) {
+                        VStack(alignment: .trailing, spacing: 2) {
                             Text(masked(amount.idrFormatted))
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(theme.pengeluaran)
-                            Text(String(format: "%.0f%%", pct * 100))
-                                .font(.caption2)
-                                .foregroundStyle(theme.textSecondary)
+                            HStack(spacing: 4) {
+                                Text(String(format: "%.0f%%", pct * 100))
+                                    .font(.caption2)
+                                    .foregroundStyle(theme.textSecondary)
+                                // Delta vs bulan sebelumnya
+                                if hasPrev && delta != 0 {
+                                    HStack(spacing: 2) {
+                                        Image(systemName: deltaIsUp ? "arrow.up" : "arrow.down")
+                                            .font(.system(size: 8, weight: .bold))
+                                        Text(abs(delta).shortFormatted)
+                                            .font(.system(size: 9, weight: .semibold))
+                                    }
+                                    .foregroundStyle(deltaIsUp ? theme.pengeluaran : theme.pemasukan)
+                                    .padding(.horizontal, 4).padding(.vertical, 1)
+                                    .background((deltaIsUp ? theme.pengeluaran : theme.pemasukan).opacity(0.1))
+                                    .clipShape(Capsule())
+                                }
+                            }
                         }
                     }
                     ProgressBarView(progress: pct, color: Color(hex: kat.warna), height: 3)
