@@ -18,7 +18,9 @@ struct AIAdvisorView: View {
     @Query private var profiles:      [UserProfile]
     @Query(sort: \SavedAIInsight.savedAt, order: .reverse) private var savedInsights: [SavedAIInsight]
 
-    @AppStorage("anthropicAPIKey") private var apiKey: String = ""
+    // API key disimpan di Keychain — bukan UserDefaults — via APIKeyStore
+    @State private var keyStore = APIKeyStore.shared
+    private var apiKey: String { keyStore.apiKey }
 
     @State private var chatMessages:  [AIChatMessage] = []
     @State private var inputText:     String = ""
@@ -927,7 +929,9 @@ private struct SavedInsightRow: View {
 
 struct APIKeySettingView: View {
     @Environment(\.appTheme) private var theme
-    @AppStorage("anthropicAPIKey") private var apiKey: String = ""
+    // API key disimpan di Keychain via APIKeyStore — bukan UserDefaults
+    @State private var keyStore = APIKeyStore.shared
+    private var apiKey: String { keyStore.apiKey }
     @State private var inputKey = ""
     @State private var isVisible = false
     @State private var testStatus: TestStatus = .idle
@@ -982,7 +986,7 @@ struct APIKeySettingView: View {
                         .buttonStyle(.plain)
 
                         Button {
-                            apiKey = inputKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                            keyStore.apiKey = inputKey.trimmingCharacters(in: .whitespacesAndNewlines)
                             dismiss()
                         } label: {
                             HStack(spacing: 6) { Image(systemName: "checkmark"); Text("Simpan") }

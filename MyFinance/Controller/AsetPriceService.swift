@@ -119,7 +119,8 @@ class AsetPriceService {
                let result = (chart["result"] as? [[String: Any]])?.first,
                let meta   = result["meta"] as? [String: Any],
                let price  = meta["regularMarketPrice"] as? Double {
-                return Decimal(price)
+                // Decimal(Double) mewarisi float error — konversi via String agar presisi terjaga
+                return Decimal(string: "\(price)") ?? NSDecimalNumber(value: price).decimalValue
             }
         } catch { }
         return nil

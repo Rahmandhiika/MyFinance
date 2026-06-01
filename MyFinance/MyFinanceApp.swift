@@ -10,6 +10,20 @@ struct MyFinanceApp: App {
         containerService.ensureUserProfile()
         // Bersihkan key UserDefaults lama yang sudah tidak dipakai
         UserDefaults.standard.removeObject(forKey: "asetPriceLastUpdated")
+        // Migrasi one-time: pindah API key dari UserDefaults (plaintext) ke Keychain (terenkripsi)
+        migrateAPIKeyToKeychain()
+    }
+
+    /// Jika API key masih tersimpan di UserDefaults (sesi sebelum fix ini),
+    /// pindahkan ke Keychain lalu hapus dari UserDefaults.
+    private func migrateAPIKeyToKeychain() {
+        let udKey = "anthropicAPIKey"
+        guard let oldKey = UserDefaults.standard.string(forKey: udKey), !oldKey.isEmpty else { return }
+        // Simpan ke Keychain hanya jika belum ada
+        if APIKeyStore.shared.apiKey.isEmpty {
+            APIKeyStore.shared.apiKey = oldKey
+        }
+        UserDefaults.standard.removeObject(forKey: udKey)
     }
 
     var body: some Scene {
