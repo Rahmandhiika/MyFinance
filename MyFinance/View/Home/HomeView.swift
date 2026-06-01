@@ -254,6 +254,12 @@ struct HomeView: View {
         }
         .task {
             autoSnapshot()
+            // Cek budget alert saat Home appear (juga saat app ke-foreground)
+            let txBulanIni = monthStats.txList
+            NotificationService.shared.checkBudgetAlerts(
+                anggaran: anggaranBulanIni,
+                transaksiBuilanIni: txBulanIni
+            )
         }
         .onChange(of: selectedMonth) { _, newMonth in
             // Debounce 400ms — rapid taps hanya trigger satu snapshot (yang terakhir)

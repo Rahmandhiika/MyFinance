@@ -1388,6 +1388,12 @@ struct AddEditAsetView: View {
         }
 
         try? modelContext.save()
+
+        // Schedule deposito maturity reminder setelah save
+        if aset.tipe == .deposito {
+            NotificationService.shared.scheduleDepositoReminder(aset: aset)
+        }
+
         dismiss()
     }
 

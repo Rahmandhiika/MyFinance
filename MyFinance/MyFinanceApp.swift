@@ -4,14 +4,12 @@ import SwiftData
 @main
 struct MyFinanceApp: App {
     let containerService = ModelContainerService.shared
-    // @Observable — tidak perlu @StateObject lagi, SwiftUI tracking otomatis
     @State private var themeManager = ThemeManager.shared
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     init() {
         containerService.ensureUserProfile()
-        // Bersihkan key UserDefaults lama yang sudah tidak dipakai
         UserDefaults.standard.removeObject(forKey: "asetPriceLastUpdated")
-        // Migrasi one-time: pindah API key dari UserDefaults (plaintext) ke Keychain (terenkripsi)
         migrateAPIKeyToKeychain()
     }
 
@@ -34,10 +32,19 @@ struct MyFinanceApp: App {
                 .environment(\.appTheme, themeManager.current)
                 .preferredColorScheme(themeManager.current.colorScheme)
                 .task {
-                    // Auto-backup sekali per hari ke Documents/MyFinanceBackups/
-                    // (folder ini masuk iPhone backup → iCloud otomatis)
                     let ctx = containerService.container.mainContext
                     await AutoBackupService.shared.autoBackupIfNeeded(context: ctx)
+                    // Request notification permission setelah onboarding selesai
+                    if hasCompletedOnboarding {
+                        await NotificationService.shared.requestPermission()
+                    }
+                }
+                // Tampilkan onboarding untuk user baru
+                .fullScreenCover(isPresented: .constant(!hasCompletedOnboarding)) {
+                    OnboardingView()
+                        .modelContainer(containerService.container)
+                        .environment(\.appTheme, themeManager.current)
+                        .preferredColorScheme(themeManager.current.colorScheme)
                 }
         }
     }
