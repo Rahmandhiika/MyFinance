@@ -428,8 +428,9 @@ final class BackupService {
         // Fetch lookup maps
         let allKP  = try context.fetch(FetchDescriptor<KategoriPocket>())
         let allKat = try context.fetch(FetchDescriptor<Kategori>())
-        let kpMap  = Dictionary(uniqueKeysWithValues: allKP.map { ($0.nama, $0) })
-        let katMap = Dictionary(uniqueKeysWithValues: allKat.map { ($0.nama, $0) })
+        // uniquingKeysWith: pakai first — backup bisa punya nama duplikat (bug lama)
+        let kpMap  = Dictionary(allKP.map  { ($0.nama, $0) }, uniquingKeysWith: { f, _ in f })
+        let katMap = Dictionary(allKat.map { ($0.nama, $0) }, uniquingKeysWith: { f, _ in f })
 
         // 4. Pocket
         for dto in backup.pocket {
@@ -449,7 +450,7 @@ final class BackupService {
         try context.save()
 
         let allPocket = try context.fetch(FetchDescriptor<Pocket>())
-        let pocketMap = Dictionary(uniqueKeysWithValues: allPocket.map { ($0.nama, $0) })
+        let pocketMap = Dictionary(allPocket.map { ($0.nama, $0) }, uniquingKeysWith: { f, _ in f })
 
         // 5. PortofolioConfig
         for dto in backup.portofolioConfigs {
