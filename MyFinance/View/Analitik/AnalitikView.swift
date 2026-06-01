@@ -849,13 +849,24 @@ struct AnalitikView: View {
             }
             .padding(4).background(theme.separator).clipShape(RoundedRectangle(cornerRadius: 10))
 
-            let activeData = kategoriTab == .pengeluaran ? kategoriDataPengeluaran : kategoriDataPemasukan
+            let rawData   = kategoriTab == .pengeluaran ? kategoriDataPengeluaran : kategoriDataPemasukan
+            // Deduplicate by name — nama duplikat (mis. setelah restore backup) crash Swift Charts
+            let activeData: [(kategori: Kategori?, total: Decimal, pct: Double)] = rawData.reduce(into: []) { out, item in
+                let key = item.kategori?.nama ?? "Lainnya"
+                if let idx = out.firstIndex(where: { ($0.kategori?.nama ?? "Lainnya") == key }) {
+                    let merged = out[idx].total + item.total
+                    let newPct = (item.kategori?.nama == nil) ? out[idx].pct : out[idx].pct + item.pct
+                    out[idx] = (kategori: out[idx].kategori, total: merged, pct: newPct)
+                } else {
+                    out.append(item)
+                }
+            }
+
             if activeData.isEmpty { emptyChartPlaceholder }
             else {
-                // Donut + horizontal bar chart side-by-side
+                // Donut + mini legend
                 HStack(alignment: .center, spacing: 16) {
                     donutChart(data: activeData).frame(width: 110, height: 110)
-                    // Mini legend
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(Array(activeData.prefix(5).enumerated()), id: \.offset) { _, item in
                             HStack(spacing: 5) {
@@ -881,7 +892,8 @@ struct AnalitikView: View {
                     .frame(maxWidth: .infinity)
                 }
 
-                // SwiftCharts horizontal BarMark — menggantikan GeometryReader+Capsule manual
+                // Horizontal BarMark — gunakan chartPlotStyle untuk tinggi agar tidak
+                // menyebabkan infinite layout loop di LazyVStack (dynamic frame = feedback loop)
                 Chart(Array(activeData.enumerated()), id: \.offset) { _, item in
                     BarMark(
                         x: .value("Jumlah", (item.total as NSDecimalNumber).doubleValue),
@@ -890,6 +902,10 @@ struct AnalitikView: View {
                     .foregroundStyle(Color(hex: item.kategori?.warna ?? "#6B7280"))
                     .cornerRadius(4)
                     .accessibilityLabel("\(item.kategori?.nama ?? "Lainnya"): \(item.total.shortFormatted) (\(String(format: "%.0f", item.pct))%)")
+                }
+                .chartPlotStyle { plot in
+                    // Fixed plot area per bar — tidak bergantung pada GeometryReader luar
+                    plot.frame(height: CGFloat(activeData.count) * 36)
                 }
                 .chartXAxis {
                     AxisMarks(values: .automatic(desiredCount: 3)) { val in
@@ -917,7 +933,6 @@ struct AnalitikView: View {
                     }
                 }
                 .chartBackground { _ in Color.clear }
-                .frame(height: max(CGFloat(activeData.count) * 34, 80))
             }
         }
         .padding(16).background(theme.bgCard).clipShape(RoundedRectangle(cornerRadius: 12))
