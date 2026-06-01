@@ -149,26 +149,36 @@ class ModelContainerService {
 
     // MARK: - Net Worth Snapshot
 
-    /// Upsert snapshot kekayaan bersih untuk bulan saat ini.
-    /// Dipanggil dari HomeView.onAppear — business logic dikeluarkan dari view layer.
+    /// Upsert snapshot kekayaan bersih untuk bulan `forMonth`.
+    /// Defaultnya bulan ini, tapi HomeView juga memanggil ini dengan `selectedMonth`
+    /// sehingga user bisa rekap bulan lalu dari tanggal 1 bulan berikutnya.
+    /// Snapshot untuk bulan di masa depan (> bulan ini) selalu diabaikan.
     func captureNetWorthSnapshot(cash: Decimal, totalAset: Decimal,
-                                 hutang: Decimal, danaTersimpan: Decimal) {
+                                 hutang: Decimal, danaTersimpan: Decimal,
+                                 forMonth: Date = Date()) {
         let context = container.mainContext
         let cal     = Calendar.current
         let now     = Date()
-        let currentMonth = cal.component(.month, from: now)
-        let currentYear  = cal.component(.year,  from: now)
 
-        // Bersihkan snapshot di masa depan (artefak bug lama)
+        // Jangan simpan snapshot untuk bulan yang belum terjadi
+        guard cal.compare(forMonth, to: now, toGranularity: .month) != .orderedDescending else { return }
+
+        let targetMonth = cal.component(.month, from: forMonth)
+        let targetYear  = cal.component(.year,  from: forMonth)
+
+        // Bersihkan snapshot di masa depan (artefak bug lama) — selalu relative ke now
         if let allSnaps = try? context.fetch(FetchDescriptor<NetWorthSnapshot>()) {
             for snap in allSnaps {
-                let snapDate = DateComponents(calendar: cal, year: snap.tahun, month: snap.bulan).date ?? now
-                if snapDate > now { context.delete(snap) }
+                let comps = DateComponents(calendar: cal, year: snap.tahun, month: snap.bulan)
+                if let snapDate = comps.date,
+                   cal.compare(snapDate, to: now, toGranularity: .month) == .orderedDescending {
+                    context.delete(snap)
+                }
             }
         }
 
         var descriptor = FetchDescriptor<NetWorthSnapshot>(
-            predicate: #Predicate { $0.bulan == currentMonth && $0.tahun == currentYear }
+            predicate: #Predicate { $0.bulan == targetMonth && $0.tahun == targetYear }
         )
         descriptor.fetchLimit = 1
         let existing = (try? context.fetch(descriptor)) ?? []
@@ -181,7 +191,7 @@ class ModelContainerService {
             snapshot.totalKekayaan = cash + totalAset + danaTersimpan - hutang
         } else {
             let snapshot = NetWorthSnapshot(
-                bulan: currentMonth, tahun: currentYear,
+                bulan: targetMonth, tahun: targetYear,
                 cash: cash, totalAset: totalAset,
                 hutang: hutang, danaTersimpan: danaTersimpan
             )

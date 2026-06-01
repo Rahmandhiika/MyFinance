@@ -233,18 +233,23 @@ struct HomeView: View {
         .task {
             autoSnapshot()
         }
+        .onChange(of: selectedMonth) { _, newMonth in
+            autoSnapshot(for: newMonth)
+        }
     }
 
     // MARK: - Auto Snapshot
 
-    /// Tiap buka Home, upsert snapshot bulan INI dengan data terkini.
-    /// Business logic dipindah ke ModelContainerService — view hanya passing values.
-    private func autoSnapshot() {
+    /// Upsert snapshot untuk `month` (default = selectedMonth).
+    /// Dipanggil saat view appear dan saat user ganti bulan —
+    /// sehingga rekap bulan lalu dari tanggal 1 bulan baru ikut tersimpan.
+    private func autoSnapshot(for month: Date? = nil) {
         ModelContainerService.shared.captureNetWorthSnapshot(
             cash: cash,
             totalAset: totalAset,
             hutang: hutang,
-            danaTersimpan: danaTersimpan
+            danaTersimpan: danaTersimpan,
+            forMonth: month ?? selectedMonth
         )
     }
 
