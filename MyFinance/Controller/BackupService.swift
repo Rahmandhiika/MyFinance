@@ -30,11 +30,23 @@ extension BackupFile {
         transaksi        = try c.decode([TransaksiDTO].self, forKey: .transaksi)
         transferInternal = try c.decode([TransferInternalDTO].self, forKey: .transferInternal)
         aset             = try c.decode([AsetDTO].self, forKey: .aset)
-        langganan        = (try? c.decode([LanggananDTO].self, forKey: .langganan)) ?? []
-        portofolioConfigs    = (try? c.decode([PortofolioConfigDTO].self,    forKey: .portofolioConfigs))    ?? []
-        target               = (try? c.decode([TargetDTO].self,               forKey: .target))               ?? []
-        // v3 field — opsional agar backup lama (v1/v2) tetap bisa di-restore
-        netWorthSnapshots    = (try? c.decode([NetWorthSnapshotDTO].self,     forKey: .netWorthSnapshots))    ?? []
+        // Gunakan try/catch per field agar:
+        // - keyNotFound → silent (backward compat, field belum ada di backup lama)
+        // - Error lain (corrupt, type mismatch) → log warning, fallback []
+        do { langganan = try c.decode([LanggananDTO].self, forKey: .langganan) }
+        catch DecodingError.keyNotFound { langganan = [] }
+        catch { print("⚠️ BackupFile: decode langganan gagal — \(error)"); langganan = [] }
+
+        do { portofolioConfigs = try c.decode([PortofolioConfigDTO].self, forKey: .portofolioConfigs) }
+        catch DecodingError.keyNotFound { portofolioConfigs = [] }
+        catch { print("⚠️ BackupFile: decode portofolioConfigs gagal — \(error)"); portofolioConfigs = [] }
+
+        do { target = try c.decode([TargetDTO].self, forKey: .target) }
+        catch DecodingError.keyNotFound { target = [] }
+        catch { print("⚠️ BackupFile: decode target gagal — \(error)"); target = [] }
+
+        // v3 field — selalu opsional (backup lama tidak punya)
+        netWorthSnapshots = (try? c.decode([NetWorthSnapshotDTO].self, forKey: .netWorthSnapshots)) ?? []
     }
 }
 

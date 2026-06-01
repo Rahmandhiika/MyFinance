@@ -2,7 +2,12 @@ import SwiftUI
 
 // NSCache is thread-safe and evicts automatically under memory pressure.
 // Caching UIColor (not Color) because Color is a struct and can't be stored in NSCache directly.
-private let hexColorCache = NSCache<NSString, UIColor>()
+// countLimit = 100 mencegah cache tumbuh tak terbatas pada app dengan banyak warna kategori unik.
+private let hexColorCache: NSCache<NSString, UIColor> = {
+    let c = NSCache<NSString, UIColor>()
+    c.countLimit = 100
+    return c
+}()
 
 extension Color {
     init(hex: String) {
