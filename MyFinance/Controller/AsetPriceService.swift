@@ -32,20 +32,31 @@ class AsetPriceService {
         fetchError = nil
         defer { isLoading = false; lastUpdated = Date() }
 
-        // Kick off all price fetches in parallel; each returns true=berhasil, false=gagal
+        // Fetch in batches of 5 — mencegah saturasi URLSession connection pool
+        // (iOS HTTP/1.1 max ~6 connections per host; lebih dari itu antri dan bisa lambat)
+        let batchSize = 5
         var failCount = 0
         var totalFetchable = 0
-        await withTaskGroup(of: Bool.self) { group in
-            for aset in asets {
-                let fetchable = [TipeAset.saham, .sahamAS, .valas].contains(aset.tipe)
-                if fetchable { totalFetchable += 1 }
-                group.addTask { @MainActor in
-                    await self.fetchAndApply(aset: aset)
+
+        for aset in asets where [TipeAset.saham, .sahamAS, .valas].contains(aset.tipe) {
+            totalFetchable += 1
+        }
+
+        var offset = 0
+        while offset < asets.count {
+            let end   = min(offset + batchSize, asets.count)
+            let batch = Array(asets[offset..<end])
+            await withTaskGroup(of: Bool.self) { group in
+                for aset in batch {
+                    group.addTask { @MainActor in
+                        await self.fetchAndApply(aset: aset)
+                    }
+                }
+                for await success in group {
+                    if !success { failCount += 1 }
                 }
             }
-            for await success in group {
-                if !success { failCount += 1 }
-            }
+            offset += batchSize
         }
 
         // Tampilkan error hanya jika ada yang fetchable tapi semua/sebagian gagal

@@ -316,7 +316,8 @@ struct FinancialContextBuilder {
         anggaran: [Anggaran],
         aset: [Aset],
         langganan: [Langganan],
-        profile: UserProfile?
+        profile: UserProfile?,
+        snapshots: [NetWorthSnapshot] = []
     ) -> String {
         let cal = Calendar.current
         let now = Date()
@@ -400,6 +401,36 @@ struct FinancialContextBuilder {
         let nabungBulanIni = thisMonthTx.filter { $0.kategori?.isNabung == true && $0.tipe == .pengeluaran }
             .reduce(Decimal(0)) { $0 + $1.nominal }
 
+        // --- Net worth trend (dari snapshot historis) ---
+        let snapshotFormatter: DateFormatter = {
+            let f = DateFormatter(); f.locale = Locale(identifier: "id_ID"); f.dateFormat = "MMM yyyy"; return f
+        }()
+        let recentSnapshots = snapshots
+            .sorted { ($0.tahun, $0.bulan) < ($1.tahun, $1.bulan) }
+            .suffix(6)
+        var netWorthTrend = ""
+        for (i, snap) in recentSnapshots.enumerated() {
+            let comps = DateComponents(calendar: cal, year: snap.tahun, month: snap.bulan)
+            let label = comps.date.map { snapshotFormatter.string(from: $0) } ?? "\(snap.bulan)/\(snap.tahun)"
+            var deltaStr = ""
+            if i > 0 {
+                let prev = recentSnapshots[recentSnapshots.index(recentSnapshots.startIndex, offsetBy: i - 1)]
+                let delta = snap.totalKekayaan - prev.totalKekayaan
+                let sign = delta >= 0 ? "+" : ""
+                deltaStr = " (\(sign)\(delta.shortFormatted))"
+            }
+            netWorthTrend += "  \(label): \(snap.totalKekayaan.shortFormatted)\(deltaStr)\n"
+        }
+        // Hitung total return jika ada >= 2 snapshot
+        var totalReturnStr = ""
+        if let first = recentSnapshots.first, let last = recentSnapshots.last,
+           recentSnapshots.count >= 2, first.totalKekayaan > 0 {
+            let totalReturn = last.totalKekayaan - first.totalKekayaan
+            let totalPct = Double(truncating: (totalReturn / first.totalKekayaan * 100) as NSDecimalNumber)
+            let sign = totalReturn >= 0 ? "+" : ""
+            totalReturnStr = "  Total return: \(sign)\(totalReturn.shortFormatted) (\(sign)\(String(format: "%.1f%%", totalPct)))\n"
+        }
+
         let df = DateFormatter(); df.locale = Locale(identifier: "id_ID"); df.dateFormat = "MMMM yyyy"
 
         return """
@@ -433,6 +464,9 @@ struct FinancialContextBuilder {
 
         LANGGANAN AKTIF:
         \(langgananContext.isEmpty ? "  Tidak ada langganan" : langgananContext)
+
+        TREN NET WORTH (6 BULAN TERAKHIR):
+        \(netWorthTrend.isEmpty ? "  Belum cukup data" : netWorthTrend)\(totalReturnStr)
         """
     }
 }

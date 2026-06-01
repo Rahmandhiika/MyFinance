@@ -17,6 +17,7 @@ struct AIAdvisorView: View {
     @Query private var allKategori:   [Kategori]
     @Query private var profiles:      [UserProfile]
     @Query(sort: \SavedAIInsight.savedAt, order: .reverse) private var savedInsights: [SavedAIInsight]
+    @Query(sort: \NetWorthSnapshot.tahun)                  private var allSnapshots:  [NetWorthSnapshot]
 
     // API key disimpan di Keychain — bukan UserDefaults — via APIKeyStore
     @State private var keyStore = APIKeyStore.shared
@@ -38,7 +39,8 @@ struct AIAdvisorView: View {
             anggaran:   allAnggaran,
             aset:       allAset,
             langganan:  allLangganan,
-            profile:    profiles.first
+            profile:    profiles.first,
+            snapshots:  allSnapshots
         )
     }
 
