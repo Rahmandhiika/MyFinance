@@ -12,15 +12,18 @@ struct MonthNavigator: View {
                 Image(systemName: "chevron.left")
                     .foregroundStyle(theme.textPrimary)
             }
+            .accessibilityLabel(showDayMode ? "Hari sebelumnya" : "Bulan sebelumnya")
             Spacer()
             Text(showDayMode ? dayString : monthString)
                 .font(.headline)
                 .foregroundStyle(theme.textPrimary)
+                .accessibilityAddTraits(.isHeader)
             Spacer()
             Button { navigateForward() } label: {
                 Image(systemName: "chevron.right")
                     .foregroundStyle(theme.textPrimary)
             }
+            .accessibilityLabel(showDayMode ? "Hari berikutnya" : "Bulan berikutnya")
         }
         .padding(.horizontal)
     }

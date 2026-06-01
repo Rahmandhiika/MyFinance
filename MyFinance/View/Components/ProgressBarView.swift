@@ -18,5 +18,6 @@ struct ProgressBarView: View {
             }
         }
         .frame(height: height)
+        .accessibilityHidden(true)   // dekoratif — nilai sudah dibaca parent element
     }
 }

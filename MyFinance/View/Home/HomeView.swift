@@ -305,6 +305,7 @@ struct HomeView: View {
                     .background(theme.separator)
                     .clipShape(Circle())
             }
+            .accessibilityLabel(hideBalance ? "Tampilkan saldo" : "Sembunyikan saldo")
         }
         .padding(.horizontal)
     }
@@ -323,6 +324,7 @@ struct HomeView: View {
             Text(masked(sisaPocket.idrFormatted))
                 .font(.system(size: 30, weight: .bold))
                 .foregroundStyle(theme.accent)
+                .accessibilityLabel(hideBalance ? "Sisa pocket disembunyikan" : "Sisa pocket \(sisaPocket.idrFormatted)")
 
             HStack(spacing: 4) {
                 Text("dari \(hitungCount) pocket")
@@ -364,6 +366,7 @@ struct HomeView: View {
             Image(systemName: icon)
                 .foregroundStyle(iconColor)
                 .font(.system(size: 18))
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
                     .font(.system(size: 9, weight: .semibold))
@@ -376,6 +379,12 @@ struct HomeView: View {
             }
             Spacer()
         }
+        // Gabungkan label + nilai sebagai satu elemen VoiceOver
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(hideBalance
+            ? "\(label.capitalized) disembunyikan"
+            : "\(label.capitalized): \(amount.idrFormatted)"
+        )
     }
 
     // MARK: - Shortcut Row
@@ -435,6 +444,7 @@ struct HomeView: View {
             Text(masked(totalKekayaan.idrFormatted))
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(theme.textPrimary)
+                .accessibilityLabel(hideBalance ? "Total kekayaan disembunyikan" : "Total kekayaan \(totalKekayaan.idrFormatted)")
 
             Divider().background(theme.separator)
 

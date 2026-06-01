@@ -343,6 +343,8 @@ struct TransaksiTabView: View {
                     .foregroundStyle(txStats.bersih >= 0 ? theme.pemasukan : theme.pengeluaran)
             }
             .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Saldo bersih bulan ini: \(txStats.bersih.idrFormatted)")
 
             Divider().background(theme.separator)
 
@@ -356,6 +358,7 @@ struct TransaksiTabView: View {
                             Image(systemName: "arrow.down.circle.fill")
                                 .foregroundStyle(theme.pemasukan)
                                 .font(.caption)
+                                .accessibilityHidden(true)
                             Text("Pemasukan")
                                 .font(.caption)
                                 .foregroundStyle(theme.textSecondary)
@@ -367,6 +370,7 @@ struct TransaksiTabView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Pemasukan \(txStats.pemasukan.idrFormatted). Ketuk untuk detail.")
 
                 Divider()
                     .frame(height: 36)
@@ -380,6 +384,7 @@ struct TransaksiTabView: View {
                             Image(systemName: "arrow.up.circle.fill")
                                 .foregroundStyle(theme.pengeluaran)
                                 .font(.caption)
+                                .accessibilityHidden(true)
                             Text("Pengeluaran")
                                 .font(.caption)
                                 .foregroundStyle(theme.textSecondary)
@@ -391,6 +396,7 @@ struct TransaksiTabView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Pengeluaran \(txStats.pengeluaran.idrFormatted). Ketuk untuk detail.")
             }
         }
         .padding(16)
