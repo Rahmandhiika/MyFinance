@@ -79,14 +79,20 @@ struct AnalitikView: View {
             var comps = cal.dateComponents([.year, .month], from: nextMonth)
             let maxDay = cal.range(of: .day, in: .month, for: nextMonth)?.count ?? 28
             comps.day = min(tanggalGajian, maxDay)
-            let nextStart = cal.date(from: comps)!
-            return cal.date(byAdding: .day, value: -1, to: nextStart)!
+            guard let nextStart = cal.date(from: comps),
+                  let end = cal.date(byAdding: .day, value: -1, to: nextStart) else {
+                return selectedMonth
+            }
+            return end
         } else {
             let nextMonth = selectedMonth.addingMonths(1)
             var comps = cal.dateComponents([.year, .month], from: nextMonth)
             comps.day = 1
-            let firstOfNext = cal.date(from: comps)!
-            return cal.date(byAdding: .day, value: -1, to: firstOfNext)!
+            guard let firstOfNext = cal.date(from: comps),
+                  let end = cal.date(byAdding: .day, value: -1, to: firstOfNext) else {
+                return selectedMonth
+            }
+            return end
         }
     }
 
@@ -224,7 +230,8 @@ struct AnalitikView: View {
     private var cycleToggle: some View {
         HStack(spacing: 0) {
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) { useSiklusGajian = false }
+                // @AppStorage dipisah dari withAnimation — tidak boleh dicampur
+                useSiklusGajian = false
             } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "calendar")
@@ -240,13 +247,13 @@ struct AnalitikView: View {
             }
 
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    useSiklusGajian = true
-                    // Auto-jump ke cycle yang lagi berjalan:
-                    // kalau hari ini belum nyampe tanggal gajian, cycle aktif ada di bulan sebelumnya
-                    let todayDay = Calendar.current.component(.day, from: Date())
-                    let isCurrentMonth = Calendar.current.isDate(selectedMonth, equalTo: Date(), toGranularity: .month)
-                    if isCurrentMonth && todayDay < tanggalGajian {
+                // @AppStorage dipisah dari withAnimation — dicampur bisa corrupted render state
+                useSiklusGajian = true
+                // Auto-jump ke cycle yang lagi berjalan
+                let todayDay = Calendar.current.component(.day, from: Date())
+                let isCurrentMonth = Calendar.current.isDate(selectedMonth, equalTo: Date(), toGranularity: .month)
+                if isCurrentMonth && todayDay < tanggalGajian {
+                    withAnimation(.easeInOut(duration: 0.2)) {
                         selectedMonth = selectedMonth.addingMonths(-1)
                     }
                 }
@@ -978,7 +985,7 @@ struct AnalitikView: View {
         let cal = Calendar.current
         let start = cal.startOfDay(for: cycleStartDate)
         let endInclusive = cal.startOfDay(for: cycleEndDate)
-        let endExclusive = cal.date(byAdding: .day, value: 1, to: endInclusive)!
+        guard let endExclusive = cal.date(byAdding: .day, value: 1, to: endInclusive) else { return [] }
         return allTransaksi.filter { $0.tanggal >= start && $0.tanggal < endExclusive }
     }
 
@@ -994,21 +1001,21 @@ struct AnalitikView: View {
         if useSiklusGajian {
             var startComps = cal.dateComponents([.year, .month], from: prevSelected)
             startComps.day = min(tanggalGajian, cal.range(of: .day, in: .month, for: prevSelected)?.count ?? 28)
-            prevCycleStart = cal.date(from: startComps)!
+            prevCycleStart = cal.date(from: startComps) ?? prevSelected
 
             var endComps = cal.dateComponents([.year, .month], from: selectedMonth)
             endComps.day = min(tanggalGajian, cal.range(of: .day, in: .month, for: selectedMonth)?.count ?? 28)
-            let thisStart = cal.date(from: endComps)!
-            prevCycleEnd = cal.date(byAdding: .day, value: -1, to: thisStart)!
+            let thisStart = cal.date(from: endComps) ?? selectedMonth
+            prevCycleEnd = cal.date(byAdding: .day, value: -1, to: thisStart) ?? selectedMonth
         } else {
             var startComps = cal.dateComponents([.year, .month], from: prevSelected)
             startComps.day = 1
-            prevCycleStart = cal.date(from: startComps)!
+            prevCycleStart = cal.date(from: startComps) ?? prevSelected
 
             var endComps = cal.dateComponents([.year, .month], from: selectedMonth)
             endComps.day = 1
-            let thisStart = cal.date(from: endComps)!
-            prevCycleEnd = cal.date(byAdding: .day, value: -1, to: thisStart)!
+            let thisStart = cal.date(from: endComps) ?? selectedMonth
+            prevCycleEnd = cal.date(byAdding: .day, value: -1, to: thisStart) ?? selectedMonth
         }
 
         let start = cal.startOfDay(for: prevCycleStart)
@@ -1184,7 +1191,8 @@ struct AnalitikView: View {
                            pengeluaran: entry.pengeluaran,
                            pemasukan:   entry.pemasukan,
                            bersih:      entry.pemasukan - entry.pengeluaran))
-            current = cal.date(byAdding: .day, value: 1, to: current)!
+            guard let next = cal.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
         }
         return result
     }
