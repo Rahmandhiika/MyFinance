@@ -3,6 +3,10 @@ import Foundation
 
 /// Snapshot kekayaan bersih per bulan — di-capture otomatis tiap awal bulan baru
 @Model final class NetWorthSnapshot {
+    /// Composite index pada (bulan, tahun) — mempercepat FetchDescriptor predicate
+    /// yang selalu query dengan kedua field ini bersamaan.
+    #Index<NetWorthSnapshot>([\.bulan, \.tahun])
+
     var id: UUID
     var bulan: Int          // 1–12
     var tahun: Int

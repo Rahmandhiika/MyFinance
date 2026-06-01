@@ -5,6 +5,12 @@ struct MarketOverviewCard: View {
     @Environment(\.appTheme) private var theme
     @State private var service = MarketIndexService.shared
 
+    // Data dianggap stale kalau lastUpdated > 15 menit lalu (atau nil)
+    private var isStale: Bool {
+        guard let last = service.lastUpdated else { return true }
+        return Date().timeIntervalSince(last) > 15 * 60
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header
@@ -20,12 +26,21 @@ struct MarketOverviewCard: View {
                 }
                 Spacer()
                 if let updated = service.lastUpdated {
-                    Text(updated.formatted(.relative(presentation: .named)))
-                        .font(.caption2)
-                        .foregroundStyle(theme.textSecondary.opacity(0.5))
+                    HStack(spacing: 3) {
+                        if isStale {
+                            Image(systemName: "wifi.exclamationmark")
+                                .font(.system(size: 9))
+                        }
+                        Text(updated.formatted(.relative(presentation: .named)))
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(isStale
+                        ? Color(hex: "#F59E0B")
+                        : theme.textSecondary.opacity(0.5)
+                    )
                 }
                 Button {
-                    Task { await service.refresh() }
+                    Task { await service.refresh(force: true) }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                         .font(.caption.weight(.semibold))
@@ -39,6 +54,28 @@ struct MarketOverviewCard: View {
                         )
                 }
                 .disabled(service.isLoading)
+            }
+
+            // Error banner — saat kedua index gagal diambil
+            if let errMsg = service.errorMessage {
+                HStack(spacing: 6) {
+                    Image(systemName: "wifi.exclamationmark")
+                        .font(.caption.weight(.semibold))
+                    Text(errMsg)
+                        .font(.caption)
+                    Spacer()
+                    Button {
+                        Task { await service.refresh(force: true) }
+                    } label: {
+                        Text("Coba Lagi")
+                            .font(.caption.weight(.semibold))
+                    }
+                }
+                .foregroundStyle(Color(hex: "#F59E0B"))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(Color(hex: "#F59E0B").opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
 
             // Index cards side by side

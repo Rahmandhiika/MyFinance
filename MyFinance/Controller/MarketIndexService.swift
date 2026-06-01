@@ -59,10 +59,10 @@ class MarketIndexService {
 
     private init() {}
 
-    func refresh() async {
+    /// - Parameter force: true = selalu fetch (tombol refresh manual), false = pakai staleness guard
+    func refresh(force: Bool = false) async {
         guard !isLoading else { return }
-        // Staleness guard — skip kalau data masih fresh
-        if let last = lastUpdated, Date().timeIntervalSince(last) < freshnessInterval { return }
+        if !force, let last = lastUpdated, Date().timeIntervalSince(last) < freshnessInterval { return }
         await MainActor.run { isLoading = true; errorMessage = nil }
 
         async let ihsgTask  = fetchIndex(symbol: "^JKSE",  name: "IHSG",    flag: "🇮🇩")
@@ -72,8 +72,12 @@ class MarketIndexService {
         await MainActor.run {
             if let i { self.ihsg  = i }
             if let s { self.sp500 = s }
-            self.isLoading  = false
+            self.isLoading   = false
             self.lastUpdated = Date()
+            // Set error hanya jika kedua index gagal diambil
+            if i == nil && s == nil {
+                self.errorMessage = "Gagal memuat data market — periksa koneksi."
+            }
         }
     }
 
