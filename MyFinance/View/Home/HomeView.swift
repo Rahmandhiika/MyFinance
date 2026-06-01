@@ -18,6 +18,8 @@ struct HomeView: View {
     @State private var selectedMonth: Date = Date()
     @State private var showAddTransaksi = false
     @AppStorage("hideBalance") private var hideBalance: Bool = false
+    /// Task debounce untuk snapshot — ganti bulan cepat tidak trigger multiple write
+    @State private var snapshotTask: Task<Void, Never>? = nil
 
     // MARK: - Computed card backgrounds
     private var cardBg1: Color {
@@ -242,7 +244,13 @@ struct HomeView: View {
             autoSnapshot()
         }
         .onChange(of: selectedMonth) { _, newMonth in
-            autoSnapshot(for: newMonth)
+            // Debounce 400ms — rapid taps hanya trigger satu snapshot (yang terakhir)
+            snapshotTask?.cancel()
+            snapshotTask = Task {
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled else { return }
+                autoSnapshot(for: newMonth)
+            }
         }
     }
 

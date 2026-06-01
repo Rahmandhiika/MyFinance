@@ -4,42 +4,63 @@ struct MonthNavigator: View {
     @Binding var selectedMonth: Date
     var showDayMode: Bool = false
     @Binding var selectedDay: Date
+
+    /// Batas minimum bulan yang bisa dinagivasi ke belakang (default 3 tahun lalu)
+    var minMonth: Date = Calendar.current.date(byAdding: .year, value: -3, to: Date()) ?? Date()
+    /// Batas maksimum — default bulan ini (tidak bisa navigasi ke depan)
+    var maxMonth: Date = Date()
+
     @Environment(\.appTheme) private var theme
+
+    // Static formatter — tidak re-alloc setiap render
+    private static let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "id_ID")
+        f.dateFormat = "EEE, dd MMM"
+        return f
+    }()
+
+    private var cal: Calendar { Calendar.current }
+
+    private var atMin: Bool {
+        cal.compare(selectedMonth, to: minMonth, toGranularity: .month) != .orderedDescending
+    }
+    private var atMax: Bool {
+        cal.compare(selectedMonth, to: maxMonth, toGranularity: .month) != .orderedAscending
+    }
 
     var body: some View {
         HStack {
             Button { navigateBack() } label: {
                 Image(systemName: "chevron.left")
-                    .foregroundStyle(theme.textPrimary)
+                    .foregroundStyle(atMin ? theme.textSecondary.opacity(0.3) : theme.textPrimary)
             }
+            .disabled(atMin)
             .accessibilityLabel(showDayMode ? "Hari sebelumnya" : "Bulan sebelumnya")
+
             Spacer()
-            Text(showDayMode ? dayString : monthString)
+
+            Text(showDayMode ? Self.dayFormatter.string(from: selectedDay) : selectedMonth.indonesianMonthYear)
                 .font(.headline)
                 .foregroundStyle(theme.textPrimary)
                 .accessibilityAddTraits(.isHeader)
+
             Spacer()
+
             Button { navigateForward() } label: {
                 Image(systemName: "chevron.right")
-                    .foregroundStyle(theme.textPrimary)
+                    .foregroundStyle(atMax ? theme.textSecondary.opacity(0.3) : theme.textPrimary)
             }
+            .disabled(atMax)
             .accessibilityLabel(showDayMode ? "Hari berikutnya" : "Bulan berikutnya")
         }
         .padding(.horizontal)
     }
 
-    private var monthString: String { selectedMonth.indonesianMonthYear }
-    private var dayString: String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "id_ID")
-        f.dateFormat = "EEE, dd MMM"
-        return f.string(from: selectedDay)
-    }
-
     private func navigateBack() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         if showDayMode {
-            selectedDay = Calendar.current.date(byAdding: .day, value: -1, to: selectedDay) ?? selectedDay
+            selectedDay = cal.date(byAdding: .day, value: -1, to: selectedDay) ?? selectedDay
         } else {
             selectedMonth = selectedMonth.addingMonths(-1)
         }
@@ -48,7 +69,7 @@ struct MonthNavigator: View {
     private func navigateForward() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         if showDayMode {
-            selectedDay = Calendar.current.date(byAdding: .day, value: 1, to: selectedDay) ?? selectedDay
+            selectedDay = cal.date(byAdding: .day, value: 1, to: selectedDay) ?? selectedDay
         } else {
             selectedMonth = selectedMonth.addingMonths(1)
         }
