@@ -46,6 +46,7 @@ struct NetWorthChartCard: View {
         return points
     }
 
+    // Delta vs bulan lalu
     private var delta: Decimal {
         guard chartPoints.count >= 2 else { return 0 }
         return chartPoints.last!.total - chartPoints[chartPoints.count - 2].total
@@ -55,10 +56,29 @@ struct NetWorthChartCard: View {
         guard chartPoints.count >= 2 else { return 0 }
         let prev = chartPoints[chartPoints.count - 2].total
         guard prev > 0 else { return 0 }
-        return Double(truncating: ((chartPoints.last!.total - prev) / prev * 100) as NSDecimalNumber)
+        return ((chartPoints.last!.total - prev) / prev * 100 as NSDecimalNumber).doubleValue
     }
 
     private var deltaPositive: Bool { delta >= 0 }
+
+    // Total return sejak snapshot pertama (bukan hanya bulan lalu)
+    private var totalReturn: Decimal {
+        guard let first = chartPoints.first, chartPoints.count >= 2 else { return 0 }
+        return (chartPoints.last?.total ?? 0) - first.total
+    }
+
+    private var totalReturnPct: Double {
+        guard let first = chartPoints.first, first.total > 0, chartPoints.count >= 2 else { return 0 }
+        return (totalReturn / first.total * 100 as NSDecimalNumber).doubleValue
+    }
+
+    private var totalReturnPositive: Bool { totalReturn >= 0 }
+
+    /// Label periode: "Jan '25 – sekarang" atau nil kalau < 2 bulan
+    private var periodLabel: String? {
+        guard chartPoints.count >= 2 else { return nil }
+        return "\(chartPoints.first!.label) – sekarang"
+    }
 
     // MARK: - Body
 
@@ -77,6 +97,7 @@ struct NetWorthChartCard: View {
                     }
 
                     if chartPoints.count >= 2 {
+                        // Delta vs bulan lalu
                         HStack(spacing: 6) {
                             Image(systemName: deltaPositive ? "arrow.up.right" : "arrow.down.right")
                                 .font(.caption.weight(.bold))
@@ -87,6 +108,26 @@ struct NetWorthChartCard: View {
                             Text("(\(deltaPositive ? "+" : "")\(String(format: "%.1f", deltaPct))%)")
                                 .font(.caption)
                                 .foregroundStyle(theme.textSecondary)
+                            Text("· vs bln lalu")
+                                .font(.caption2)
+                                .foregroundStyle(theme.textSecondary.opacity(0.5))
+                        }
+                        // Total return sejak awal — hanya tampil kalau ada > 2 data point
+                        if chartPoints.count > 2, let period = periodLabel {
+                            HStack(spacing: 4) {
+                                Image(systemName: totalReturnPositive ? "arrow.up.right.circle.fill" : "arrow.down.right.circle.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(totalReturnPositive ? theme.pemasukan.opacity(0.7) : theme.pengeluaran.opacity(0.7))
+                                Text("\(totalReturnPositive ? "+" : "")\(totalReturn.shortFormatted)")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(totalReturnPositive ? theme.pemasukan.opacity(0.7) : theme.pengeluaran.opacity(0.7))
+                                Text("(\(totalReturnPositive ? "+" : "")\(String(format: "%.1f", totalReturnPct))%)")
+                                    .font(.caption2)
+                                    .foregroundStyle(theme.textSecondary.opacity(0.6))
+                                Text("· \(period)")
+                                    .font(.caption2)
+                                    .foregroundStyle(theme.textSecondary.opacity(0.4))
+                            }
                         }
                     } else {
                         Text("Butuh 2 bulan data")

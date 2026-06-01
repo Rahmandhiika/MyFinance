@@ -1332,24 +1332,50 @@ private struct AsetRow: View {
     let aset: Aset
     @Environment(\.appTheme) private var theme
 
+    /// Badge deposito: merah kalau ≤ 7 hari, kuning kalau ≤ 30 hari
+    private var depositoBadge: (text: String, color: String)? {
+        guard aset.tipe == .deposito else { return nil }
+        let hari = aset.hariLagiDeposito
+        if hari == 0 { return ("Jatuh tempo!", "#EF4444") }
+        if hari <= 7 { return ("\(hari) hari lagi", "#EF4444") }
+        if hari <= 30 { return ("\(hari) hari lagi", "#F59E0B") }
+        return nil
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             asetIconView(aset: aset, size: 40)
 
-            // Name + code
+            // Name + code/type + optional badge
             VStack(alignment: .leading, spacing: 3) {
                 Text(aset.nama)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(theme.textPrimary)
                     .lineLimit(1)
-                if let kode = aset.kode, !kode.isEmpty {
-                    Text(kode.uppercased())
-                        .font(.caption2)
-                        .foregroundStyle(theme.textSecondary)
-                } else {
-                    Text(aset.tipe.displayName)
-                        .font(.caption2)
-                        .foregroundStyle(theme.textSecondary)
+                HStack(spacing: 6) {
+                    if let kode = aset.kode, !kode.isEmpty {
+                        Text(kode.uppercased())
+                            .font(.caption2)
+                            .foregroundStyle(theme.textSecondary)
+                    } else {
+                        Text(aset.tipe.displayName)
+                            .font(.caption2)
+                            .foregroundStyle(theme.textSecondary)
+                    }
+                    // Maturity badge — hanya deposito yang mau jatuh tempo
+                    if let badge = depositoBadge {
+                        HStack(spacing: 3) {
+                            Image(systemName: "clock.badge.exclamationmark.fill")
+                                .font(.system(size: 8))
+                            Text(badge.text)
+                                .font(.system(size: 9, weight: .semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Color(hex: badge.color))
+                        .clipShape(Capsule())
+                    }
                 }
             }
 
