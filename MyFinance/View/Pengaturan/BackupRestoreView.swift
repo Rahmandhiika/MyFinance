@@ -44,6 +44,19 @@ struct BackupRestoreView: View {
     @State private var resultIsError = false
 
     @State private var isProcessing = false
+    @State private var isAutoBackingUp = false
+
+    private static let displayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "id_ID")
+        f.dateFormat = "d MMM yyyy, HH:mm"
+        return f
+    }()
+
+    private var lastBackupLabel: String {
+        guard let d = AutoBackupService.shared.lastBackupDate else { return "Belum pernah" }
+        return Self.displayFormatter.string(from: d)
+    }
 
     var body: some View {
         ZStack {
@@ -71,6 +84,67 @@ struct BackupRestoreView: View {
                     }
                     .padding(.top, 12)
 
+                    // Auto-backup status card
+                    VStack(spacing: 0) {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color(hex: "#3B82F6").opacity(0.12))
+                                    .frame(width: 40, height: 40)
+                                Image(systemName: "icloud.and.arrow.up.fill")
+                                    .foregroundStyle(Color(hex: "#3B82F6"))
+                                    .font(.system(size: 18))
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Backup Otomatis")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(theme.textPrimary)
+                                Text("Tersimpan di Files → iPhone → MyFinance")
+                                    .font(.caption)
+                                    .foregroundStyle(theme.textSecondary)
+                                Text("Terakhir: \(lastBackupLabel)")
+                                    .font(.caption)
+                                    .foregroundStyle(theme.textSecondary.opacity(0.7))
+                            }
+                            Spacer()
+                            Button {
+                                doAutoBackup()
+                            } label: {
+                                Group {
+                                    if isAutoBackingUp {
+                                        ProgressView().scaleEffect(0.8)
+                                    } else {
+                                        Image(systemName: "arrow.clockwise")
+                                            .font(.system(size: 14, weight: .semibold))
+                                    }
+                                }
+                                .foregroundStyle(Color(hex: "#3B82F6"))
+                                .frame(width: 34, height: 34)
+                                .background(Color(hex: "#3B82F6").opacity(0.12))
+                                .clipShape(Circle())
+                            }
+                            .disabled(isAutoBackingUp)
+                        }
+                        .padding(14)
+
+                        Divider().background(theme.separator).padding(.leading, 66)
+
+                        HStack(spacing: 8) {
+                            Image(systemName: "info.circle")
+                                .font(.caption)
+                                .foregroundStyle(Color(hex: "#3B82F6").opacity(0.7))
+                            Text("File backup juga masuk iPhone Backup ke iCloud jika kamu aktifkan iCloud Backup di Pengaturan.")
+                                .font(.caption)
+                                .foregroundStyle(theme.textSecondary)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                    }
+                    .background(theme.bgCard)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: "#3B82F6").opacity(0.2), lineWidth: 1))
+                    .padding(.horizontal, 16)
+
                     // Scope info card
                     VStack(alignment: .leading, spacing: 0) {
                         sectionHeader("APA YANG DISIMPAN")
@@ -90,6 +164,8 @@ struct BackupRestoreView: View {
                         scopeRow(icon: "creditcard.circle.fill", label: "Daftar Bills", color: "#EC4899")
                         Divider().background(theme.separator).padding(.leading, 44)
                         scopeRow(icon: "photo.fill", label: "Logo, foto & portofolio aset", color: "#F97316")
+                        Divider().background(theme.separator).padding(.leading, 44)
+                        scopeRow(icon: "chart.line.uptrend.xyaxis", label: "Histori Net Worth Bulanan", color: "#22D3EE")
                     }
                     .background(theme.bgCard)
                     .clipShape(RoundedRectangle(cornerRadius: 14))
@@ -223,6 +299,14 @@ struct BackupRestoreView: View {
     }
 
     // MARK: - Actions
+
+    private func doAutoBackup() {
+        isAutoBackingUp = true
+        Task {
+            await AutoBackupService.shared.performBackup(context: context)
+            await MainActor.run { isAutoBackingUp = false }
+        }
+    }
 
     private func doExport() {
         isProcessing = true

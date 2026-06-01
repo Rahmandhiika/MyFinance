@@ -33,6 +33,12 @@ struct MyFinanceApp: App {
                 .environmentObject(themeManager)
                 .environment(\.appTheme, themeManager.current)
                 .preferredColorScheme(themeManager.current.colorScheme)
+                .task {
+                    // Auto-backup sekali per hari ke Documents/MyFinanceBackups/
+                    // (folder ini masuk iPhone backup → iCloud otomatis)
+                    let ctx = containerService.container.mainContext
+                    await AutoBackupService.shared.autoBackupIfNeeded(context: ctx)
+                }
         }
     }
 }
