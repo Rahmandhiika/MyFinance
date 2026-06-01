@@ -4,7 +4,9 @@ import Observation
 @Observable
 class AsetPriceService {
     static let shared = AsetPriceService()
-    var isLoading = false
+    var isLoading   = false
+    /// Non-nil jika fetch terakhir ada yang gagal — ditampilkan sebagai banner di AsetListView.
+    var fetchError: String? = nil
 
     /// Waktu terakhir harga diupdate — in-memory saja (tidak di-persist).
     /// Artinya: kill app + relaunch = selalu fetch fresh.
@@ -26,55 +28,70 @@ class AsetPriceService {
            Date().timeIntervalSince(last) < freshnessInterval {
             return
         }
-        isLoading = true
-        defer {
-            isLoading = false
-            lastUpdated = Date()
-        }
+        isLoading  = true
+        fetchError = nil
+        defer { isLoading = false; lastUpdated = Date() }
 
-        // Kick off all price fetches in parallel, then apply results in one pass
-        await withTaskGroup(of: Void.self) { group in
+        // Kick off all price fetches in parallel; each returns true=berhasil, false=gagal
+        var failCount = 0
+        var totalFetchable = 0
+        await withTaskGroup(of: Bool.self) { group in
             for aset in asets {
+                let fetchable = [TipeAset.saham, .sahamAS, .valas].contains(aset.tipe)
+                if fetchable { totalFetchable += 1 }
                 group.addTask { @MainActor in
                     await self.fetchAndApply(aset: aset)
                 }
             }
+            for await success in group {
+                if !success { failCount += 1 }
+            }
+        }
+
+        // Tampilkan error hanya jika ada yang fetchable tapi semua/sebagian gagal
+        if totalFetchable > 0 && failCount > 0 {
+            let msg = failCount == totalFetchable
+                ? "Gagal memperbarui harga — periksa koneksi internet."
+                : "\(failCount) dari \(totalFetchable) aset gagal diperbarui."
+            fetchError = msg
         }
     }
 
     // MARK: - Per-aset fetch + apply
 
-    private func fetchAndApply(aset: Aset) async {
+    /// Fetch & apply harga untuk satu aset.
+    /// Returns: true = berhasil (atau tipe manual — tidak dihitung gagal), false = fetch network gagal.
+    @discardableResult
+    private func fetchAndApply(aset: Aset) async -> Bool {
         switch aset.tipe {
 
         case .saham:
-            guard let harga = await fetchSahamPrice(kode: aset.kode ?? aset.nama) else { return }
-            // Decimal × Decimal — no Double roundtrip, precision preserved
+            guard let harga = await fetchSahamPrice(kode: aset.kode ?? aset.nama) else { return false }
             aset.nilaiSaatIni = harga * (aset.lot ?? 0) * 100
+            return true
 
         case .sahamAS:
-            guard let kode = aset.kode, !kode.isEmpty else { return }
-            // Fetch harga & kurs concurrently for this single asset
+            guard let kode = aset.kode, !kode.isEmpty else { return true }
             async let hargaTask = fetchUSStockPrice(ticker: kode)
             async let kursTask  = fetchKursValas(.usd)
-            let (harga, kurs)   = await (hargaTask, kursTask)
-            let finalHarga = harga ?? aset.hargaSaatIniUSD
-            let finalKurs  = kurs  ?? aset.kursSaatIniUSD
-            guard let h = finalHarga, let k = finalKurs else { return }
+            let (harga, kurs) = await (hargaTask, kursTask)
+            guard let h = harga ?? aset.hargaSaatIniUSD,
+                  let k = kurs  ?? aset.kursSaatIniUSD else { return false }
             if let h = harga { aset.hargaSaatIniUSD = h }
             if let k = kurs  { aset.kursSaatIniUSD  = k }
             aset.nilaiSaatIni = aset.jumlahSharesAS * h * k
+            return harga != nil || kurs != nil   // true jika setidaknya satu berhasil
 
         case .valas:
             guard let mata   = aset.mataUangValas,
                   let jumlah = aset.jumlahValas,
-                  let kurs   = await fetchKursValas(mata) else { return }
+                  let kurs   = await fetchKursValas(mata) else { return false }
             aset.kursSaatIni  = kurs
             aset.nilaiSaatIni = jumlah * kurs
+            return true
 
         case .reksadana, .emas, .deposito:
-            // User update manual — no auto-fetch
-            break
+            return true   // manual update — bukan kegagalan fetch
         }
     }
 

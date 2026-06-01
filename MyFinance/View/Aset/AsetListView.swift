@@ -384,6 +384,30 @@ struct AsetListView: View {
                         .font(.caption2)
                 }
                 .foregroundStyle(theme.textSecondary.opacity(0.5))
+                .padding(.bottom, priceService.fetchError == nil ? 12 : 4)
+            }
+
+            // Error banner — tampil saat ada fetch yang gagal
+            if let errMsg = priceService.fetchError {
+                HStack(spacing: 6) {
+                    Image(systemName: "wifi.exclamationmark")
+                        .font(.caption.weight(.semibold))
+                    Text(errMsg)
+                        .font(.caption)
+                    Spacer()
+                    Button {
+                        Task { await priceService.refreshAll(allAset, force: true) }
+                    } label: {
+                        Text("Coba Lagi")
+                            .font(.caption.weight(.semibold))
+                    }
+                }
+                .foregroundStyle(Color(hex: "#F59E0B"))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(hex: "#F59E0B").opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .padding(.horizontal, 20)
                 .padding(.bottom, 12)
             }
         }
