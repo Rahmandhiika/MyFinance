@@ -15,7 +15,7 @@ struct MainTabView: View {
                 .tag(1)
 
             NavigationStack { AIAdvisorView() }
-                .tabItem { Label("AI", systemImage: "brain.head.profile") }
+                .tabItem { Label("Advisor", systemImage: "brain.head.profile") }
                 .tag(2)
 
             PocketTabView()

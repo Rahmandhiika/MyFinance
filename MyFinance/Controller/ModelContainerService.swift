@@ -118,8 +118,16 @@ class ModelContainerService {
             newTx.otomatisID = auto.id
 
             if let pocket = auto.pocket {
-                if auto.tipe == .pengeluaran { pocket.saldo -= auto.nominal }
-                else                         { pocket.saldo += auto.nominal }
+                if auto.tipe == .pengeluaran {
+                    // Jangan biarkan saldo negatif dari auto-transaksi
+                    guard pocket.saldo >= auto.nominal else {
+                        print("⚠️ AutoTransaksi '\(auto.catatan ?? auto.id.uuidString)' dilewati — saldo pocket '\(pocket.nama)' tidak cukup (\(pocket.saldo) < \(auto.nominal))")
+                        continue
+                    }
+                    pocket.saldo -= auto.nominal
+                } else {
+                    pocket.saldo += auto.nominal
+                }
             }
 
             context.insert(newTx)

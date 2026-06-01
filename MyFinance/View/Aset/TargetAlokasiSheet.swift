@@ -287,12 +287,12 @@ struct TargetAlokasiSheet: View {
     }
 
     private func save() {
-        // Remove zero-target entries
         let filtered = targets.filter { $0.value > 0 }
         if let data = try? JSONEncoder().encode(filtered),
            let str = String(data: data, encoding: .utf8) {
             targetAlokasiJSON = str
         }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
         dismiss()
     }
 }

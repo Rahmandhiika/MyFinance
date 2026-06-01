@@ -37,6 +37,7 @@ struct MonthNavigator: View {
     }
 
     private func navigateBack() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         if showDayMode {
             selectedDay = Calendar.current.date(byAdding: .day, value: -1, to: selectedDay) ?? selectedDay
         } else {
@@ -45,6 +46,7 @@ struct MonthNavigator: View {
     }
 
     private func navigateForward() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         if showDayMode {
             selectedDay = Calendar.current.date(byAdding: .day, value: 1, to: selectedDay) ?? selectedDay
         } else {

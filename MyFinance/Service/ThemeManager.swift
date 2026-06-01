@@ -1,10 +1,10 @@
 import SwiftUI
-import Combine
+import Observation
 
-final class ThemeManager: ObservableObject {
+@Observable final class ThemeManager {
     static let shared = ThemeManager()
 
-    @Published var currentID: String {
+    var currentID: String {
         didSet { UserDefaults.standard.set(currentID, forKey: "selectedThemeID") }
     }
 

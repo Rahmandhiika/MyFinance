@@ -4,7 +4,8 @@ import SwiftData
 @main
 struct MyFinanceApp: App {
     let containerService = ModelContainerService.shared
-    @StateObject private var themeManager = ThemeManager.shared
+    // @Observable — tidak perlu @StateObject lagi, SwiftUI tracking otomatis
+    @State private var themeManager = ThemeManager.shared
 
     init() {
         containerService.ensureUserProfile()
@@ -30,7 +31,6 @@ struct MyFinanceApp: App {
         WindowGroup {
             MainTabView()
                 .modelContainer(containerService.container)
-                .environmentObject(themeManager)
                 .environment(\.appTheme, themeManager.current)
                 .preferredColorScheme(themeManager.current.colorScheme)
                 .task {

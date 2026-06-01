@@ -39,6 +39,14 @@ struct HomeView: View {
     // MARK: - Profile
     private var profile: UserProfile? { profiles.first }
 
+    // Cached formatter untuk deadline goalCard — static agar tidak re-alloc per render
+    private static let goalDeadlineFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "id_ID")
+        f.dateFormat = "dd MMM yyyy"
+        return f
+    }()
+
     // MARK: - Month Stats (single-pass — computes all tx-derived values in one loop)
 
     private struct MonthStats {
@@ -748,12 +756,7 @@ struct HomeView: View {
 
                 if let deadline = target.deadline {
                     let daysLeft = Calendar.current.dateComponents([.day], from: Date(), to: deadline).day ?? 0
-                    let deadlineStr: String = {
-                        let f = DateFormatter()
-                        f.locale = Locale(identifier: "id_ID")
-                        f.dateFormat = "dd MMM yyyy"
-                        return f.string(from: deadline)
-                    }()
+                    let deadlineStr = Self.goalDeadlineFormatter.string(from: deadline)
 
                     Text("Estimasi Kelar: \(deadlineStr) • \(daysLeft) hari")
                         .font(.caption)

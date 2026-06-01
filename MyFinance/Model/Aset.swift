@@ -116,7 +116,7 @@ import Foundation
 
     var returnPersen: Double {
         guard modal > 0 else { return 0 }
-        return Double(truncating: (pnl / modal * 100) as NSDecimalNumber)
+        return (pnl / modal * 100 as NSDecimalNumber).doubleValue
     }
 
     /// Nilai dalam mata uang asli aset (USD, SGD, dll) — nil jika IDR

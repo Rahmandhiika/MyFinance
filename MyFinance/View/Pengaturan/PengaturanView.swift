@@ -5,7 +5,7 @@ import PhotosUI
 struct PengaturanView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.appTheme) private var theme
-    @EnvironmentObject private var themeManager: ThemeManager
+    @State private var themeManager = ThemeManager.shared
     @Query private var profiles: [UserProfile]
     @State private var showKategori = false
     @State private var showKategoriPocket = false
