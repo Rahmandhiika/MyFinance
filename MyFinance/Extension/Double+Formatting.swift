@@ -46,19 +46,25 @@ private enum CachedFormatter {
         return f
     }()
 
-    // Parameterised unit formatters — keyed by fractionDigits
-    // Thread-safe: all formatting happens on @MainActor (view layer)
-    static var unitByFraction: [Int: NumberFormatter] = [:]
+    // Parameterised unit formatters keyed by fractionDigits.
+    // NSCache<NSNumber, NumberFormatter> is thread-safe and auto-evicts under pressure —
+    // safe to call from any thread, unlike the previous static var [Int:…] mutable dict.
+    private static let unitCache: NSCache<NSNumber, NumberFormatter> = {
+        let c = NSCache<NSNumber, NumberFormatter>()
+        c.countLimit = 20   // fractionDigits 0–19 sudah lebih dari cukup
+        return c
+    }()
 
     static func unit(fractionDigits: Int) -> NumberFormatter {
-        if let cached = unitByFraction[fractionDigits] { return cached }
+        let key = NSNumber(value: fractionDigits)
+        if let cached = unitCache.object(forKey: key) { return cached }
         let f = NumberFormatter()
         f.numberStyle = .decimal
         f.minimumFractionDigits = fractionDigits
         f.maximumFractionDigits = fractionDigits
         f.decimalSeparator = ","
         f.groupingSeparator = "."
-        unitByFraction[fractionDigits] = f
+        unitCache.setObject(f, forKey: key)
         return f
     }
 }

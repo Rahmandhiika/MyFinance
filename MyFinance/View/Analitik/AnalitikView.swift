@@ -1213,45 +1213,53 @@ struct AnalitikView: View {
         let total: Double
     }
 
-    private var topKategoriNama: [(nama: String, warna: String)] {
-        // Hitung total tiap kategori selama trendPeriod bulan terakhir
+    /// Top 4 kategori pengeluaran selama trendPeriod bulan terakhir.
+    /// Menggunakan UUID sebagai key internal — rename kategori tidak pecah histori chart.
+    private var topKategori: [(id: String, nama: String, warna: String)] {
         let cal = Calendar.current
         let oldestMonth = selectedMonth.addingMonths(-(trendPeriod - 1))
         var oldestComps = cal.dateComponents([.year, .month], from: oldestMonth)
         oldestComps.day = 1
         guard let oldest = cal.date(from: oldestComps) else { return [] }
         let txs = allTransaksi.filter { $0.tipe == .pengeluaran && $0.tanggal >= oldest }
-        var totals: [String: (warna: String, total: Decimal)] = [:]
+        // Key = UUID string supaya rename tidak memecah seri
+        var totals: [String: (nama: String, warna: String, total: Decimal)] = [:]
         for t in txs {
-            let key = t.kategori?.nama ?? "Lainnya"
+            let id    = t.kategori?.id.uuidString ?? "none"
+            let nama  = t.kategori?.nama  ?? "Lainnya"
             let warna = t.kategori?.warna ?? "#6B7280"
-            totals[key] = (warna: warna, total: (totals[key]?.total ?? 0) + t.nominal)
+            if let existing = totals[id] {
+                totals[id] = (nama: nama, warna: warna, total: existing.total + t.nominal)
+            } else {
+                totals[id] = (nama: nama, warna: warna, total: t.nominal)
+            }
         }
         return totals.sorted { $0.value.total > $1.value.total }
             .prefix(4)
-            .map { (nama: $0.key, warna: $0.value.warna) }
+            .map { (id: $0.key, nama: $0.value.nama, warna: $0.value.warna) }
     }
 
     private var kategoriTrendData: [KategoriTrendPoint] {
         let cal = Calendar.current
-        let top = topKategoriNama
+        let top = topKategori
 
-        // O(n) — pre-group by "yyyy-M,kategori" key
+        // O(n) — pre-group by "yyyy-M,kategoriUUID" (UUID-based: rename aman)
         var txByMonthKat: [String: Double] = [:]
         for tx in allTransaksi where tx.tipe == .pengeluaran {
-            let c   = cal.dateComponents([.year, .month], from: tx.tanggal)
-            let key = "\(c.year!)-\(c.month!),\(tx.kategori?.nama ?? "Lainnya")"
-            txByMonthKat[key, default: 0] += Double(truncating: tx.nominal as NSDecimalNumber)
+            let c     = cal.dateComponents([.year, .month], from: tx.tanggal)
+            let katID = tx.kategori?.id.uuidString ?? "none"
+            let key   = "\(c.year!)-\(c.month!),\(katID)"
+            txByMonthKat[key, default: 0] += (tx.nominal as NSDecimalNumber).doubleValue
         }
 
         var result: [KategoriTrendPoint] = []
         for offset in stride(from: trendPeriod - 1, through: 0, by: -1) {
-            let monthDate  = selectedMonth.addingMonths(-offset)
-            let c          = cal.dateComponents([.year, .month], from: monthDate)
+            let monthDate   = selectedMonth.addingMonths(-offset)
+            let c           = cal.dateComponents([.year, .month], from: monthDate)
             let monthPrefix = "\(c.year!)-\(c.month!)"
-            let monthLabel = Self.dfMonthShort.string(from: monthDate)
+            let monthLabel  = Self.dfMonthShort.string(from: monthDate)
             for k in top {
-                let total = txByMonthKat["\(monthPrefix),\(k.nama)"] ?? 0
+                let total = txByMonthKat["\(monthPrefix),\(k.id)"] ?? 0
                 result.append(KategoriTrendPoint(monthLabel: monthLabel, kategoriNama: k.nama, warna: k.warna, total: total))
             }
         }
@@ -1404,7 +1412,7 @@ struct AnalitikView: View {
 
             if selectedMonthIsCurrentMonth { partialMonthBanner }
 
-            let top = topKategoriNama
+            let top = topKategori
             if top.isEmpty {
                 emptyChartPlaceholder
             } else {
@@ -1452,7 +1460,7 @@ struct AnalitikView: View {
                 // Kalau bulan ini sedang berjalan, bandingkan last completed month vs first
                 let completedPoints = selectedMonthIsCurrentMonth ? kategoriTrendData.filter { $0.monthLabel != multiMonthData.last?.label } : kategoriTrendData
                 VStack(spacing: 8) {
-                    ForEach(top, id: \.nama) { k in
+                    ForEach(top, id: \.id) { k in
                         let points = completedPoints.filter { $0.kategoriNama == k.nama }
                         let allPoints = kategoriTrendData.filter { $0.kategoriNama == k.nama }
                         let first  = points.first?.total ?? 0
