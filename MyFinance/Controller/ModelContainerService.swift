@@ -10,25 +10,28 @@ class ModelContainerService {
         let storeURL = URL.applicationSupportDirectory
             .appendingPathComponent("myfinance.store")
 
-        // Gunakan AppMigrationPlan agar schema migration ditangani SwiftData secara aman.
-        // PENTING: ModelConfiguration TIDAK boleh punya schema: eksplisit saat migrationPlan
-        // dipakai — SwiftData derives schema otomatis dari plan's latest VersionedSchema.
-        // Jika schema: diset di config DAN di plan, SwiftData throw configurationSchemaNotFound.
-        let config = ModelConfiguration(url: storeURL)
+        // Schema diambil dari AppSchemaV1.models agar satu source of truth dengan AppMigrationPlan.
+        //
+        // CATATAN: migrationPlan: TIDAK dipakai sekarang karena store lama dibuat dengan
+        // plain Schema([...]) tanpa VersionedSchema. Menambahkan migrationPlan: ke store
+        // yang tidak punya version history akan menyebabkan SwiftData gagal init atau
+        // corrupt persistent history (entity not found saat restore).
+        //
+        // Cara aktifkan migration (saat benar-benar perlu tambah field baru):
+        //   1. Buat AppSchemaV2 di AppMigrationPlan.swift
+        //   2. Tambah .lightweight(from: AppSchemaV1.self, to: AppSchemaV2.self) ke stages
+        //   3. Ganti ModelContainer(for:) menjadi ModelContainer(migrationPlan:configurations:)
+        //      — HANYA setelah seluruh user base sudah di versi yang punya AppSchemaV1
+        let schema = Schema(AppSchemaV1.models)
+        let config = ModelConfiguration(schema: schema, url: storeURL)
 
         do {
-            container = try ModelContainer(
-                migrationPlan: AppMigrationPlan.self,
-                configurations: config
-            )
+            container = try ModelContainer(for: schema, configurations: config)
         } catch {
             print("⚠️ MyFinance: persistent store gagal (\(error)). Fallback ke in-memory store.")
             do {
-                let fallbackConfig = ModelConfiguration(isStoredInMemoryOnly: true)
-                container = try ModelContainer(
-                    migrationPlan: AppMigrationPlan.self,
-                    configurations: fallbackConfig
-                )
+                let fallbackConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                container = try ModelContainer(for: schema, configurations: fallbackConfig)
             } catch {
                 fatalError("Failed to create even in-memory ModelContainer: \(error)")
             }
