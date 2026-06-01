@@ -42,8 +42,9 @@ extension AppTheme {
         accentDark: Color(hex: "#16A34A"),
         danger: Color(hex: "#EF4444"),
         dangerDark: Color(hex: "#B91C1C"),
-        pemasukan: Color(hex: "#22C55E"),
-        pengeluaran: Color(hex: "#EF4444"),
+        // System colors adapt to Increase Contrast & color-blind accessibility settings
+        pemasukan: Color(.systemGreen),
+        pengeluaran: Color(.systemRed),
         separator: Color.white.opacity(0.08),
         cardBorder: Color.white.opacity(0.10),
         colorScheme: .dark,
@@ -64,8 +65,9 @@ extension AppTheme {
         accentDark: Color(hex: "#00927B"),
         danger: Color(hex: "#FF5A78"),
         dangerDark: Color(hex: "#D63A57"),
+        // Teal brand color for income (intentional for cerah theme); system red adapts to accessibility
         pemasukan: Color(hex: "#00C4A6"),
-        pengeluaran: Color(hex: "#FF5A78"),
+        pengeluaran: Color(.systemRed),
         separator: Color(hex: "#00C4A6").opacity(0.12),
         cardBorder: Color(hex: "#00C4A6").opacity(0.18),
         colorScheme: .light,

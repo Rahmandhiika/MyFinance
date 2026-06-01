@@ -380,6 +380,14 @@ final class BackupService {
     func restore(data: Data, context: ModelContext) throws -> RestoreSummary {
         let backup = try decoder.decode(BackupFile.self, from: data)
 
+        // Validasi schema version
+        if backup.schemaVersion > schemaVersion {
+            // File dari versi app yang lebih baru — coba restore tapi warn
+            print("⚠️ BackupService: file schema v\(backup.schemaVersion) > app schema v\(schemaVersion). Beberapa field mungkin tidak ter-restore.")
+        } else if backup.schemaVersion < 1 {
+            throw BackupError.invalidSchema(version: backup.schemaVersion)
+        }
+
         // 1. Hapus semua data lama
         try context.delete(model: SimpanKeTarget.self)
         try context.delete(model: Transaksi.self)
@@ -605,6 +613,10 @@ final class BackupService {
 
         try context.save()
 
+        let schemaWarning: String? = backup.schemaVersion > schemaVersion
+            ? "File dari versi app lebih baru (schema v\(backup.schemaVersion)). Beberapa data mungkin tidak ter-restore sepenuhnya."
+            : nil
+
         return RestoreSummary(
             pocket: backup.pocket.count,
             kategori: backup.kategori.count,
@@ -615,7 +627,8 @@ final class BackupService {
             portofolioConfig: backup.portofolioConfigs.count,
             target: backup.target.count,
             simpanKeTarget: backup.target.reduce(0) { $0 + $1.riwayat.count },
-            netWorthSnapshots: backup.netWorthSnapshots.count
+            netWorthSnapshots: backup.netWorthSnapshots.count,
+            schemaWarning: schemaWarning
         )
     }
 
@@ -789,4 +802,19 @@ struct RestoreSummary {
     let target: Int
     let simpanKeTarget: Int
     let netWorthSnapshots: Int
+    /// Non-nil jika schema version file > versi app saat ini
+    let schemaWarning: String?
+}
+
+// MARK: - BackupError
+
+enum BackupError: LocalizedError {
+    case invalidSchema(version: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidSchema(let v):
+            return "File backup tidak valid (schema v\(v)). Pastikan file tidak corrupt."
+        }
+    }
 }

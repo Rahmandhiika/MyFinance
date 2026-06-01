@@ -334,6 +334,7 @@ struct BackupRestoreView: View {
                 let summary = try BackupService.shared.restore(data: data, context: context)
                 await MainActor.run {
                     isProcessing = false
+                    let warning = summary.schemaWarning.map { "\n\n⚠️ \($0)" } ?? ""
                     showSuccess(
                         "Import berhasil!\n" +
                         "• \(summary.pocket) pocket\n" +
@@ -343,7 +344,8 @@ struct BackupRestoreView: View {
                         "• \(summary.aset) aset\n" +
                         "• \(summary.target) target (\(summary.simpanKeTarget) riwayat)\n" +
                         "• \(summary.langganan) bills\n" +
-                        "• \(summary.netWorthSnapshots) snapshot net worth"
+                        "• \(summary.netWorthSnapshots) snapshot net worth" +
+                        warning
                     )
                 }
             } catch {
