@@ -37,6 +37,10 @@ struct TransaksiTabView: View {
     @State private var selectedItem: AnyTransaksiItem? = nil
     @State private var showPemasukanSheet = false
     @State private var showPengeluaranSheet = false
+    /// Hasil filter+sort yang di-cache — tidak dihitung ulang setiap SwiftUI render.
+    @State private var cachedItems: [AnyTransaksiItem] = []
+    /// Debounce task untuk search — keystroke cepat tidak trigger sort tiap huruf.
+    @State private var searchDebounceTask: Task<Void, Never>? = nil
 
     // MARK: - Single-pass computed stats
     // Previously: 5 separate O(n) passes over filteredTransaksi.
@@ -49,10 +53,6 @@ struct TransaksiTabView: View {
         var pengeluaranList:  [Transaksi] = []
         var perKategori:  [(Kategori, Decimal)] = []
         var bersih: Decimal { pemasukan - pengeluaran }
-    }
-
-    private var filteredTransfer: [TransferInternal] {
-        allTransfer.filter { $0.tanggal.isSameMonth(as: selectedMonth) }
     }
 
     private var txStats: TxStats {
@@ -82,30 +82,45 @@ struct TransaksiTabView: View {
         Calendar.current.isDate(selectedMonth, equalTo: Date(), toGranularity: .month)
     }
 
-    private var searchedItems: [AnyTransaksiItem] {
+    /// Hitung items sekali lalu simpan ke cachedItems.
+    /// Dipanggil dari onChange / task — bukan dari body.
+    private func rebuildItems() {
         let stats = txStats
-        let lower = searchText.lowercased()
+        let text  = searchText
+        let lower = text.lowercased()
+        let month = selectedMonth
 
         let transaksiItems = (stats.pemasukanList + stats.pengeluaranList)
             .filter { t in
-                guard !searchText.isEmpty else { return true }
+                guard !text.isEmpty else { return true }
                 return (t.kategori?.nama.lowercased().contains(lower) ?? false)
                     || (t.catatan?.lowercased().contains(lower) ?? false)
             }.map { AnyTransaksiItem.transaksi($0) }
 
-        let transferItems = filteredTransfer.filter { t in
-            guard !searchText.isEmpty else { return true }
-            return (t.pocketAsal?.nama.lowercased().contains(lower) ?? false)
-                || (t.pocketTujuan?.nama.lowercased().contains(lower) ?? false)
-                || (t.catatan?.lowercased().contains(lower) ?? false)
-        }.map { AnyTransaksiItem.transfer($0) }
+        let transferItems = allTransfer
+            .filter { $0.tanggal.isSameMonth(as: month) }
+            .filter { t in
+                guard !text.isEmpty else { return true }
+                return (t.pocketAsal?.nama.lowercased().contains(lower) ?? false)
+                    || (t.pocketTujuan?.nama.lowercased().contains(lower) ?? false)
+                    || (t.catatan?.lowercased().contains(lower) ?? false)
+            }.map { AnyTransaksiItem.transfer($0) }
 
-        return (transaksiItems + transferItems).sorted { $0.date > $1.date }
+        cachedItems = (transaksiItems + transferItems).sorted { $0.date > $1.date }
+    }
+
+    private func rebuildDebounced() {
+        searchDebounceTask?.cancel()
+        searchDebounceTask = Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            rebuildItems()
+        }
     }
 
     private var groupedItems: [(Date, [AnyTransaksiItem])] {
         let cal = Calendar.current
-        let dict = Dictionary(grouping: searchedItems) { item in
+        let dict = Dictionary(grouping: cachedItems) { item in
             cal.startOfDay(for: item.date)
         }
         return dict.keys.sorted(by: >).map { key in
@@ -239,6 +254,14 @@ struct TransaksiTabView: View {
                     accent: .red
                 )
             }
+            // Memoization triggers:
+            // searchText → debounce 150ms (tidak sort tiap keystroke)
+            // bulan/data berubah → rebuild langsung
+            .task { rebuildItems() }
+            .onChange(of: searchText)        { _, _ in rebuildDebounced() }
+            .onChange(of: selectedMonth)     { _, _ in rebuildItems() }
+            .onChange(of: allTransaksi.count){ _, _ in rebuildItems() }
+            .onChange(of: allTransfer.count) { _, _ in rebuildItems() }
         }
     }
 
