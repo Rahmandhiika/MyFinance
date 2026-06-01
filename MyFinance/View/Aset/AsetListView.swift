@@ -1106,23 +1106,29 @@ private struct AsetValueColumn: View {
                     .foregroundStyle(theme.textPrimary).lineLimit(1)
             }
 
-            // P&L — sahamAS tampil dua baris: USD + IDR
+            // P&L + % return
+            let pctStr = String(format: "%+.1f%%", aset.returnPersen)
             if aset.tipe == .sahamAS, let pnlUSD = aset.pnlAsingDisplay {
-                // Baris 1: USD P&L
                 HStack(spacing: 3) {
                     Image(systemName: arrow).font(.system(size: 9, weight: .bold))
                     Text(pnlUSD).font(.caption2.weight(.semibold))
                 }
                 .foregroundStyle(pnlColor)
-                // Baris 2: IDR P&L
-                Text("\(aset.pnl >= 0 ? "+" : "")\(aset.pnl.shortFormatted)")
-                    .font(.caption2)
-                    .foregroundStyle(pnlColor.opacity(0.7))
+                HStack(spacing: 3) {
+                    Text("\(aset.pnl >= 0 ? "+" : "")\(aset.pnl.shortFormatted)")
+                    Text("·")
+                    Text(pctStr)
+                }
+                .font(.caption2)
+                .foregroundStyle(pnlColor.opacity(0.8))
             } else {
                 HStack(spacing: 3) {
                     Image(systemName: arrow).font(.system(size: 9, weight: .bold))
                     Text("\(aset.pnl >= 0 ? "+" : "")\(aset.pnl.shortFormatted)")
                         .font(.caption2.weight(.semibold))
+                    Text(pctStr)
+                        .font(.caption2)
+                        .foregroundStyle(pnlColor.opacity(0.7))
                 }
                 .foregroundStyle(pnlColor)
             }

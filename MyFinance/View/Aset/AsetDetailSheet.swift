@@ -611,6 +611,33 @@ struct AsetDetailSheet: View {
             DetailRow(label: "Total Investasi", value: totalInv.idrDecimalFormatted)
             Divider().background(theme.separator)
         }
+        // Return % dan P&L — hanya tampil kalau ada modal dan NAV terkini
+        if aset.totalInvestasiReksadana != nil && aset.navSaatIni != nil {
+            let pnl    = aset.pnl
+            let pct    = aset.returnPersen
+            let isPos  = pnl >= 0
+            let color  = isPos ? theme.pemasukan : theme.pengeluaran
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Return")
+                        .font(.subheadline).foregroundStyle(theme.textSecondary)
+                    HStack(spacing: 6) {
+                        Text("\(isPos ? "+" : "")\(pnl.idrDecimalFormatted)")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(color)
+                        Text("(\(String(format: "%+.2f%%", pct)))")
+                            .font(.caption)
+                            .foregroundStyle(color.opacity(0.8))
+                    }
+                }
+                Spacer()
+                Image(systemName: isPos ? "arrow.up.right.circle.fill" : "arrow.down.right.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(color)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            Divider().background(theme.separator)
+        }
     }
 
     @ViewBuilder
