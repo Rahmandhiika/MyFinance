@@ -843,18 +843,74 @@ struct AnalitikView: View {
             .padding(4).background(theme.separator).clipShape(RoundedRectangle(cornerRadius: 10))
 
             let activeData = kategoriTab == .pengeluaran ? kategoriDataPengeluaran : kategoriDataPemasukan
-            let activeTotal = kategoriTab == .pengeluaran ? totalPengeluaran : totalPemasukan
             if activeData.isEmpty { emptyChartPlaceholder }
             else {
-                HStack(alignment: .center, spacing: 20) {
-                    donutChart(data: activeData).frame(width: 130, height: 130)
-                    Spacer()
+                // Donut + horizontal bar chart side-by-side
+                HStack(alignment: .center, spacing: 16) {
+                    donutChart(data: activeData).frame(width: 110, height: 110)
+                    // Mini legend
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(activeData.prefix(5).enumerated()), id: \.offset) { _, item in
+                            HStack(spacing: 5) {
+                                Circle()
+                                    .fill(Color(hex: item.kategori?.warna ?? "#6B7280"))
+                                    .frame(width: 8, height: 8)
+                                Text(item.kategori?.nama ?? "Lainnya")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(theme.textPrimary)
+                                    .lineLimit(1)
+                                Spacer()
+                                Text(String(format: "%.0f%%", item.pct))
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(theme.textSecondary)
+                            }
+                        }
+                        if activeData.count > 5 {
+                            Text("+\(activeData.count - 5) lainnya")
+                                .font(.system(size: 10))
+                                .foregroundStyle(theme.textSecondary.opacity(0.6))
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-                VStack(spacing: 8) {
-                    ForEach(Array(activeData.enumerated()), id: \.offset) { _, item in
-                        KategoriAnalitikRow(item: item, total: activeTotal)
+
+                // SwiftCharts horizontal BarMark — menggantikan GeometryReader+Capsule manual
+                Chart(Array(activeData.enumerated()), id: \.offset) { _, item in
+                    BarMark(
+                        x: .value("Jumlah", (item.total as NSDecimalNumber).doubleValue),
+                        y: .value("Kategori", item.kategori?.nama ?? "Lainnya")
+                    )
+                    .foregroundStyle(Color(hex: item.kategori?.warna ?? "#6B7280"))
+                    .cornerRadius(4)
+                    .accessibilityLabel("\(item.kategori?.nama ?? "Lainnya"): \(item.total.shortFormatted) (\(String(format: "%.0f", item.pct))%)")
+                }
+                .chartXAxis {
+                    AxisMarks(values: .automatic(desiredCount: 3)) { val in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                            .foregroundStyle(theme.separator)
+                        AxisValueLabel {
+                            if let v = val.as(Double.self) {
+                                Text(v.shortFormatted)
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(theme.textSecondary)
+                            }
+                        }
                     }
                 }
+                .chartYAxis {
+                    AxisMarks { val in
+                        AxisValueLabel {
+                            if let s = val.as(String.self) {
+                                Text(s)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(theme.textPrimary)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                }
+                .chartBackground { _ in Color.clear }
+                .frame(height: max(CGFloat(activeData.count) * 34, 80))
             }
         }
         .padding(16).background(theme.bgCard).clipShape(RoundedRectangle(cornerRadius: 12))
@@ -1571,30 +1627,7 @@ private struct SummaryCard: View {
     }
 }
 
-private struct KategoriAnalitikRow: View {
-    let item: (kategori: Kategori?, total: Decimal, pct: Double)
-    let total: Decimal
-    @Environment(\.appTheme) private var theme
-
-    var body: some View {
-        VStack(spacing: 4) {
-            HStack(spacing: 8) {
-                Circle().fill(Color(hex: item.kategori?.warna ?? "#6B7280")).frame(width: 10, height: 10)
-                Text(item.kategori?.nama ?? "Lainnya").font(.system(size: 13)).foregroundStyle(theme.textPrimary)
-                Spacer()
-                Text(String(format: "%.1f%%", item.pct)).font(.system(size: 12, weight: .semibold)).foregroundStyle(theme.textSecondary)
-                Text(item.total.shortFormatted).font(.system(size: 13, weight: .semibold)).foregroundStyle(theme.textPrimary).frame(width: 60, alignment: .trailing)
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(theme.separator).frame(height: 4)
-                    Capsule().fill(Color(hex: item.kategori?.warna ?? "#6B7280")).frame(width: geo.size.width * CGFloat(item.pct / 100), height: 4)
-                }
-            }
-            .frame(height: 4)
-        }
-    }
-}
+// KategoriAnalitikRow dihapus — digantikan SwiftCharts BarMark di perKategoriSection
 
 private struct LegendDot: View {
     let color: Color; let label: String
