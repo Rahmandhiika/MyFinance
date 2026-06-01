@@ -23,6 +23,22 @@ struct TargetAlokasiSheet: View {
         return Color(hex: "#EF4444")
     }
 
+    /// Rebalancing plan: (label, delta IDR, isAdd)
+    /// Hanya dihitung kalau total target mendekati 100% (valid).
+    private var rebalancingPlan: [(label: String, delta: Double, isAdd: Bool)] {
+        guard abs(totalTarget - 100) <= 2 else { return [] }
+        let totalNilai = alokasiData.reduce(0.0) { $0 + $1.nilai }
+        guard totalNilai > 0 else { return [] }
+        return alokasiData.compactMap { item in
+            let targetPct  = targets[item.label] ?? 0
+            let targetNilai = totalNilai * targetPct / 100
+            let delta = targetNilai - item.nilai
+            // Tampilkan hanya kalau delta > 1% total portfolio (hindari noise)
+            guard abs(delta) / totalNilai > 0.01 else { return nil }
+            return (label: item.label, delta: abs(delta), isAdd: delta > 0)
+        }.sorted { $0.delta > $1.delta }
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -31,6 +47,7 @@ struct TargetAlokasiSheet: View {
                     VStack(spacing: 20) {
                         summaryCard
                         targetRows
+                        if !rebalancingPlan.isEmpty { rebalancingCard }
                         hintText
                     }
                     .padding(.horizontal, 20)
@@ -204,6 +221,68 @@ struct TargetAlokasiSheet: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
+    }
+
+    // MARK: - Rebalancing Card
+
+    private var rebalancingCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Rencana Rebalancing", systemImage: "arrow.left.arrow.right.circle.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color(hex: "#60A5FA"))
+
+            Text("Untuk mencapai target alokasi, berikut langkah yang perlu dilakukan:")
+                .font(.caption)
+                .foregroundStyle(theme.textSecondary)
+
+            VStack(spacing: 8) {
+                ForEach(rebalancingPlan, id: \.label) { item in
+                    HStack(spacing: 10) {
+                        Image(systemName: item.isAdd
+                              ? "plus.circle.fill"
+                              : "minus.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(item.isAdd
+                                ? Color(.systemGreen)
+                                : Color(hex: "#F59E0B"))
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.label)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(theme.textPrimary)
+                            Text(item.isAdd ? "Tambah investasi" : "Kurangi / tidak tambah dulu")
+                                .font(.caption2)
+                                .foregroundStyle(theme.textSecondary)
+                        }
+
+                        Spacer()
+
+                        Text(formatIDR(item.delta))
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(item.isAdd
+                                ? Color(.systemGreen)
+                                : Color(hex: "#F59E0B"))
+                    }
+                    .padding(10)
+                    .background(
+                        (item.isAdd ? Color(.systemGreen) : Color(hex: "#F59E0B"))
+                            .opacity(0.07)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+            }
+        }
+        .padding(14)
+        .background(Color(hex: "#60A5FA").opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: "#60A5FA").opacity(0.2), lineWidth: 1))
+    }
+
+    /// Format Double ke string IDR singkat (jt / rb)
+    private func formatIDR(_ value: Double) -> String {
+        if value >= 1_000_000 { return String(format: "Rp %.1fjt", value / 1_000_000) }
+        if value >= 1_000     { return String(format: "Rp %.0frb", value / 1_000) }
+        return String(format: "Rp %.0f", value)
     }
 
     // MARK: - Hint Text
