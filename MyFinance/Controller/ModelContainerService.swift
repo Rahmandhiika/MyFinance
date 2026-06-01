@@ -7,38 +7,34 @@ class ModelContainerService {
     let container: ModelContainer
 
     private init() {
-        let schema = Schema([
-            Pocket.self,
-            KategoriPocket.self,
-            Transaksi.self,
-            TransferInternal.self,
-            Kategori.self,
-            Target.self,
-            SimpanKeTarget.self,
-            Aset.self,
-            Anggaran.self,
-            Langganan.self,
-            PembayaranLangganan.self,
-            UserProfile.self,
-            PortofolioConfig.self,
-            NetWorthSnapshot.self,
-            SavedAIInsight.self
-        ])
-
         let storeURL = URL.applicationSupportDirectory
             .appendingPathComponent("myfinance.store")
 
-        let config = ModelConfiguration(schema: schema, url: storeURL)
+        // Gunakan AppMigrationPlan agar schema migration ditangani SwiftData secara aman.
+        // Saat menambah field baru ke @Model, cukup daftarkan versi baru di AppMigrationPlan.
+        let config = ModelConfiguration(
+            schema: Schema(AppSchemaV1.models),
+            url: storeURL
+        )
 
         do {
-            container = try ModelContainer(for: schema, configurations: config)
+            container = try ModelContainer(
+                migrationPlan: AppMigrationPlan.self,
+                configurations: config
+            )
         } catch {
             // Persistent store gagal (misal schema migration) — fallback ke in-memory
             // agar app tidak crash. Data tidak akan persist di sesi ini, tapi app tetap jalan.
             print("⚠️ MyFinance: persistent store gagal (\(error)). Fallback ke in-memory store.")
             do {
-                let fallbackConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-                container = try ModelContainer(for: schema, configurations: fallbackConfig)
+                let fallbackConfig = ModelConfiguration(
+                    schema: Schema(AppSchemaV1.models),
+                    isStoredInMemoryOnly: true
+                )
+                container = try ModelContainer(
+                    migrationPlan: AppMigrationPlan.self,
+                    configurations: fallbackConfig
+                )
             } catch {
                 // In-memory pun gagal — baru boleh crash
                 fatalError("Failed to create even in-memory ModelContainer: \(error)")
