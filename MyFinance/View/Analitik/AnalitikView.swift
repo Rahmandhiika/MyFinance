@@ -169,6 +169,10 @@ struct AnalitikView: View {
         .onAppear { cachedCSVURL = buildCSVFileURL() }
         .onChange(of: selectedMonth) { cachedCSVURL = buildCSVFileURL() }
         .onChange(of: allTransaksi.count) { cachedCSVURL = nil }   // invalidate — akan re-gen saat tap
+        // CRITICAL: force full view rebuild saat mode berubah.
+        // Tanpa ini: SwiftUI mencoba animated-diff semua charts sekaligus →
+        // attribute graph recursive overflow → crash di CanvasDisplayList.updateValue()
+        .id(useSiklusGajian)
     }
 
     // MARK: - Month Navigator
