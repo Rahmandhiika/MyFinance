@@ -258,7 +258,8 @@ struct BackupRestoreView: View {
                         "• \(summary.transfer) transfer\n" +
                         "• \(summary.aset) aset\n" +
                         "• \(summary.target) target (\(summary.simpanKeTarget) riwayat)\n" +
-                        "• \(summary.langganan) bills"
+                        "• \(summary.langganan) bills\n" +
+                        "• \(summary.netWorthSnapshots) snapshot net worth"
                     )
                 }
             } catch {

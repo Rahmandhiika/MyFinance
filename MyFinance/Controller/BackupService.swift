@@ -15,6 +15,7 @@ struct BackupFile: Codable {
     let langganan: [LanggananDTO]
     let portofolioConfigs: [PortofolioConfigDTO]
     let target: [TargetDTO]
+    let netWorthSnapshots: [NetWorthSnapshotDTO]   // v3 — histori net worth bulanan
 }
 
 // Backward-compat: pindah init(from:) ke extension supaya memberwise init tetap ada
@@ -30,8 +31,10 @@ extension BackupFile {
         transferInternal = try c.decode([TransferInternalDTO].self, forKey: .transferInternal)
         aset             = try c.decode([AsetDTO].self, forKey: .aset)
         langganan        = (try? c.decode([LanggananDTO].self, forKey: .langganan)) ?? []
-        portofolioConfigs = (try? c.decode([PortofolioConfigDTO].self, forKey: .portofolioConfigs)) ?? []
-        target           = (try? c.decode([TargetDTO].self, forKey: .target)) ?? []
+        portofolioConfigs    = (try? c.decode([PortofolioConfigDTO].self,    forKey: .portofolioConfigs))    ?? []
+        target               = (try? c.decode([TargetDTO].self,               forKey: .target))               ?? []
+        // v3 field — opsional agar backup lama (v1/v2) tetap bisa di-restore
+        netWorthSnapshots    = (try? c.decode([NetWorthSnapshotDTO].self,     forKey: .netWorthSnapshots))    ?? []
     }
 }
 
@@ -103,6 +106,19 @@ struct SimpanKeTargetDTO: Codable {
     let tanggal: Date
     let nominal: String
     let catatan: String?
+    let createdAt: Date
+}
+
+/// DTO untuk histori net worth bulanan.
+/// Decimal disimpan sebagai String agar presisi terjaga saat encode/decode JSON.
+struct NetWorthSnapshotDTO: Codable {
+    let bulan: Int
+    let tahun: Int
+    let cash: String
+    let totalAset: String
+    let hutang: String
+    let danaTersimpan: String
+    let totalKekayaan: String
     let createdAt: Date
 }
 
@@ -299,7 +315,7 @@ extension AsetDTO {
 
 final class BackupService {
     static let shared = BackupService()
-    private let schemaVersion = 2
+    private let schemaVersion = 3
 
     private let encoder: JSONEncoder = {
         let e = JSONEncoder()
@@ -326,6 +342,9 @@ final class BackupService {
         let langganan         = try context.fetch(FetchDescriptor<Langganan>(sortBy: [SortDescriptor(\.urutan)]))
         let portofolioConfigs = try context.fetch(FetchDescriptor<PortofolioConfig>(sortBy: [SortDescriptor(\.urutan)]))
         let targets           = try context.fetch(FetchDescriptor<Target>())
+        let snapshots         = try context.fetch(FetchDescriptor<NetWorthSnapshot>(
+            sortBy: [SortDescriptor(\.tahun), SortDescriptor(\.bulan)]
+        ))
 
         let backup = BackupFile(
             schemaVersion: schemaVersion,
@@ -338,7 +357,8 @@ final class BackupService {
             aset: aset.map(mapAset),
             langganan: langganan.map(mapLangganan),
             portofolioConfigs: portofolioConfigs.map { PortofolioConfigDTO(nama: $0.nama, warna: $0.warna, urutan: $0.urutan) },
-            target: targets.map(mapTarget)
+            target: targets.map(mapTarget),
+            netWorthSnapshots: snapshots.map(mapSnapshot)
         )
         return try encoder.encode(backup)
     }
@@ -360,6 +380,7 @@ final class BackupService {
         try context.delete(model: Kategori.self)
         try context.delete(model: Pocket.self)
         try context.delete(model: PortofolioConfig.self)
+        try context.delete(model: NetWorthSnapshot.self)
         try context.save()
 
         // 2. KategoriPocket
@@ -556,6 +577,20 @@ final class BackupService {
             context.insert(l)
         }
 
+        // 13. NetWorthSnapshot (v3+) — lewati saja kalau backup lama tidak punya
+        for dto in backup.netWorthSnapshots {
+            let snap = NetWorthSnapshot(
+                bulan:         dto.bulan,
+                tahun:         dto.tahun,
+                cash:          Decimal(string: dto.cash)          ?? 0,
+                totalAset:     Decimal(string: dto.totalAset)     ?? 0,
+                hutang:        Decimal(string: dto.hutang)        ?? 0,
+                danaTersimpan: Decimal(string: dto.danaTersimpan) ?? 0
+            )
+            snap.createdAt = dto.createdAt
+            context.insert(snap)
+        }
+
         try context.save()
 
         return RestoreSummary(
@@ -567,7 +602,8 @@ final class BackupService {
             langganan: backup.langganan.count,
             portofolioConfig: backup.portofolioConfigs.count,
             target: backup.target.count,
-            simpanKeTarget: backup.target.reduce(0) { $0 + $1.riwayat.count }
+            simpanKeTarget: backup.target.reduce(0) { $0 + $1.riwayat.count },
+            netWorthSnapshots: backup.netWorthSnapshots.count
         )
     }
 
@@ -670,6 +706,19 @@ final class BackupService {
         )
     }
 
+    private func mapSnapshot(_ s: NetWorthSnapshot) -> NetWorthSnapshotDTO {
+        NetWorthSnapshotDTO(
+            bulan:         s.bulan,
+            tahun:         s.tahun,
+            cash:          "\(s.cash)",
+            totalAset:     "\(s.totalAset)",
+            hutang:        "\(s.hutang)",
+            danaTersimpan: "\(s.danaTersimpan)",
+            totalKekayaan: "\(s.totalKekayaan)",
+            createdAt:     s.createdAt
+        )
+    }
+
     private func mapAset(_ a: Aset) -> AsetDTO {
         AsetDTO(
             tipe: a.tipe.rawValue,
@@ -727,4 +776,5 @@ struct RestoreSummary {
     let portofolioConfig: Int
     let target: Int
     let simpanKeTarget: Int
+    let netWorthSnapshots: Int
 }
