@@ -11,11 +11,10 @@ class ModelContainerService {
             .appendingPathComponent("myfinance.store")
 
         // Gunakan AppMigrationPlan agar schema migration ditangani SwiftData secara aman.
-        // Saat menambah field baru ke @Model, cukup daftarkan versi baru di AppMigrationPlan.
-        let config = ModelConfiguration(
-            schema: Schema(AppSchemaV1.models),
-            url: storeURL
-        )
+        // PENTING: ModelConfiguration TIDAK boleh punya schema: eksplisit saat migrationPlan
+        // dipakai — SwiftData derives schema otomatis dari plan's latest VersionedSchema.
+        // Jika schema: diset di config DAN di plan, SwiftData throw configurationSchemaNotFound.
+        let config = ModelConfiguration(url: storeURL)
 
         do {
             container = try ModelContainer(
@@ -23,20 +22,14 @@ class ModelContainerService {
                 configurations: config
             )
         } catch {
-            // Persistent store gagal (misal schema migration) — fallback ke in-memory
-            // agar app tidak crash. Data tidak akan persist di sesi ini, tapi app tetap jalan.
             print("⚠️ MyFinance: persistent store gagal (\(error)). Fallback ke in-memory store.")
             do {
-                let fallbackConfig = ModelConfiguration(
-                    schema: Schema(AppSchemaV1.models),
-                    isStoredInMemoryOnly: true
-                )
+                let fallbackConfig = ModelConfiguration(isStoredInMemoryOnly: true)
                 container = try ModelContainer(
                     migrationPlan: AppMigrationPlan.self,
                     configurations: fallbackConfig
                 )
             } catch {
-                // In-memory pun gagal — baru boleh crash
                 fatalError("Failed to create even in-memory ModelContainer: \(error)")
             }
         }
