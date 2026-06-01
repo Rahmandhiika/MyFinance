@@ -41,14 +41,6 @@ struct HomeView: View {
     // MARK: - Profile
     private var profile: UserProfile? { profiles.first }
 
-    // Cached formatter untuk deadline goalCard — static agar tidak re-alloc per render
-    private static let goalDeadlineFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "id_ID")
-        f.dateFormat = "dd MMM yyyy"
-        return f
-    }()
-
     // MARK: - Month Stats (single-pass — computes all tx-derived values in one loop)
 
     private struct MonthStats {
@@ -209,7 +201,7 @@ struct HomeView: View {
                             anggaranSection(angg, stats: stats, totalAnggaran: totalAngg, totalTerpakai: totalTerp)
                         }
                         if !activeTargets.isEmpty {
-                            goalsSection
+                            HomeGoalsSection(targets: activeTargets, hideBalance: hideBalance)
                         }
                         LanggananBulanIniCard()
                             .padding(.horizontal)
@@ -217,10 +209,16 @@ struct HomeView: View {
                             .padding(.horizontal)
                         if isCurrentMonth {
                             if !stats.kategoriTeratas.isEmpty {
-                                kategoriTeratSection(stats)
+                                HomeKategoriTeratSection(
+                                    kategoriTeratas: stats.kategoriTeratas,
+                                    hideBalance: hideBalance
+                                )
                             }
                             if !stats.terbaru.isEmpty {
-                                terbarSection(stats)
+                                HomeTerbarSection(
+                                    terbaru: stats.terbaru,
+                                    hideBalance: hideBalance
+                                )
                             }
                         } else {
                             if !stats.semuaKategori.isEmpty {
@@ -420,8 +418,8 @@ struct HomeView: View {
     // MARK: - Shortcut Row
     private var shortcutRow: some View {
         HStack(spacing: 12) {
-            NavigationLink(destination: AnalitikView()) {
-                shortcutCard(label: "Analitik", icon: "chart.bar.fill", color: Color(hex: "#A78BFA"))
+            NavigationLink(destination: AIAdvisorView()) {
+                shortcutCard(label: "Advisor", icon: "brain.head.profile", color: Color(hex: "#A78BFA"))
             }
             NavigationLink(destination: TargetListView()) {
                 shortcutCard(label: "Wishlist", icon: "heart.fill", color: theme.accent)
@@ -698,241 +696,7 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Goals Section
-    private var goalsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader(label: "WISHLIST AKTIF", icon: "heart.fill")
-
-            ForEach(activeTargets) { target in
-                goalCard(target: target)
-            }
-        }
-        .padding(.horizontal)
-    }
-
-    private func goalCard(target: Target) -> some View {
-        let targetColor = Color(hex: target.warna)
-        let pct = target.progressPersen
-        let hasFoto = target.fotoData != nil
-
-        return ZStack(alignment: .bottom) {
-            // Background foto atau solid
-            if let data = target.fotoData, let uiImg = UIImage(data: data) {
-                Image(uiImage: uiImg)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 140)
-                    .clipped()
-            } else {
-                theme.bgCard
-            }
-
-            // Gradient overlay kalau ada foto
-            if hasFoto {
-                LinearGradient(
-                    colors: [Color.black.opacity(0), Color.black.opacity(0.55), Color.black.opacity(0.88)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            }
-
-            // Konten
-            VStack(alignment: .leading, spacing: 10) {
-                // Header: ikon + nama
-                HStack {
-                    ZStack {
-                        Circle()
-                            .fill(hasFoto ? Color.black.opacity(0.3) : targetColor.opacity(0.2))
-                            .frame(width: 36, height: 36)
-                        if let emoji = target.ikonCustom {
-                            Text(emoji).font(.system(size: 16))
-                        } else {
-                            Image(systemName: target.ikon)
-                                .foregroundStyle(hasFoto ? .white : targetColor)
-                                .font(.system(size: 14))
-                        }
-                    }
-                    HStack(alignment: .center, spacing: 6) {
-                        Text(target.nama)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(hasFoto ? .white : theme.textPrimary)
-                            .lineLimit(1)
-                            .shadow(color: hasFoto ? .black.opacity(0.6) : .clear, radius: 3)
-                        if target.jenisTarget == .investasi {
-                            HStack(spacing: 3) {
-                                Image(systemName: "chart.line.uptrend.xyaxis")
-                                    .font(.system(size: 9, weight: .semibold))
-                                Text(target.linkedAset?.tipe.displayName ?? "Investasi")
-                                    .font(.system(size: 9, weight: .semibold))
-                            }
-                            .foregroundStyle(hasFoto ? .white : theme.accent)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(hasFoto ? Color.white.opacity(0.2) : theme.accent.opacity(0.12))
-                            .clipShape(Capsule())
-                        }
-                        Spacer()
-                    }
-                }
-
-                // Progress
-                HStack {
-                    Text(String(format: "%.0f%%", pct))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(hasFoto ? .white : targetColor)
-                    Text("•").font(.caption).foregroundStyle(hasFoto ? .white.opacity(0.4) : theme.textSecondary)
-                    Text(masked("\(target.tersimpan.shortFormatted) / \(target.targetNominal.shortFormatted)"))
-                        .font(.caption)
-                        .foregroundStyle(hasFoto ? .white.opacity(0.8) : theme.textSecondary)
-                }
-
-                ProgressBarView(
-                    progress: pct / 100,
-                    color: hasFoto ? .white : targetColor,
-                    height: 6
-                )
-                .opacity(hasFoto ? 0.85 : 1)
-
-                if let deadline = target.deadline {
-                    let daysLeft = Calendar.current.dateComponents([.day], from: Date(), to: deadline).day ?? 0
-                    let deadlineStr = Self.goalDeadlineFormatter.string(from: deadline)
-
-                    Text("Estimasi Kelar: \(deadlineStr) • \(daysLeft) hari")
-                        .font(.caption)
-                        .foregroundStyle(hasFoto ? .white.opacity(0.7) : theme.textSecondary)
-
-                    if target.tersimpan < target.targetNominal && daysLeft > 0 {
-                        let perBulan = (target.targetNominal - target.tersimpan) / Decimal(max(daysLeft / 30, 1))
-                        Text("PERLU MENYISIHKAN: \(masked(perBulan.idrFormatted)) /bln")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(hasFoto ? .white : theme.accent)
-                    }
-                }
-            }
-            .padding(14)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(theme.cardBorder, lineWidth: 1)
-        )
-    }
-
-    // MARK: - Kategori Teratas
-    private func kategoriTeratSection(_ stats: MonthStats) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader(label: "KATEGORI TERATAS", icon: "list.bullet.clipboard.fill")
-
-            let maxAmount = stats.kategoriTeratas.map { $0.1 }.max() ?? 1
-            ForEach(Array(stats.kategoriTeratas.enumerated()), id: \.offset) { _, pair in
-                let (kat, amount) = pair
-                let progress = Double(truncating: (amount / maxAmount) as NSDecimalNumber)
-                HStack(spacing: 10) {
-                    ZStack {
-                        Circle()
-                            .fill(Color(hex: kat.warna).opacity(0.2))
-                            .frame(width: 36, height: 36)
-                        if let emoji = kat.ikonCustom {
-                            Text(emoji)
-                                .font(.system(size: 16))
-                        } else {
-                            Image(systemName: kat.ikon)
-                                .foregroundStyle(Color(hex: kat.warna))
-                                .font(.system(size: 14))
-                        }
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(kat.nama)
-                                .font(.subheadline)
-                                .foregroundStyle(theme.textPrimary)
-                            Spacer()
-                            Text(masked(amount.idrFormatted))
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(theme.pengeluaran)
-                        }
-                        ProgressBarView(progress: progress, color: Color(hex: kat.warna), height: 4)
-                    }
-                }
-            }
-        }
-        .padding(14)
-        .background(theme.bgCard)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(theme.cardBorder, lineWidth: 1)
-        )
-        .padding(.horizontal)
-    }
-
-    // MARK: - Terbaru Section
-    private func terbarSection(_ stats: MonthStats) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader(label: "TERBARU", icon: "clock.fill")
-
-            ForEach(stats.terbaru) { tx in
-                HStack(spacing: 10) {
-                    ZStack {
-                        Circle()
-                            .fill((tx.tipe == .pemasukan ? theme.pemasukan : theme.pengeluaran).opacity(0.15))
-                            .frame(width: 36, height: 36)
-                        if let emoji = tx.kategori?.ikonCustom {
-                            Text(emoji)
-                                .font(.system(size: 16))
-                        } else {
-                            Image(systemName: tx.kategori?.ikon ?? (tx.tipe == .pemasukan ? "arrow.down.circle.fill" : "arrow.up.circle.fill"))
-                                .foregroundStyle(tx.tipe == .pemasukan ? theme.pemasukan : theme.pengeluaran)
-                                .font(.system(size: 14))
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(tx.kategori?.nama ?? (tx.tipe == .pemasukan ? "Pemasukan" : "Pengeluaran"))
-                            .font(.subheadline)
-                            .foregroundStyle(theme.textPrimary)
-                        HStack(spacing: 4) {
-                            Text(tx.tipe == .pemasukan ? "Pemasukan" : "Pengeluaran")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(tx.tipe == .pemasukan ? theme.pemasukan : theme.pengeluaran)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background((tx.tipe == .pemasukan ? theme.pemasukan : theme.pengeluaran).opacity(0.15))
-                                .clipShape(Capsule())
-                            if tx.subTipe != .normal {
-                                Text(tx.subTipe.displayName)
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(accentCyan)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(accentCyan.opacity(0.15))
-                                    .clipShape(Capsule())
-                            }
-                        }
-                    }
-
-                    Spacer()
-
-                    Text(masked((tx.tipe == .pemasukan ? "+" : "-") + tx.nominal.idrFormatted))
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(tx.tipe == .pemasukan ? theme.pemasukan : theme.pengeluaran)
-                }
-                if tx.id != stats.terbaru.last?.id {
-                    Divider().background(theme.separator)
-                }
-            }
-        }
-        .padding(14)
-        .background(theme.bgCard)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(theme.cardBorder, lineWidth: 1)
-        )
-        .padding(.horizontal)
-    }
+    // Goals, KategoriTeras, Terbaru dipindah ke HomeGoalsSection.swift & HomeTransaksiSections.swift
 
     // MARK: - Past Month: Category Analytics
 
